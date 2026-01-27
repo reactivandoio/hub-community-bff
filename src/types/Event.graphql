@@ -16,6 +16,7 @@ type Event {
   updatedAt: String
   documentId: String
   subscription_link: String
+  slug: String
 }
 
 type Query {
@@ -27,6 +28,8 @@ type Query {
   ): PaginatedEvents
 
   event(id: String!): Event
+
+  eventBySlugOrId(slugOrId: String!): Event
 
   # Legacy query for backward compatibility
   findEvents: [Event]
@@ -45,6 +48,7 @@ input EventFilter {
   id: StringFilter
   documentId: StringFilter
   title: StringFilter
+  slug: StringFilter
   start_date: DateFilter
   end_date: DateFilter
   createdAt: DateFilter
