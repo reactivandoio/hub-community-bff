@@ -52,7 +52,7 @@ const findCommunities = async (
   pagination = {},
   search = '',
 ) => {
-  const populate = ['events', 'tags', 'location', 'organizers', 'images'];
+  const populate = ['events', 'tags', 'location', 'organizers', 'images', 'links'];
 
   const query = buildQuery(filters, sort, pagination, search, populate);
   const route = `/communities${query ? `?${query}` : ''}`;
