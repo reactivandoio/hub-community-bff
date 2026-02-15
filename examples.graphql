@@ -203,6 +203,20 @@ query GetUsers {
   }
 }
 
+# 7b. Buscar usuário por username
+query GetUserByUsername($username: String!) {
+  userByUsername(username: $username) {
+    id
+    username
+    email
+    role
+    communities {
+      id
+      title
+    }
+  }
+}
+
 # 8. Buscar comentários recentes
 query GetRecentComments {
   comments(

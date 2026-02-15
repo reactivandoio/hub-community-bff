@@ -5,6 +5,31 @@ dotenv.config();
 const User = {
   User: {
     id: ({ documentId }) => documentId,
+
+    agenda: async (parent, _, { dataSources }) => {
+      if (!parent?.documentId) {
+        return [];
+      }
+      try {
+        const response = await dataSources.managerIntegration.findAgendas({
+          filters: {
+            users_permissions_user: { documentId: parent.documentId },
+          },
+          sort: [],
+          pagination: {},
+          search: '',
+          populate: [
+            'event',
+            'event.images',
+            'talks',
+            'users_permissions_user',
+          ],
+        });
+        return response?.data ?? [];
+      } catch (err) {
+        throw new Error(`Error fetching user agenda: ${err.message}`);
+      }
+    },
   },
 
   Query: {
@@ -32,6 +57,14 @@ const User = {
         return response.data;
       } catch (err) {
         throw new Error(`Error fetching user: ${err.message}`);
+      }
+    },
+
+    userByUsername: async (_, { username }, { dataSources }) => {
+      try {
+        return await dataSources.manager.findUserByUsername(username);
+      } catch (err) {
+        throw new Error(`Error fetching user by username: ${err.message}`);
       }
     },
   },

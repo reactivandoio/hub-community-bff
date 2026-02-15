@@ -236,6 +236,7 @@ query GetTags {
 **Queries:**
 - `users` - Lista paginada de usuários
 - `user(id: String!)` - Usuário específico
+- `userByUsername(username: String!)` - Usuário por username
 
 **Exemplo de uso:**
 ```graphql
@@ -256,6 +257,19 @@ query GetUsers {
         id
         title
       }
+    }
+  }
+}
+
+query GetUserByUsername($username: String!) {
+  userByUsername(username: $username) {
+    id
+    username
+    email
+    role
+    communities {
+      id
+      title
     }
   }
 }

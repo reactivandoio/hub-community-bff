@@ -59,6 +59,7 @@ extend type Query {
   ): PaginatedUsers
 
   user(id: String!): User
+  userByUsername(username: String!): User
 }
 
 extend type Mutation {

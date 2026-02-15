@@ -166,27 +166,42 @@ const findTagById = async (id) => {
 };
 
 // User methods
+// Strapi User: agenda = oneToMany relation with Agenda
+const userPopulate = [
+  'communities',
+  'speaker',
+  'speaker.avatar',
+  'agenda',
+  'agenda.event',
+];
+
 const findUsers = async (
   filters = {},
   sort = [],
   pagination = {},
   search = '',
 ) => {
-  const populate = ['communities'];
-
-  const query = buildQuery(filters, sort, pagination, search, populate);
+  const query = buildQuery(filters, sort, pagination, search, userPopulate);
   const route = `/users${query ? `?${query}` : ''}`;
 
   return fetch(route, 'GET');
 };
 
 const findUserById = async (id) => {
-  const populate = ['communities'];
-
-  const query = buildQuery({}, [], {}, '', populate);
+  const query = buildQuery({}, [], {}, '', userPopulate);
   const route = `/users/${id}${query ? `?${query}` : ''}`;
 
   return fetch(route, 'GET');
+};
+
+const findUserByUsername = async (username) => {
+  const filters = { username: { eq: username } };
+  const pagination = { pageSize: 1 };
+  const query = buildQuery(filters, [], pagination, '', userPopulate);
+  const route = `/users${query ? `?${query}` : ''}`;
+  const response = await fetch(route, 'GET');
+  const first = response?.data?.[0] ?? null;
+  return first;
 };
 
 // Comment methods
@@ -352,6 +367,7 @@ export default () => ({
   // Users
   findUsers,
   findUserById,
+  findUserByUsername,
   // Comments
   findComments,
   findCommentById,
