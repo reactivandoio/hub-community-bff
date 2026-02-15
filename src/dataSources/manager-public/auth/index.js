@@ -20,7 +20,7 @@ function signUp({ username, email, password }) {
 
 function forwardPassword({ email }) {
   return managerPublicNetworkUtils.fetch(
-    '/auth/send-email-confirmation',
+    '/auth/forgot-password',
     'POST',
     {},
     { email },
