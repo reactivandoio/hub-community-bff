@@ -1,0 +1,11 @@
+type Product {
+  id: String
+  name: String
+  enabled: Boolean
+  batches: [Batch]
+}
+
+input ProductInput {
+  name: String!
+  enabled: Boolean
+}

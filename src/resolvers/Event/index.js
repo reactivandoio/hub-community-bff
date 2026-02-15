@@ -22,6 +22,13 @@ const Event = {
         })
         .filter(Boolean);
     },
+    products: ({ products }) => {
+      if (!products || !Array.isArray(products)) return [];
+      return products.map((product) => ({
+        ...product,
+        batches: product.batches || [],
+      }));
+    },
   },
 
   Query: {
@@ -91,6 +98,72 @@ const Event = {
       comment: 'comment',
       event: { id: eventId },
     }),
+
+    createEvent: async (_, { data }, { dataSources }) => {
+      try {
+        const response = await dataSources.eventandoIntegration.createEvent(data);
+        return response.data;
+      } catch (err) {
+        throw new Error(`Error creating event: ${err.message}`);
+      }
+    },
+
+    updateEvent: async (_, { id, data }, { dataSources }) => {
+      try {
+        const response = await dataSources.eventandoIntegration.updateEvent(
+          id,
+          data,
+        );
+        return response.data;
+      } catch (err) {
+        throw new Error(`Error updating event: ${err.message}`);
+      }
+    },
+
+    deleteEvent: async (_, { id }, { dataSources }) => {
+      try {
+        const response = await dataSources.eventandoIntegration.deleteEvent(id);
+        return response.data;
+      } catch (err) {
+        throw new Error(`Error deleting event: ${err.message}`);
+      }
+    },
+
+    signupToEvent: async (
+      _,
+      { eventId, name, email, batch_id, coupon_code, is_student },
+      { dataSources },
+    ) => {
+      try {
+        const response = await dataSources.eventandoIntegration.signup(eventId, {
+          name,
+          email,
+          batch_id: parseInt(batch_id, 10),
+          coupon_code,
+          is_student,
+        });
+
+        if (response.error) {
+          return {
+            success: false,
+            message: response.error.message || 'Error signing up',
+            payment: null,
+          };
+        }
+
+        return {
+          success: true,
+          message: 'Signed up successfully',
+          payment: response.data,
+        };
+      } catch (err) {
+        return {
+          success: false,
+          message: err.message,
+          payment: null,
+        };
+      }
+    },
   },
 
   Subscription: {

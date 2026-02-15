@@ -1,0 +1,18 @@
+type Batch {
+  id: String
+  batch_number: Int
+  value: Float
+  max_quantity: Int
+  valid_from: String
+  valid_until: String
+  enabled: Boolean
+}
+
+input BatchInput {
+  batch_number: Int!
+  value: Float!
+  max_quantity: Int
+  valid_from: String!
+  valid_until: String!
+  enabled: Boolean
+}
