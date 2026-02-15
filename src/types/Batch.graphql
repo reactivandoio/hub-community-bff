@@ -6,6 +6,7 @@ type Batch {
   valid_from: String
   valid_until: String
   enabled: Boolean
+  half_price_eligible: Boolean
 }
 
 input BatchInput {
@@ -15,4 +16,12 @@ input BatchInput {
   valid_from: String!
   valid_until: String!
   enabled: Boolean
+  half_price_eligible: Boolean
+  product: String!
+}
+
+extend type Mutation {
+  createBatch(data: BatchInput!): Batch
+  updateBatch(id: String!, data: BatchInput!): Batch
+  deleteBatch(id: String!): Batch
 }

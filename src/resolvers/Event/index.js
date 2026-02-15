@@ -131,7 +131,16 @@ const Event = {
 
     signupToEvent: async (
       _,
-      { eventId, name, email, batch_id, coupon_code, is_student },
+      {
+        eventId,
+        name,
+        email,
+        batch_id,
+        coupon_code,
+        is_student,
+        phone_number,
+        t_shirt_size,
+      },
       { dataSources },
     ) => {
       try {
@@ -141,6 +150,8 @@ const Event = {
           batch_id: parseInt(batch_id, 10),
           coupon_code,
           is_student,
+          phone_number,
+          t_shirt_size,
         });
 
         if (response.error) {

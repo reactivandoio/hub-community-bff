@@ -43,6 +43,8 @@ input EventInput {
   end_date: String!
   max_slots: Int
   slug: String
+  pixai_token_integration: String
+  pixai_token_integration_id: String
 }
 
 type Mutation {
@@ -57,6 +59,8 @@ type Mutation {
     batch_id: String!
     coupon_code: String
     is_student: Boolean
+    phone_number: String
+    t_shirt_size: String
   ): SignupResponse
 }
 
