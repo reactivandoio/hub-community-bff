@@ -1,6 +1,6 @@
-import eventandoNetworkUtils from '../../../utils/network/eventando-manager';
+import managerNetworkUtils from '../../../utils/network/manager';
 
-const { fetch, buildQuery } = eventandoNetworkUtils;
+const { fetch, buildQuery } = managerNetworkUtils;
 
 const createEvent = (data, headers) =>
     fetch('/events', 'POST', headers, { data });
@@ -10,24 +10,6 @@ const updateEvent = (id, data, headers) =>
 
 const deleteEvent = (id, headers) =>
     fetch(`/events/${id}`, 'DELETE', headers);
-
-const findEvent = async (id, headers) => {
-    const populate = [
-        'products',
-        'products.batches',
-        'talks.speakers',
-        'talks.speakers.avatar',
-        'images',
-        'communities',
-        'location',
-        'tags',
-    ];
-
-    const query = buildQuery({}, [], {}, '', populate);
-    const route = `/events/${id}${query ? `?${query}` : ''}`;
-
-    return fetch(route, 'GET', headers);
-};
 
 const findEventBySlug = async (slug, headers) => {
     const filters = { slug: { eq: slug } };
@@ -67,7 +49,6 @@ const events = ({ headers }) => ({
     createEvent: (data) => createEvent(data, headers),
     updateEvent: (id, data) => updateEvent(id, data, headers),
     deleteEvent: (id) => deleteEvent(id, headers),
-    findEvent: (id) => findEvent(id, headers),
     findEventBySlug: (slug) => findEventBySlug(slug, headers),
     updateEventBySlug: (slug, data) => updateEventBySlug(slug, data, headers),
     deleteEventBySlug: (slug) => deleteEventBySlug(slug, headers),

@@ -101,8 +101,13 @@ const Event = {
 
     createEvent: async (_, { data }, { dataSources }) => {
       try {
-        const response = await dataSources.eventandoIntegration.createEvent(data);
-        return response.data;
+        // Create in Hub Community Manager
+        const hubResponse = await dataSources.managerIntegration.createEvent(data);
+
+        // Create in Eventando Manager
+        await dataSources.eventandoIntegration.createEvent(data);
+
+        return hubResponse.data;
       } catch (err) {
         throw new Error(`Error creating event: ${err.message}`);
       }
@@ -110,11 +115,24 @@ const Event = {
 
     updateEvent: async (_, { id, data }, { dataSources }) => {
       try {
-        const response = await dataSources.eventandoIntegration.updateEvent(
+        // Find current event to get the slug for orchestration
+        const currentEventResponse = await dataSources.manager.findEventById(id);
+        const slug = currentEventResponse?.data?.attributes?.slug || data.slug;
+
+        if (!slug) {
+          throw new Error('Event slug is required for orchestration');
+        }
+
+        // Update in Hub Community Manager
+        const hubResponse = await dataSources.managerIntegration.updateEvent(
           id,
           data,
         );
-        return response.data;
+
+        // Update in Eventando Manager using slug
+        await dataSources.eventandoIntegration.updateEventBySlug(slug, data);
+
+        return hubResponse.data;
       } catch (err) {
         throw new Error(`Error updating event: ${err.message}`);
       }
@@ -122,8 +140,21 @@ const Event = {
 
     deleteEvent: async (_, { id }, { dataSources }) => {
       try {
-        const response = await dataSources.eventandoIntegration.deleteEvent(id);
-        return response.data;
+        // Find current event to get the slug for orchestration
+        const currentEventResponse = await dataSources.manager.findEventById(id);
+        const slug = currentEventResponse?.data?.attributes?.slug;
+
+        if (!slug) {
+          throw new Error('Event slug is required for orchestration');
+        }
+
+        // Delete from Hub Community Manager
+        const hubResponse = await dataSources.managerIntegration.deleteEvent(id);
+
+        // Delete from Eventando Manager using slug
+        await dataSources.eventandoIntegration.deleteEventBySlug(slug);
+
+        return hubResponse.data;
       } catch (err) {
         throw new Error(`Error deleting event: ${err.message}`);
       }
