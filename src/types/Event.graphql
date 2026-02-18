@@ -18,6 +18,7 @@ type Event {
   subscription_link: String
   slug: String
   products: [Product]
+  max_slots: Int
 }
 
 type Query {

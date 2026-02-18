@@ -28,11 +28,25 @@ const findEvent = async (id, headers) => {
   return fetch(route, 'GET', headers);
 };
 
+const findEvents = (args, headers) => {
+  const {
+    filters = {},
+    sort = [],
+    pagination = {},
+    search = '',
+    populate = [],
+  } = args;
+  const query = buildQuery(filters, sort, pagination, search, populate);
+  const route = `/events${query ? `?${query}` : ''}`;
+  return fetch(route, 'GET', headers);
+};
+
 const events = ({ headers }) => ({
   createEvent: (data) => createEvent(data, headers),
   updateEvent: (id, data) => updateEvent(id, data, headers),
   deleteEvent: (id) => deleteEvent(id, headers),
   findEvent: (id) => findEvent(id, headers),
+  findEvents: (args) => findEvents(args, headers),
 });
 
 export default events;

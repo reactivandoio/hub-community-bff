@@ -61,24 +61,55 @@ const Event = {
     },
 
     eventBySlugOrId: async (_, { slugOrId }, { dataSources }) => {
-      try {
-        // Try to find by slug OR documentId OR id
-        const filters = {
-          or: [
-            { slug: { eq: slugOrId } },
-            { documentId: { eq: slugOrId } },
-            { id: { eq: slugOrId } },
-          ],
-        };
-        const response = await dataSources.manager.findEvents(filters);
+      const managerFilters = {
+        or: [
+          { slug: { eq: slugOrId } },
+          { documentId: { eq: slugOrId } },
+          { id: { eq: slugOrId } },
+        ],
+      };
 
-        if (!response.data || response.data.length === 0) {
+      const eventandoFilters = {
+        or: [
+          { slug: { eq: slugOrId } },
+          { uuid: { eq: slugOrId } },
+          { id: { eq: slugOrId } },
+        ],
+      };
+
+      try {
+        const [managerResult, eventandoResult] = await Promise.allSettled([
+          dataSources.manager.findEvents(managerFilters),
+          dataSources.eventandoIntegration.findEvents({
+            filters: eventandoFilters,
+          }),
+        ]);
+
+        if (managerResult.status === 'rejected') {
+          throw new Error(
+            `Manager API failed: ${managerResult.reason.message}`,
+          );
+        }
+
+        if (eventandoResult.status === 'rejected') {
+          throw new Error(
+            `Eventando API failed: ${eventandoResult.reason.message}`,
+          );
+        }
+
+        const managerEvent = managerResult.value?.data?.[0];
+        const eventandoEvent = eventandoResult.value?.data?.[0];
+
+        if (!managerEvent && !eventandoEvent) {
           throw new Error(`Event with slug or id "${slugOrId}" not found`);
         }
 
-        return response.data[0];
+        return {
+          ...(managerEvent || {}),
+          ...(eventandoEvent || {}),
+        };
       } catch (err) {
-        throw new Error(`Error fetching event: ${err}`);
+        throw new Error(`Error fetching event: ${err.message}`);
       }
     },
 
