@@ -17,6 +17,7 @@ type Event {
   documentId: String
   subscription_link: String
   slug: String
+  products: [Product]
 }
 
 type Query {
@@ -35,8 +36,38 @@ type Query {
   findEvents: [Event]
 }
 
+input EventInput {
+  title: String!
+  description: JSON
+  start_date: String!
+  end_date: String!
+  max_slots: Int
+  slug: String
+  pixai_token_integration: String
+  pixai_token_integration_id: String
+}
+
 type Mutation {
   submitEventComment(eventId: String!): Comment
+  createEvent(data: EventInput!): Event
+  updateEvent(id: String!, data: EventInput!): Event
+  deleteEvent(id: String!): Event
+  signupToEvent(
+    eventId: String!
+    name: String!
+    email: String!
+    batch_id: String!
+    coupon_code: String
+    is_student: Boolean
+    phone_number: String
+    t_shirt_size: String
+  ): SignupResponse
+}
+
+type SignupResponse {
+  success: Boolean
+  message: String
+  payment: JSON
 }
 
 type Subscription {

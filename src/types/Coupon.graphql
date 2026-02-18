@@ -1,0 +1,22 @@
+type Coupon {
+  id: String
+  code: String
+  discount_percentage: Int
+  max_uses: Int
+  event: Event
+  enabled: Boolean
+}
+
+input CouponInput {
+  code: String!
+  discount_percentage: Int!
+  max_uses: Int
+  event: String!
+  enabled: Boolean
+}
+
+extend type Mutation {
+  createCoupon(data: CouponInput!): Coupon
+  updateCoupon(id: String!, data: CouponInput!): Coupon
+  deleteCoupon(id: String!): Coupon
+}

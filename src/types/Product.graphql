@@ -1,0 +1,18 @@
+type Product {
+  id: String
+  name: String
+  enabled: Boolean
+  batches: [Batch]
+}
+
+input ProductInput {
+  name: String!
+  enabled: Boolean
+  event: String!
+}
+
+extend type Mutation {
+  createProduct(data: ProductInput!): Product
+  updateProduct(id: String!, data: ProductInput!): Product
+  deleteProduct(id: String!): Product
+}
