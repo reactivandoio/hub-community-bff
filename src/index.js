@@ -39,9 +39,9 @@ const startServer = async () => {
       schema,
       context: async (ctx) => {
         const headers = {
-          authorization:
-            ctx.connectionParams.authorization
-            || ctx.connectionParams.Authorization,
+          Authorization:
+            ctx.connectionParams.authorization ||
+            ctx.connectionParams.Authorization,
           'accept-language': ctx.connectionParams['accept-language'] || 'pt-br',
         };
 
@@ -95,24 +95,36 @@ const startServer = async () => {
         const acceptLanguage = req.headers['accept-language'] || 'en';
 
         const headers = {
-          authorization: req.headers.authorization || req.headers.Authorization,
+          Authorization: req.headers.authorization || req.headers.Authorization,
           'accept-language': acceptLanguage,
         };
 
-        let user;
+        const dataSourcesInstance = dataSources(headers);
 
-        if (headers.authorization) {
+        let user;
+        let decodedToken;
+
+        if (headers.Authorization) {
           try {
-            user = jwt.decode(headers.authorization);
-          } catch (_) {
-            // do anything
+            decodedToken = jwt.decode(headers.Authorization);
+          } catch (err) {
+            throw new Error(`Error decoding token: ${err.message}`);
+          }
+
+          try {
+            const response = await dataSourcesInstance.managerAuthenticated.me({
+              userId: decodedToken.id,
+            });
+
+            user = response.data;
+          } catch (err) {
+            throw new Error(`Error fetching user: ${err.message}`);
           }
         }
 
         return {
-          token: headers?.authorization?.replace('Bearer ', ''),
           user,
-          dataSources: dataSources(headers),
+          dataSources: dataSourcesInstance,
           acceptLanguage,
         };
       },

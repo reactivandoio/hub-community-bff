@@ -43,6 +43,17 @@ input BooleanFilter {
   ne: Boolean
 }
 
+input FloatFilter {
+  eq: Float
+  ne: Float
+  gt: Float
+  gte: Float
+  lt: Float
+  lte: Float
+  in: [Float]
+  notIn: [Float]
+}
+
 input DateFilter {
   eq: Date
   ne: Date

@@ -1,0 +1,71 @@
+# CommentReply type
+type CommentReply {
+  id: String
+  parent_comment: Comment
+  user_creator: User
+  users_taggeds: [User]
+  message: String
+  createdAt: String
+  updatedAt: String
+}
+
+# CommentReply filters
+input CommentReplyFilter {
+  id: StringFilter
+  documentId: StringFilter
+  message: StringFilter
+  createdAt: DateFilter
+  updatedAt: DateFilter
+  user_creator: UserFilter
+  parent_comment: CommentFilter
+  and: [CommentReplyFilter]
+  or: [CommentReplyFilter]
+}
+
+# CommentReply sort
+input CommentReplySort {
+  id: SortOrder
+  message: SortOrder
+  createdAt: SortOrder
+  updatedAt: SortOrder
+}
+
+# Paginated CommentReply response
+type PaginatedCommentReplies {
+  data: [CommentReply]
+  meta: PaginationInfo
+}
+
+# CommentReply queries
+extend type Query {
+  commentReplies(
+    filters: CommentReplyFilter
+    sort: [CommentReplySort]
+    pagination: PaginationInput
+    search: String
+  ): PaginatedCommentReplies
+  
+  commentReply(id: String!): CommentReply
+}
+
+# CommentReply input types
+input CommentReplyInput {
+  parent_comment: String
+  user_creator: String
+  users_taggeds: [String]
+  message: String!
+}
+
+input CommentReplyUpdateInput {
+  parent_comment: String
+  user_creator: String
+  users_taggeds: [String]
+  message: String
+}
+
+# CommentReply mutations
+extend type Mutation {
+  createCommentReply(input: CommentReplyInput!): CommentReply
+  updateCommentReply(id: String!, input: CommentReplyUpdateInput!): CommentReply
+  deleteCommentReply(id: String!): CommentReply
+}

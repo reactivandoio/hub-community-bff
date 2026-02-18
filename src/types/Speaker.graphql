@@ -8,6 +8,7 @@ type Speaker {
   highlight: Boolean
   avatar: String
   talks: [Talk]
+  user: User
   createdAt: String
   updatedAt: String
 }
@@ -15,6 +16,7 @@ type Speaker {
 # Speaker filters
 input SpeakerFilter {
   id: StringFilter
+  documentId: StringFilter
   name: StringFilter
   highlight: BooleanFilter
   createdAt: DateFilter

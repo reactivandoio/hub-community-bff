@@ -1,8 +1,8 @@
 # Location type
 type Location {
   id: String
-  latitude: Int
-  longitude: Int
+  latitude: Float
+  longitude: Float
   createdAt: String
   updatedAt: String
 
@@ -20,8 +20,9 @@ type Location {
 # Location filters
 input LocationFilter {
   id: StringFilter
-  latitude: IntFilter
-  longitude: IntFilter
+  documentId: StringFilter
+  latitude: FloatFilter
+  longitude: FloatFilter
   title: StringFilter
   city: StringFilter
   region: StringFilter
@@ -61,6 +62,6 @@ extend type Query {
     pagination: PaginationInput
     search: String
   ): PaginatedLocations
-  
+
   location(id: String!): Location
 }

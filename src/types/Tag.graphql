@@ -11,6 +11,7 @@ type Tag {
 # Tag filters
 input TagFilter {
   id: StringFilter
+  documentId: StringFilter
   value: StringFilter
   createdAt: DateFilter
   updatedAt: DateFilter

@@ -1,0 +1,72 @@
+# Rate type
+type Rate {
+  id: String
+  user: User
+  event: Event
+  talk: Talk
+  value: Int
+  createdAt: String
+  updatedAt: String
+}
+
+# Rate filters
+input RateFilter {
+  id: StringFilter
+  documentId: StringFilter
+  value: IntFilter
+  createdAt: DateFilter
+  updatedAt: DateFilter
+  user: UserFilter
+  event: EventFilter
+  talk: TalkFilter
+  and: [RateFilter]
+  or: [RateFilter]
+}
+
+# Rate sort
+input RateSort {
+  id: SortOrder
+  value: SortOrder
+  createdAt: SortOrder
+  updatedAt: SortOrder
+}
+
+# Paginated Rate response
+type PaginatedRates {
+  data: [Rate]
+  meta: PaginationInfo
+}
+
+# Rate queries
+extend type Query {
+  rates(
+    filters: RateFilter
+    sort: [RateSort]
+    pagination: PaginationInput
+    search: String
+  ): PaginatedRates
+  
+  rate(id: String!): Rate
+}
+
+# Rate input types
+input RateInput {
+  user: String
+  event: String
+  talk: String
+  value: Int!
+}
+
+input RateUpdateInput {
+  user: String
+  event: String
+  talk: String
+  value: Int
+}
+
+# Rate mutations
+extend type Mutation {
+  createRate(input: RateInput!): Rate
+  updateRate(id: String!, input: RateUpdateInput!): Rate
+  deleteRate(id: String!): Rate
+}

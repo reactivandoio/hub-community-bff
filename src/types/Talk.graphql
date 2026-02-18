@@ -12,11 +12,14 @@ type Talk {
   event: Event
   createdAt: String
   updatedAt: String
+  documentId: String
+  subtitle: String
 }
 
 # Talk filters
 input TalkFilter {
   id: StringFilter
+  documentId: StringFilter
   title: StringFilter
   occur_date: DateFilter
   room_description: StringFilter
@@ -54,6 +57,6 @@ extend type Query {
     pagination: PaginationInput
     search: String
   ): PaginatedTalks
-  
+
   talk(id: String!): Talk
 }
