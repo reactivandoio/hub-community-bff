@@ -7,7 +7,7 @@ const findEvents = async (
   filters = {},
   sort = [],
   pagination = {},
-  search = ''
+  search = '',
 ) => {
   const populate = [
     'talks.speakers',
@@ -45,7 +45,7 @@ const findCommunities = async (
   filters = {},
   sort = [],
   pagination = {},
-  search = ''
+  search = '',
 ) => {
   const populate = ['events', 'tags', 'location', 'organizers', 'images'];
 
@@ -69,7 +69,7 @@ const findTalks = async (
   filters = {},
   sort = [],
   pagination = {},
-  search = ''
+  search = '',
 ) => {
   const populate = ['speakers', 'speakers.avatar', 'event'];
 
@@ -93,7 +93,7 @@ const findSpeakers = async (
   filters = {},
   sort = [],
   pagination = {},
-  search = ''
+  search = '',
 ) => {
   const populate = ['talks', 'avatar'];
 
@@ -117,9 +117,9 @@ const findLocations = async (
   filters = {},
   sort = [],
   pagination = {},
-  search = ''
+  search = '',
 ) => {
-  const populate = ['events', 'communities'];
+  const populate = [];
 
   const query = buildQuery(filters, sort, pagination, search, populate);
   const route = `/locations${query ? `?${query}` : ''}`;
@@ -128,7 +128,7 @@ const findLocations = async (
 };
 
 const findLocationById = async (id) => {
-  const populate = ['events', 'communities'];
+  const populate = [];
 
   const query = buildQuery({}, [], {}, '', populate);
   const route = `/locations/${id}${query ? `?${query}` : ''}`;
@@ -141,7 +141,7 @@ const findTags = async (
   filters = {},
   sort = [],
   pagination = {},
-  search = ''
+  search = '',
 ) => {
   const populate = ['events', 'communities'];
 
@@ -165,7 +165,7 @@ const findUsers = async (
   filters = {},
   sort = [],
   pagination = {},
-  search = ''
+  search = '',
 ) => {
   const populate = ['communities'];
 
@@ -189,7 +189,7 @@ const findComments = async (
   filters = {},
   sort = [],
   pagination = {},
-  search = ''
+  search = '',
 ) => {
   const populate = ['user', 'event'];
 

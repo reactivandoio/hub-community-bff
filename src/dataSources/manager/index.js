@@ -141,7 +141,7 @@ const findLocations = async (
   pagination = {},
   search = '',
 ) => {
-  const populate = ['events', 'communities'];
+  const populate = [];
 
   const query = buildQuery(filters, sort, pagination, search, populate);
   const route = `/locations${query ? `?${query}` : ''}`;
@@ -150,7 +150,7 @@ const findLocations = async (
 };
 
 const findLocationById = async (id) => {
-  const populate = ['events', 'communities'];
+  const populate = [];
 
   const query = buildQuery({}, [], {}, '', populate);
   const route = `/locations/${id}${query ? `?${query}` : ''}`;

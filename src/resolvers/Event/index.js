@@ -162,13 +162,60 @@ const Event = {
 
     updateEvent: async (_, { id, data }, { dataSources }) => {
       try {
+        const events = await dataSources.eventandoIntegration.findEvents({
+          filters: {
+            or: [{ uuid: { eq: id } }, { id: { eq: id } }],
+          },
+        });
+        const event = events.data[0];
+
+        if (!event) {
+          throw new Error(`Event with id "${id}" not found`);
+        }
+
+        const managerResponse =
+          await dataSources.managerIntegration.updateEvent(id, {
+            title: data.title,
+            description: data.description,
+            start_date: data.start_date,
+            end_date: data.end_date,
+          });
+
+        const eventandoResponse =
+          await dataSources.eventandoIntegration.updateEvent(event.id, {
+            ...data,
+            uuid: managerResponse.data.documentId,
+          });
+
+        return {
+          ...managerResponse.data,
+          ...eventandoResponse.data,
+        };
+      } catch (err) {
+        throw new Error(`Error updating event: ${err.message}`);
+      }
+    },
+
+    updateEventSale: async (_, { id, data }, { dataSources }) => {
+      try {
+        const events = await dataSources.eventandoIntegration.findEvents({
+          filters: {
+            or: [{ uuid: { eq: id } }, { id: { eq: id } }],
+          },
+        });
+        const event = events.data[0];
+
+        if (!event) {
+          throw new Error(`Event with id "${id}" not found`);
+        }
+
         const response = await dataSources.eventandoIntegration.updateEvent(
-          id,
+          event.id,
           data,
         );
         return response.data;
       } catch (err) {
-        throw new Error(`Error updating event: ${err.message}`);
+        throw new Error(`Error updating event sale: ${err.message}`);
       }
     },
 
