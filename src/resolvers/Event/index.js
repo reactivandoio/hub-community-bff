@@ -140,6 +140,7 @@ const Event = {
           description: data.description,
           start_date: data.start_date,
           end_date: data.end_date,
+          location: data.location,
         });
       } catch (err) {
         throw new Error(`Error creating event in manager: ${err.message}`);
@@ -179,6 +180,7 @@ const Event = {
             description: data.description,
             start_date: data.start_date,
             end_date: data.end_date,
+            location: data.location,
           });
 
         const eventandoResponse =

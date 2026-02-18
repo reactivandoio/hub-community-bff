@@ -46,6 +46,7 @@ input EventInput {
   slug: String
   pixai_token_integration: String
   pixai_token_integration_id: String
+  location: String
 }
 
 input BatchSaleInput {
