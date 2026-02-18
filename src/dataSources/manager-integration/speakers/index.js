@@ -24,11 +24,16 @@ const findSpeakers = (args, headers) => {
   return fetch(route, 'GET', headers);
 };
 
+const findSpeakerById = (id, headers) =>
+  fetch(`/speakers/${id}`, 'GET', headers);
+
 const speakers = ({ headers }) => ({
   findSpeakers: (args) => findSpeakers(args, headers),
+  findSpeakerById: (id) => findSpeakerById(id, headers),
   createSpeaker: (data) => createSpeaker(data, headers),
   updateSpeaker: (id, data) => updateSpeaker(id, data, headers),
   deleteSpeaker: (args) => deleteSpeaker(args, headers),
+  deleteSpeakerById: (id) => fetch(`/speakers/${id}`, 'DELETE', headers),
 });
 
 export default speakers;
