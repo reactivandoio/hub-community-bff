@@ -5,7 +5,8 @@ dotenv.config();
 
 const Event = {
   Event: {
-    id: ({ documentId }) => documentId,
+    title: ({ name, title }) => title || name,
+    id: ({ documentId, uuid }) => documentId || uuid,
     images: ({ images }) => {
       if (!images || !Array.isArray(images)) return [];
       return images
@@ -100,11 +101,31 @@ const Event = {
     }),
 
     createEvent: async (_, { data }, { dataSources }) => {
+      let managerResponse;
+
       try {
-        const response = await dataSources.eventandoIntegration.createEvent(data);
+        managerResponse = await dataSources.managerIntegration.createEvent({
+          title: data.title,
+          description: data.description,
+          start_date: data.start_date,
+          end_date: data.end_date,
+        });
+      } catch (err) {
+        throw new Error(`Error creating event in manager: ${err.message}`);
+      }
+
+      try {
+        const { documentId } = managerResponse.data;
+
+        const response = await dataSources.eventandoIntegration.createEvent({
+          ...data,
+          uuid: documentId,
+          name: data.title,
+        });
+
         return response.data;
       } catch (err) {
-        throw new Error(`Error creating event: ${err.message}`);
+        throw new Error(`Error creating event in eventando: ${err.message}`);
       }
     },
 
@@ -144,15 +165,18 @@ const Event = {
       { dataSources },
     ) => {
       try {
-        const response = await dataSources.eventandoIntegration.signup(eventId, {
-          name,
-          email,
-          batch_id: parseInt(batch_id, 10),
-          coupon_code,
-          is_student,
-          phone_number,
-          t_shirt_size,
-        });
+        const response = await dataSources.eventandoIntegration.signup(
+          eventId,
+          {
+            name,
+            email,
+            batch_id: parseInt(batch_id, 10),
+            coupon_code,
+            is_student,
+            phone_number,
+            t_shirt_size,
+          },
+        );
 
         if (response.error) {
           return {

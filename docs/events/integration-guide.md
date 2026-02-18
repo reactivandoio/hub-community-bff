@@ -5,6 +5,7 @@ This guide describes how to interact with the Eventando Manager via the BFF Grap
 ## Core Entities
 
 ### Event
+
 - `title` (String!)
 - `description` (JSON)
 - `start_date` (String!)
@@ -13,13 +14,15 @@ This guide describes how to interact with the Eventando Manager via the BFF Grap
 - `products` (List of `Product`)
 
 ### Product
+
 - `name` (String)
 - `enabled` (Boolean)
 - `batches` (List of `Batch`)
 
 ### Batch
+
 - `batch_number` (Int)
-- `value` (Float) - Price in major units (e.g., 100.00). *Note: The BFF handles conversion to cents for the Manager API if needed.*
+- `value` (Float) - Price in major units (e.g., 100.00). _Note: The BFF handles conversion to cents for the Manager API if needed._
 - `max_quantity` (Int)
 - `valid_from` (String)
 - `valid_until` (String)
@@ -29,9 +32,11 @@ This guide describes how to interact with the Eventando Manager via the BFF Grap
 ## Workflows
 
 ### 1. Creating an Event
+
 Use the `createEvent` mutation.
 
 **Mutation:**
+
 ```graphql
 mutation CreateEvent($data: EventInput!) {
   createEvent(data: $data) {
@@ -43,6 +48,7 @@ mutation CreateEvent($data: EventInput!) {
 ```
 
 **Variables Example:**
+
 ```json
 {
   "data": {
@@ -51,16 +57,17 @@ mutation CreateEvent($data: EventInput!) {
     "end_date": "2026-04-10T18:00:00Z",
     "max_slots": 50,
     "slug": "community-workshop-2026",
-    "pixai_token_integration": "your_token",
-    "pixai_token_integration_id": "your_id"
+    "pixai_token_integration": "your_token"
   }
 }
 ```
 
 ### 2. Creating a Product
+
 Products must be linked to an Event ID.
 
 **Mutation:**
+
 ```graphql
 mutation CreateProduct($data: ProductInput!) {
   createProduct(data: $data) {
@@ -71,6 +78,7 @@ mutation CreateProduct($data: ProductInput!) {
 ```
 
 **Variables Example:**
+
 ```json
 {
   "data": {
@@ -82,9 +90,11 @@ mutation CreateProduct($data: ProductInput!) {
 ```
 
 ### 3. Creating a Batch
+
 Batches must be linked to a Product ID.
 
 **Mutation:**
+
 ```graphql
 mutation CreateBatch($data: BatchInput!) {
   createBatch(data: $data) {
@@ -96,11 +106,12 @@ mutation CreateBatch($data: BatchInput!) {
 ```
 
 **Variables Example:**
+
 ```json
 {
   "data": {
     "batch_number": 1,
-    "value": 150.00,
+    "value": 150.0,
     "max_quantity": 100,
     "product": "product_id_here",
     "valid_from": "2026-02-15T00:00:00Z",
@@ -112,9 +123,11 @@ mutation CreateBatch($data: BatchInput!) {
 ```
 
 ### 4. Creating a Coupon
+
 Coupons are linked to an Event.
 
 **Mutation:**
+
 ```graphql
 mutation CreateCoupon($data: CouponInput!) {
   createCoupon(data: $data) {
@@ -125,6 +138,7 @@ mutation CreateCoupon($data: CouponInput!) {
 ```
 
 **Variables Example:**
+
 ```json
 {
   "data": {
@@ -138,11 +152,22 @@ mutation CreateCoupon($data: CouponInput!) {
 ```
 
 ### 5. Signing Up for an Event
+
 Use the `signupToEvent` mutation.
 
 **Mutation:**
+
 ```graphql
-mutation Signup($eventId: String!, $name: String!, $email: String!, $batch_id: String!, $coupon_code: String, $is_student: Boolean, $phone_number: String, $t_shirt_size: String) {
+mutation Signup(
+  $eventId: String!
+  $name: String!
+  $email: String!
+  $batch_id: String!
+  $coupon_code: String
+  $is_student: Boolean
+  $phone_number: String
+  $t_shirt_size: String
+) {
   signupToEvent(
     eventId: $eventId
     name: $name
@@ -161,6 +186,7 @@ mutation Signup($eventId: String!, $name: String!, $email: String!, $batch_id: S
 ```
 
 **Variables Example:**
+
 ```json
 {
   "eventId": "event_uuid_123",
@@ -177,6 +203,7 @@ mutation Signup($eventId: String!, $name: String!, $email: String!, $batch_id: S
 ---
 
 ## Rules & Validations
+
 - Signups require a valid `batch_id`.
 - The `is_student` flag may apply discounts if configured in the Manager.
 - The BFF uses `eventandoIntegration` data source which uses a dedicated integration token.
