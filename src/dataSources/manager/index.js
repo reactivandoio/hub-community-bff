@@ -1,6 +1,9 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import dotenv from 'dotenv';
-import { buildQuery, createStrapiFetch } from '../../utils/network/strapi/helpers';
+import {
+  buildQuery,
+  createStrapiFetch,
+} from '../../utils/network/strapi/helpers';
 
 dotenv.config();
 
@@ -52,7 +55,14 @@ const findCommunities = async (
   pagination = {},
   search = '',
 ) => {
-  const populate = ['events', 'tags', 'location', 'organizers', 'images', 'links'];
+  const populate = [
+    'events',
+    'tags',
+    'location',
+    'organizers',
+    'images',
+    'links',
+  ];
 
   const query = buildQuery(filters, sort, pagination, search, populate);
   const route = `/communities${query ? `?${query}` : ''}`;
@@ -61,7 +71,14 @@ const findCommunities = async (
 };
 
 const findCommunityById = async (id) => {
-  const populate = ['events', 'tags', 'location', 'organizers', 'images', 'links'];
+  const populate = [
+    'events',
+    'tags',
+    'location',
+    'organizers',
+    'images',
+    'links',
+  ];
 
   const query = buildQuery({}, [], {}, '', populate);
   const route = `/communities/${id}${query ? `?${query}` : ''}`;
@@ -345,7 +362,7 @@ const deleteAgenda = async (id) => {
   return fetch(route, 'DELETE');
 };
 
-export default () => ({
+const managerRequest = () => ({
   // Events
   findEvents,
   findEventById,
