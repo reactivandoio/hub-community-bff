@@ -23,12 +23,13 @@ const Speaker = {
       { dataSources },
     ) => {
       try {
-        const response = await dataSources.manager.findSpeakers(
+        const response = await dataSources.managerIntegration.findSpeakers({
           filters,
           sort,
           pagination,
           search,
-        );
+          populate: ['talks', 'avatar'],
+        });
         return response;
       } catch (err) {
         throw new Error(`Error fetching speakers: ${err.message}`);
@@ -37,7 +38,9 @@ const Speaker = {
 
     speaker: async (_, { id }, { dataSources }) => {
       try {
-        const response = await dataSources.manager.findSpeakerById(id);
+        const response = await dataSources.managerIntegration.findSpeakerById(
+          id,
+        );
         return response.data;
       } catch (err) {
         throw new Error(`Error fetching speaker: ${err.message}`);
