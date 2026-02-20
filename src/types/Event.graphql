@@ -47,6 +47,8 @@ input EventInput {
   pixai_token_integration: String
   pixai_token_integration_id: String
   location: String
+  communities: [String]
+  talks: [String]
 }
 
 input BatchSaleInput {

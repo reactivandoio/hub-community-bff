@@ -195,7 +195,10 @@ export const createStrapiFetch =
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         // eslint-disable-next-line no-console
-        console.log(`Error on try ${method} in ${url}`);
+        console.log(
+          `Error on try ${method} in ${url}`,
+          error.response?.data?.error?.message || error.message,
+        );
       }
 
       throw new Error(error.response?.data?.error?.message || error.message);

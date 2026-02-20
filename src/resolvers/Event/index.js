@@ -79,7 +79,13 @@ const Event = {
 
       try {
         const [managerResult, eventandoResult] = await Promise.allSettled([
-          dataSources.manager.findEvents(managerFilters),
+          dataSources.manager.findEvents(managerFilters, [], {}, '', [
+            'location',
+            'images',
+            'communities',
+            'talks',
+            'tags',
+          ]),
           dataSources.eventandoIntegration.findEvents({
             filters: eventandoFilters,
           }),
@@ -141,17 +147,61 @@ const Event = {
           start_date: data.start_date,
           end_date: data.end_date,
           location: data.location,
+          communities: data.communities,
+          talks: data.talks,
         });
       } catch (err) {
         throw new Error(`Error creating event in manager: ${err.message}`);
       }
 
       try {
-        const { documentId } = managerResponse.data;
+        const eventId = managerResponse.data.documentId;
+
+        // Orchestrate talks association
+        if (data.talks && Array.isArray(data.talks)) {
+          await Promise.allSettled(
+            data.talks.map((talkId) =>
+              dataSources.managerIntegration.updateTalk(talkId, {
+                event: eventId,
+              }),
+            ),
+          );
+        }
+
+        // Orchestrate communities association
+        if (data.communities && Array.isArray(data.communities)) {
+          await Promise.allSettled(
+            data.communities.map(async (communityId) => {
+              try {
+                const community =
+                  await dataSources.managerIntegration.findCommunityById(
+                    communityId,
+                  );
+                const currentEvents = community?.data?.events || [];
+                const eventIds = [
+                  ...new Set([
+                    ...currentEvents.map((e) => e.documentId || e.id),
+                    eventId,
+                  ]),
+                ];
+                return dataSources.managerIntegration.updateCommunity(
+                  communityId,
+                  { events: eventIds },
+                );
+              } catch (err) {
+                // eslint-disable-next-line no-console
+                console.error(
+                  `Error associating community ${communityId}: ${err.message}`,
+                );
+                return Promise.reject(err);
+              }
+            }),
+          );
+        }
 
         const response = await dataSources.eventandoIntegration.createEvent({
           ...data,
-          uuid: documentId,
+          uuid: eventId,
           name: data.title,
         });
 
@@ -181,6 +231,8 @@ const Event = {
             start_date: data.start_date,
             end_date: data.end_date,
             location: data.location,
+            communities: data.communities,
+            talks: data.talks,
           });
 
         const eventandoResponse =
@@ -188,6 +240,50 @@ const Event = {
             ...data,
             uuid: managerResponse.data.documentId,
           });
+
+        const eventId = managerResponse.data.documentId;
+
+        // Orchestrate talks association
+        if (data.talks && Array.isArray(data.talks)) {
+          await Promise.allSettled(
+            data.talks.map((talkId) =>
+              dataSources.managerIntegration.updateTalk(talkId, {
+                event: eventId,
+              }),
+            ),
+          );
+        }
+
+        // Orchestrate communities association
+        if (data.communities && Array.isArray(data.communities)) {
+          await Promise.allSettled(
+            data.communities.map(async (communityId) => {
+              try {
+                const community =
+                  await dataSources.managerIntegration.findCommunityById(
+                    communityId,
+                  );
+                const currentEvents = community?.data?.events || [];
+                const eventIds = [
+                  ...new Set([
+                    ...currentEvents.map((e) => e.documentId || e.id),
+                    eventId,
+                  ]),
+                ];
+                return dataSources.managerIntegration.updateCommunity(
+                  communityId,
+                  { events: eventIds },
+                );
+              } catch (err) {
+                // eslint-disable-next-line no-console
+                console.error(
+                  `Error associating community ${communityId}: ${err.message}`,
+                );
+                return Promise.reject(err);
+              }
+            }),
+          );
+        }
 
         return {
           ...managerResponse.data,

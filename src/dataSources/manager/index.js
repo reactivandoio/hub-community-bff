@@ -16,32 +16,32 @@ const findEvents = async (
   sort = [],
   pagination = {},
   search = '',
-) => {
-  const populate = [
+  populate = [
     'talks.speakers',
     'talks.speakers.avatar',
     'images',
     'communities',
     'location',
     'tags',
-  ];
-
+  ],
+) => {
   const query = buildQuery(filters, sort, pagination, search, populate);
   const route = `/events${query ? `?${query}` : ''}`;
 
   return fetch(route, 'GET');
 };
 
-const findEventById = async (id) => {
-  const populate = [
+const findEventById = async (
+  id,
+  populate = [
     'talks.speakers',
     'talks.speakers.avatar',
     'images',
     'communities',
     'location',
     'tags',
-  ];
-
+  ],
+) => {
   const query = buildQuery({}, [], {}, '', populate);
   const route = `/events/${id}${query ? `?${query}` : ''}`;
 
