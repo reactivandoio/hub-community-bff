@@ -17,6 +17,7 @@ const findEvents = async (
   pagination = {},
   search = '',
   populate = [
+    'talks',
     'talks.speakers',
     'talks.speakers.avatar',
     'images',
@@ -34,6 +35,7 @@ const findEvents = async (
 const findEventById = async (
   id,
   populate = [
+    'talks',
     'talks.speakers',
     'talks.speakers.avatar',
     'images',

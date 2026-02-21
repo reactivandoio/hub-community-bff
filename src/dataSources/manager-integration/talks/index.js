@@ -2,11 +2,17 @@ import managerNetworkUtils from '../../../utils/network/manager';
 
 const { fetch, buildQuery } = managerNetworkUtils;
 
-const createTalk = (data, headers) =>
-  fetch('/talks', 'POST', headers, { data });
+const createTalk = (data, headers, populate = []) => {
+  const query = buildQuery({}, [], {}, '', populate);
+  const route = `/talks${query ? `?${query}` : ''}`;
+  return fetch(route, 'POST', headers, { data });
+};
 
-const updateTalk = (id, data, headers) =>
-  fetch(`/talks/${id}`, 'PUT', headers, { data });
+const updateTalk = (id, data, headers, populate = []) => {
+  const query = buildQuery({}, [], {}, '', populate);
+  const route = `/talks/${id}${query ? `?${query}` : ''}`;
+  return fetch(route, 'PUT', headers, { data });
+};
 
 const deleteTalk = (id, headers) => fetch(`/talks/${id}`, 'DELETE', headers);
 
@@ -23,13 +29,17 @@ const findTalks = (args, headers) => {
   return fetch(route, 'GET', headers);
 };
 
-const findTalkById = (id, headers) => fetch(`/talks/${id}`, 'GET', headers);
+const findTalkById = (id, headers, populate = []) => {
+  const query = buildQuery({}, [], {}, '', populate);
+  const route = `/talks/${id}${query ? `?${query}` : ''}`;
+  return fetch(route, 'GET', headers);
+};
 
 const talks = ({ headers }) => ({
   findTalks: (args) => findTalks(args, headers),
-  findTalkById: (id) => findTalkById(id, headers),
-  createTalk: (data) => createTalk(data, headers),
-  updateTalk: (id, data) => updateTalk(id, data, headers),
+  findTalkById: (id, populate) => findTalkById(id, headers, populate),
+  createTalk: (data, populate) => createTalk(data, headers, populate),
+  updateTalk: (id, data, populate) => updateTalk(id, data, headers, populate),
   deleteTalk: (id) => deleteTalk(id, headers),
 });
 

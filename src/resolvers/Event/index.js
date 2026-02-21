@@ -84,6 +84,8 @@ const Event = {
             'images',
             'communities',
             'talks',
+            'talks.speakers',
+            'talks.speakers.avatar',
             'tags',
           ]),
           dataSources.eventandoIntegration.findEvents({
@@ -141,15 +143,26 @@ const Event = {
       let managerResponse;
 
       try {
-        managerResponse = await dataSources.managerIntegration.createEvent({
-          title: data.title,
-          description: data.description,
-          start_date: data.start_date,
-          end_date: data.end_date,
-          location: data.location,
-          communities: data.communities,
-          talks: data.talks,
-        });
+        managerResponse = await dataSources.managerIntegration.createEvent(
+          {
+            title: data.title,
+            description: data.description,
+            start_date: data.start_date,
+            end_date: data.end_date,
+            location: data.location,
+            communities: data.communities,
+            talks: data.talks,
+          },
+          [
+            'location',
+            'images',
+            'communities',
+            'talks',
+            'talks.speakers',
+            'talks.speakers.avatar',
+            'tags',
+          ],
+        );
       } catch (err) {
         throw new Error(`Error creating event in manager: ${err.message}`);
       }
@@ -225,15 +238,27 @@ const Event = {
         }
 
         const managerResponse =
-          await dataSources.managerIntegration.updateEvent(id, {
-            title: data.title,
-            description: data.description,
-            start_date: data.start_date,
-            end_date: data.end_date,
-            location: data.location,
-            communities: data.communities,
-            talks: data.talks,
-          });
+          await dataSources.managerIntegration.updateEvent(
+            id,
+            {
+              title: data.title,
+              description: data.description,
+              start_date: data.start_date,
+              end_date: data.end_date,
+              location: data.location,
+              communities: data.communities,
+              talks: data.talks,
+            },
+            [
+              'location',
+              'images',
+              'communities',
+              'talks',
+              'talks.speakers',
+              'talks.speakers.avatar',
+              'tags',
+            ],
+          );
 
         const eventandoResponse =
           await dataSources.eventandoIntegration.updateEvent(event.id, {

@@ -40,6 +40,7 @@ const Speaker = {
       try {
         const response = await dataSources.managerIntegration.findSpeakerById(
           id,
+          ['talks', 'avatar'],
         );
         return response.data;
       } catch (err) {
@@ -53,6 +54,7 @@ const Speaker = {
       try {
         const response = await dataSources.managerIntegration.createSpeaker(
           data,
+          ['talks', 'avatar'],
         );
         return response.data;
       } catch (err) {
@@ -64,6 +66,7 @@ const Speaker = {
         const response = await dataSources.managerIntegration.updateSpeaker(
           id,
           data,
+          ['talks', 'avatar'],
         );
         return response.data;
       } catch (err) {

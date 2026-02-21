@@ -2,11 +2,17 @@ import managerNetworkUtils from '../../../utils/network/manager';
 
 const { fetch, buildQuery } = managerNetworkUtils;
 
-const createSpeaker = (data, headers) =>
-  fetch('/speakers', 'POST', headers, { data });
+const createSpeaker = (data, headers, populate = []) => {
+  const query = buildQuery({}, [], {}, '', populate);
+  const route = `/speakers${query ? `?${query}` : ''}`;
+  return fetch(route, 'POST', headers, { data });
+};
 
-const updateSpeaker = (id, data, headers) =>
-  fetch(`/speakers/${id}`, 'PUT', headers, { data });
+const updateSpeaker = (id, data, headers, populate = []) => {
+  const query = buildQuery({}, [], {}, '', populate);
+  const route = `/speakers/${id}${query ? `?${query}` : ''}`;
+  return fetch(route, 'PUT', headers, { data });
+};
 
 const deleteSpeaker = (args, headers) =>
   fetch('/speakers', 'DELETE', headers, { data: args });
@@ -24,14 +30,18 @@ const findSpeakers = (args, headers) => {
   return fetch(route, 'GET', headers);
 };
 
-const findSpeakerById = (id, headers) =>
-  fetch(`/speakers/${id}`, 'GET', headers);
+const findSpeakerById = (id, headers, populate = []) => {
+  const query = buildQuery({}, [], {}, '', populate);
+  const route = `/speakers/${id}${query ? `?${query}` : ''}`;
+  return fetch(route, 'GET', headers);
+};
 
 const speakers = ({ headers }) => ({
   findSpeakers: (args) => findSpeakers(args, headers),
-  findSpeakerById: (id) => findSpeakerById(id, headers),
-  createSpeaker: (data) => createSpeaker(data, headers),
-  updateSpeaker: (id, data) => updateSpeaker(id, data, headers),
+  findSpeakerById: (id, populate) => findSpeakerById(id, headers, populate),
+  createSpeaker: (data, populate) => createSpeaker(data, headers, populate),
+  updateSpeaker: (id, data, populate) =>
+    updateSpeaker(id, data, headers, populate),
   deleteSpeaker: (args) => deleteSpeaker(args, headers),
   deleteSpeakerById: (id) => fetch(`/speakers/${id}`, 'DELETE', headers),
 });

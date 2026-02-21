@@ -74,6 +74,7 @@ const Community = {
       try {
         const response = await dataSources.managerIntegration.findCommunityById(
           id,
+          ['events', 'tags', 'location', 'organizers', 'images', 'links'],
         );
         return response.data;
       } catch (err) {
@@ -118,6 +119,7 @@ const Community = {
       try {
         const response = await dataSources.managerIntegration.createCommunity(
           data,
+          ['events', 'tags', 'location', 'organizers', 'images', 'links'],
         );
         return response.data;
       } catch (err) {
@@ -129,6 +131,7 @@ const Community = {
         const response = await dataSources.managerIntegration.updateCommunity(
           id,
           data,
+          ['events', 'tags', 'location', 'organizers', 'images', 'links'],
         );
         return response.data;
       } catch (err) {
