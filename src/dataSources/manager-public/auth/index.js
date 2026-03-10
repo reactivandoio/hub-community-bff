@@ -27,10 +27,20 @@ function forwardPassword({ email }) {
   );
 }
 
+function resetPassword({ code, password, passwordConfirmation }) {
+  return managerPublicNetworkUtils.fetch(
+    '/auth/reset-password',
+    'POST',
+    {},
+    { code, password, passwordConfirmation },
+  );
+}
+
 const auth = ({ headers }) => ({
   signIn: (args) => signIn(args, headers),
   signUp: (args) => signUp(args, headers),
   forwardPassword: (args) => forwardPassword(args, headers),
+  resetPassword: (args) => resetPassword(args, headers),
 });
 
 export default auth;

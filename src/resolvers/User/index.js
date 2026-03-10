@@ -170,6 +170,19 @@ const User = {
         throw new Error(`Error forwarding password: ${err.message}`);
       }
     },
+
+    resetPassword: async (_, { code, password, passwordConfirmation }, { dataSources }) => {
+      try {
+        await dataSources.managerPublic.resetPassword({
+          code,
+          password,
+          passwordConfirmation,
+        });
+        return true;
+      } catch (err) {
+        throw new Error(`Error resetting password: ${err.message}`);
+      }
+    },
   },
 };
 
