@@ -17,6 +17,7 @@ type Event {
   documentId: String
   subscription_link: String
   slug: String
+  uuid: String
   products: [Product]
 }
 
@@ -43,6 +44,7 @@ input EventInput {
   end_date: String!
   max_slots: Int
   slug: String
+  uuid: String
   pixai_token_integration: String
   pixai_token_integration_id: String
 }

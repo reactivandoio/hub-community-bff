@@ -7,6 +7,7 @@ type Batch {
   valid_until: String
   enabled: Boolean
   half_price_eligible: Boolean
+  exclusive_label: String
 }
 
 input BatchInput {
@@ -17,6 +18,7 @@ input BatchInput {
   valid_until: String!
   enabled: Boolean
   half_price_eligible: Boolean
+  exclusive_label: String
   product: String!
 }
 

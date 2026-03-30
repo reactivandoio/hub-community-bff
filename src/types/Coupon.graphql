@@ -5,6 +5,7 @@ type Coupon {
   max_uses: Int
   event: Event
   enabled: Boolean
+  expires_at: String
 }
 
 input CouponInput {
@@ -13,6 +14,7 @@ input CouponInput {
   max_uses: Int
   event: String!
   enabled: Boolean
+  expires_at: String
 }
 
 extend type Mutation {

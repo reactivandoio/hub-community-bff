@@ -1,13 +1,17 @@
 type Product {
   id: String
   name: String
+  description: String
   enabled: Boolean
+  can_be_listed: Boolean
   batches: [Batch]
 }
 
 input ProductInput {
   name: String!
+  description: String
   enabled: Boolean
+  can_be_listed: Boolean
   event: String!
 }
 

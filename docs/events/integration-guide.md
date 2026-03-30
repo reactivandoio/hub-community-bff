@@ -29,7 +29,9 @@ This guide describes how to interact with the Eventando Manager via the BFF Grap
 ## Workflows
 
 ### 1. Creating an Event
-Use the `createEvent` mutation.
+Use the `createEvent` mutation. The BFF automatically synchronizes the event with both Hub Community Manager and Eventando Manager.
+
+**Note:** The BFF maps `title` to `name` when communicating with the Eventando Manager.
 
 **Mutation:**
 ```graphql
@@ -38,6 +40,7 @@ mutation CreateEvent($data: EventInput!) {
     id
     title
     slug
+    uuid
   }
 }
 ```
@@ -47,10 +50,11 @@ mutation CreateEvent($data: EventInput!) {
 {
   "data": {
     "title": "Community Workshop",
+    "slug": "community-workshop-2026",
+    "uuid": "optional-uuid-here",
     "start_date": "2026-04-10T10:00:00Z",
     "end_date": "2026-04-10T18:00:00Z",
     "max_slots": 50,
-    "slug": "community-workshop-2026",
     "pixai_token_integration": "your_token",
     "pixai_token_integration_id": "your_id"
   }
@@ -66,6 +70,8 @@ mutation CreateProduct($data: ProductInput!) {
   createProduct(data: $data) {
     id
     name
+    description
+    can_be_listed
   }
 }
 ```
@@ -75,8 +81,10 @@ mutation CreateProduct($data: ProductInput!) {
 {
   "data": {
     "name": "VIP Ticket",
+    "description": "Complete experience with extra benefits",
     "event": "event_id_here",
-    "enabled": true
+    "enabled": true,
+    "can_be_listed": true
   }
 }
 ```
@@ -91,6 +99,7 @@ mutation CreateBatch($data: BatchInput!) {
     id
     batch_number
     value
+    exclusive_label
   }
 }
 ```
@@ -106,7 +115,8 @@ mutation CreateBatch($data: BatchInput!) {
     "valid_from": "2026-02-15T00:00:00Z",
     "valid_until": "2026-03-15T23:59:59Z",
     "enabled": true,
-    "half_price_eligible": true
+    "half_price_eligible": true,
+    "exclusive_label": "Early Bird"
   }
 }
 ```
@@ -120,6 +130,7 @@ mutation CreateCoupon($data: CouponInput!) {
   createCoupon(data: $data) {
     id
     code
+    expires_at
   }
 }
 ```
@@ -132,7 +143,8 @@ mutation CreateCoupon($data: CouponInput!) {
     "discount_percentage": 50,
     "max_uses": 20,
     "event": "event_id_here",
-    "enabled": true
+    "enabled": true,
+    "expires_at": "2026-12-31T23:59:59Z"
   }
 }
 ```

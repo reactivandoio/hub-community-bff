@@ -104,8 +104,13 @@ const Event = {
         // Create in Hub Community Manager
         const hubResponse = await dataSources.managerIntegration.createEvent(data);
 
-        // Create in Eventando Manager
-        await dataSources.eventandoIntegration.createEvent(data);
+        // Create in Eventando Manager (mapping title to name)
+        const eventandoData = {
+          ...data,
+          name: data.title,
+        };
+        delete eventandoData.title;
+        await dataSources.eventandoIntegration.createEvent(eventandoData);
 
         return hubResponse.data;
       } catch (err) {
@@ -129,8 +134,13 @@ const Event = {
           data,
         );
 
-        // Update in Eventando Manager using slug
-        await dataSources.eventandoIntegration.updateEventBySlug(slug, data);
+        // Update in Eventando Manager using slug (mapping title to name)
+        const eventandoData = {
+          ...data,
+          name: data.title,
+        };
+        delete eventandoData.title;
+        await dataSources.eventandoIntegration.updateEventBySlug(slug, eventandoData);
 
         return hubResponse.data;
       } catch (err) {
