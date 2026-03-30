@@ -19,8 +19,14 @@ const me = async ({ headers, userId }) => {
   }
 };
 
+const updateUser = async ({ id, data, headers }) => {
+  const route = `/users/${id}`;
+  return fetch(route, 'PUT', headers, data);
+};
+
 const user = ({ headers }) => ({
   me: ({ userId }) => me({ headers, userId }),
+  updateUser: (id, data) => updateUser({ id, data, headers }),
 });
 
 export default user;
