@@ -123,9 +123,14 @@ const Event = {
           throw new Error(`Event with slug or id "${slugOrId}" not found`);
         }
 
+        // Merge: Manager is the base, Eventando provides only defined fields
+        const eventandoDefinedFields = Object.fromEntries(
+          Object.entries(eventandoEvent || {}).filter(([, v]) => v !== undefined && v !== null),
+        );
+
         return {
           ...(managerEvent || {}),
-          ...(eventandoEvent || {}),
+          ...eventandoDefinedFields,
         };
       } catch (err) {
         throw new Error(`Error fetching event: ${err.message}`);
