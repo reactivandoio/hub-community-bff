@@ -2,6 +2,9 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
+import multer from 'multer';
+import FormData from 'form-data';
+import fetch from 'node-fetch';
 
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
@@ -85,6 +88,68 @@ const startServer = async () => {
   });
 
   await apolloServer.start();
+
+  // File upload endpoint - proxies to Strapi upload API
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Apenas imagens são permitidas.'));
+      }
+    },
+  });
+
+  app.post('/upload', cors(), upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+      }
+
+      const managerUrl = process.env.MANAGER_URL || 'https://manager.hubcommunity.io';
+      const token = process.env.MANAGER_TOKEN_INTEGRATION;
+
+      // Build form data to send to Strapi
+      const formData = new FormData();
+      formData.append('files', req.file.buffer, {
+        filename: req.file.originalname,
+        contentType: req.file.mimetype,
+      });
+
+      const response = await fetch(`${managerUrl}/api/upload`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...formData.getHeaders(),
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Strapi upload error:', errorText);
+        return res.status(response.status).json({ error: 'Erro ao fazer upload.' });
+      }
+
+      const data = await response.json();
+      // Strapi returns an array of uploaded files
+      const uploadedFile = data[0];
+      const fileUrl = uploadedFile.url.startsWith('http')
+        ? uploadedFile.url
+        : `${managerUrl}${uploadedFile.url}`;
+
+      return res.json({
+        url: fileUrl,
+        id: uploadedFile.id,
+        name: uploadedFile.name,
+      });
+    } catch (err) {
+      console.error('Upload error:', err);
+      return res.status(500).json({ error: 'Erro interno ao fazer upload.' });
+    }
+  });
 
   app.use(
     '/',
