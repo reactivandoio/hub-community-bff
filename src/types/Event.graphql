@@ -18,6 +18,7 @@ type Event {
   subscription_link: String
   slug: String
   uuid: String
+  max_slots: Int
   products: [Product]
   is_online: Boolean
   call_link: String
@@ -64,7 +65,7 @@ type Mutation {
     eventId: String!
     name: String!
     email: String!
-    batch_id: String
+    batch_id: String!
     coupon_code: String
     is_student: Boolean
     phone_number: String

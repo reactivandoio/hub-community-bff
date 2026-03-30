@@ -267,15 +267,12 @@ const Event = {
         const signupData = {
           name,
           email,
+          batch_id: parseInt(batch_id, 10),
           coupon_code,
           is_student,
           phone_number,
           t_shirt_size,
         };
-
-        if (batch_id) {
-          signupData.batch_id = parseInt(batch_id, 10);
-        }
 
         const response = await dataSources.eventandoIntegration.signup(
           eventandoEvent.id,
