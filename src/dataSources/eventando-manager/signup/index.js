@@ -25,7 +25,7 @@ const findSignupsByEvent = async (eventId, headers) => {
             event: { id: { eq: eventId } },
         };
         const pagination = { page, pageSize: 100 };
-        const populate = ['payment', 'payment.product', 'payment.batch', 'event', 'event.products', 'event.products.batches'];
+        const populate = ['payment', 'payment.batch.product', 'payment.batch', 'event', 'event.products', 'event.products.batches'];
         const query = buildQuery(filters, [{ createdAt: 'desc' }], pagination, '', populate);
         const route = `/signups${query ? `?${query}` : ''}`;
         const response = await fetch(route, 'GET', headers);

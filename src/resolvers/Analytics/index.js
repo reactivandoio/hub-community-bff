@@ -109,7 +109,7 @@ const Analytics = {
         const productsBreakdown = products.map(product => {
           // Count signups per product/batch
           const productSignups = allSignups.filter(s => {
-            const paymentProductId = s.payment?.product?.id || s.payment?.product;
+            const paymentProductId = s.payment?.batch?.product?.id || s.payment?.batch?.product;
             return paymentProductId === product.id;
           });
 
@@ -159,7 +159,7 @@ const Analytics = {
           email: signup.email,
           phone_number: signup.phone_number,
           created_at: signup.createdAt || signup.created_at,
-          product_name: signup.payment?.product?.name || null,
+          product_name: signup.payment?.batch?.product?.name || null,
         }));
 
         return {
