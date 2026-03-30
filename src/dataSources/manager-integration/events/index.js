@@ -21,8 +21,6 @@ const findEventBySlug = async (slug, headers) => {
     const filters = { slug: { eq: slug } };
     const pagination = { pageSize: 1 };
     const populate = [
-        'products',
-        'products.batches',
         'talks.speakers',
         'talks.speakers.avatar',
         'images',

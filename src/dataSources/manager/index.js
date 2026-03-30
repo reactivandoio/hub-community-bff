@@ -24,8 +24,6 @@ const findEvents = async (
     'communities',
     'location',
     'tags',
-    'products',
-    'products.batches',
   ],
 ) => {
   const query = buildQuery(filters, sort, pagination, search, populate);
@@ -44,8 +42,6 @@ const findEventById = async (
     'communities',
     'location',
     'tags',
-    'products',
-    'products.batches',
   ],
 ) => {
   const query = buildQuery({}, [], {}, '', populate);
