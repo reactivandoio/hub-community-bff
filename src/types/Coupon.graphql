@@ -17,6 +17,16 @@ input CouponInput {
   expires_at: String
 }
 
+extend type Query {
+  validateCoupon(eventSlug: String!, code: String!): ValidateCouponResponse
+}
+
+type ValidateCouponResponse {
+  valid: Boolean!
+  discount_percentage: Int
+  message: String
+}
+
 extend type Mutation {
   createCoupon(data: CouponInput!): Coupon
   updateCoupon(id: String!, data: CouponInput!): Coupon

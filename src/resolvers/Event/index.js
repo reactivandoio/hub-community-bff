@@ -22,13 +22,24 @@ const Event = {
         })
         .filter(Boolean);
     },
-    products: ({ products }) => {
-      if (!products || !Array.isArray(products)) return [];
-      return products.map((product) => ({
-        ...product,
-        batches: product.batches || [],
-      }));
+    products: async ({ slug }, _, { dataSources }) => {
+      if (!slug) return [];
+      try {
+        const response = await dataSources.eventandoIntegration.findEventBySlug(slug);
+        const eventandoEvent = response?.data?.[0];
+        if (!eventandoEvent || !eventandoEvent.products) return [];
+        return eventandoEvent.products.map((product) => ({
+          ...product,
+          batches: product.batches || [],
+        }));
+      } catch (err) {
+        // If Eventando Manager is unreachable, return empty
+        return [];
+      }
     },
+    // Protect call_link: never expose directly in event queries
+    // Users must use isUserSignedUp to get the link
+    call_link: () => null,
   },
 
   Query: {
@@ -90,6 +101,57 @@ const Event = {
         throw new Error(`Error fetching events: ${err.message}`);
       }
     },
+
+    isUserSignedUp: async (_, { eventId, email }, { dataSources }) => {
+      try {
+        // Look up event in Eventando Manager by slug/uuid to get internal ID
+        const eventandoResponse = await dataSources.eventandoIntegration.findEventBySlug(eventId);
+        const eventandoEvent = eventandoResponse?.data?.[0];
+
+        if (!eventandoEvent) {
+          return {
+            is_signed_up: false,
+            call_link: null,
+          };
+        }
+
+        // Check signup in Eventando Manager using the internal event ID
+        const signupResponse = await dataSources.eventandoIntegration.findSignupByEmail(
+          eventandoEvent.id,
+          email,
+        );
+
+        const isSignedUp = signupResponse?.data && signupResponse.data.length > 0;
+
+        if (!isSignedUp) {
+          return {
+            is_signed_up: false,
+            call_link: null,
+          };
+        }
+
+        // User is signed up — fetch the event from Hub Community to get call_link
+        const filters = {
+          or: [
+            { slug: { eq: eventId } },
+            { documentId: { eq: eventId } },
+          ],
+        };
+        const hubResponse = await dataSources.manager.findEvents(filters);
+        const hubEvent = hubResponse?.data?.[0];
+
+        return {
+          is_signed_up: true,
+          call_link: hubEvent?.call_link || null,
+        };
+      } catch (err) {
+        // If lookup fails, treat as not signed up
+        return {
+          is_signed_up: false,
+          call_link: null,
+        };
+      }
+    },
   },
 
   Mutation: {
@@ -110,6 +172,8 @@ const Event = {
           name: data.title,
         };
         delete eventandoData.title;
+        delete eventandoData.is_online;
+        delete eventandoData.call_link;
         await dataSources.eventandoIntegration.createEvent(eventandoData);
 
         return hubResponse.data;
@@ -140,6 +204,8 @@ const Event = {
           name: data.title,
         };
         delete eventandoData.title;
+        delete eventandoData.is_online;
+        delete eventandoData.call_link;
         await dataSources.eventandoIntegration.updateEventBySlug(slug, eventandoData);
 
         return hubResponse.data;
@@ -185,34 +251,63 @@ const Event = {
       { dataSources },
     ) => {
       try {
-        const response = await dataSources.eventandoIntegration.signup(eventId, {
+        // Resolve the Eventando Manager internal ID from slug/uuid
+        const eventandoResponse = await dataSources.eventandoIntegration.findEventBySlug(eventId);
+        const eventandoEvent = eventandoResponse?.data?.[0];
+
+        if (!eventandoEvent) {
+          return {
+            success: false,
+            message: 'Evento não encontrado no sistema de inscrições.',
+            payment: null,
+            is_free: false,
+          };
+        }
+
+        const signupData = {
           name,
           email,
-          batch_id: parseInt(batch_id, 10),
           coupon_code,
           is_student,
           phone_number,
           t_shirt_size,
-        });
+        };
 
-        if (response.error) {
+        if (batch_id) {
+          signupData.batch_id = parseInt(batch_id, 10);
+        }
+
+        const response = await dataSources.eventandoIntegration.signup(
+          eventandoEvent.id,
+          signupData,
+        );
+
+        // Eventando Manager returns { status: 'error', message: '...' } on 400
+        if (response.status === 'error' || response.error) {
           return {
             success: false,
-            message: response.error.message || 'Error signing up',
+            message: response.message || response.error?.message || 'Erro ao realizar inscrição.',
             payment: null,
+            is_free: false,
           };
         }
 
         return {
           success: true,
-          message: 'Signed up successfully',
-          payment: response.data,
+          message: 'Inscrição realizada com sucesso!',
+          payment: response.data || response,
+          is_free: response.data?.is_free || response.is_free || false,
         };
       } catch (err) {
+        // Extract error message from Eventando Manager response if available
+        const errorMessage = err.response?.data?.message
+          || err.message
+          || 'Erro ao realizar inscrição.';
         return {
           success: false,
-          message: err.message,
+          message: errorMessage,
           payment: null,
+          is_free: false,
         };
       }
     },

@@ -19,6 +19,8 @@ type Event {
   slug: String
   uuid: String
   products: [Product]
+  is_online: Boolean
+  call_link: String
 }
 
 type Query {
@@ -32,6 +34,8 @@ type Query {
   event(id: String!): Event
 
   eventBySlugOrId(slugOrId: String!): Event
+
+  isUserSignedUp(eventId: String!, email: String!): IsSignedUpResponse
 
   # Legacy query for backward compatibility
   findEvents: [Event]
@@ -47,6 +51,8 @@ input EventInput {
   uuid: String
   pixai_token_integration: String
   pixai_token_integration_id: String
+  is_online: Boolean
+  call_link: String
 }
 
 type Mutation {
@@ -58,7 +64,7 @@ type Mutation {
     eventId: String!
     name: String!
     email: String!
-    batch_id: String!
+    batch_id: String
     coupon_code: String
     is_student: Boolean
     phone_number: String
@@ -70,10 +76,16 @@ type SignupResponse {
   success: Boolean
   message: String
   payment: JSON
+  is_free: Boolean
 }
 
 type Subscription {
   commentEventAdded: Comment
+}
+
+type IsSignedUpResponse {
+  is_signed_up: Boolean!
+  call_link: String
 }
 
 # Event filters
