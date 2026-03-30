@@ -8,9 +8,18 @@ const Location = {
   },
 
   Query: {
-    locations: async (_, { filters, sort, pagination, search }, { dataSources }) => {
+    locations: async (
+      _,
+      { filters, sort, pagination, search },
+      { dataSources },
+    ) => {
       try {
-        const response = await dataSources.manager.findLocations(filters, sort, pagination, search);
+        const response = await dataSources.manager.findLocations(
+          filters,
+          sort,
+          pagination,
+          search,
+        );
         return response;
       } catch (err) {
         throw new Error(`Error fetching locations: ${err.message}`);
@@ -26,6 +35,40 @@ const Location = {
       }
     },
   },
+
+  Mutation: {
+    createLocation: async (_, { data }, { dataSources }) => {
+      try {
+        const response = await dataSources.managerIntegration.createLocation(
+          data,
+        );
+        return response.data;
+      } catch (err) {
+        throw new Error(`Error creating location: ${err.message}`);
+      }
+    },
+    updateLocation: async (_, { id, data }, { dataSources }) => {
+      try {
+        const response = await dataSources.managerIntegration.updateLocation(
+          id,
+          data,
+        );
+        return response.data;
+      } catch (err) {
+        throw new Error(`Error updating location: ${err.message}`);
+      }
+    },
+    deleteLocation: async (_, { id }, { dataSources }) => {
+      try {
+        const response = await dataSources.managerIntegration.deleteLocation(
+          id,
+        );
+        return response.data;
+      } catch (err) {
+        throw new Error(`Error deleting location: ${err.message}`);
+      }
+    },
+  },
 };
 
-export default Location; 
+export default Location;

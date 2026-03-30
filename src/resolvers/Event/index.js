@@ -5,7 +5,8 @@ dotenv.config();
 
 const Event = {
   Event: {
-    id: ({ documentId }) => documentId,
+    title: ({ name, title }) => title || name,
+    id: ({ documentId, uuid }) => documentId || uuid,
     images: ({ images }) => {
       if (!images || !Array.isArray(images)) return [];
       return images
@@ -71,24 +72,63 @@ const Event = {
     },
 
     eventBySlugOrId: async (_, { slugOrId }, { dataSources }) => {
-      try {
-        // Try to find by slug OR documentId OR id
-        const filters = {
-          or: [
-            { slug: { eq: slugOrId } },
-            { documentId: { eq: slugOrId } },
-            { id: { eq: slugOrId } },
-          ],
-        };
-        const response = await dataSources.manager.findEvents(filters);
+      const managerFilters = {
+        or: [
+          { slug: { eq: slugOrId } },
+          { documentId: { eq: slugOrId } },
+          { id: { eq: slugOrId } },
+        ],
+      };
 
-        if (!response.data || response.data.length === 0) {
+      const eventandoFilters = {
+        or: [
+          { slug: { eq: slugOrId } },
+          { uuid: { eq: slugOrId } },
+          { id: { eq: slugOrId } },
+        ],
+      };
+
+      try {
+        const [managerResult, eventandoResult] = await Promise.allSettled([
+          dataSources.manager.findEvents(managerFilters, [], {}, '', [
+            'location',
+            'images',
+            'communities',
+            'talks',
+            'talks.speakers',
+            'talks.speakers.avatar',
+            'tags',
+          ]),
+          dataSources.eventandoIntegration.findEvents({
+            filters: eventandoFilters,
+          }),
+        ]);
+
+        if (managerResult.status === 'rejected') {
+          throw new Error(
+            `Manager API failed: ${managerResult.reason.message}`,
+          );
+        }
+
+        if (eventandoResult.status === 'rejected') {
+          throw new Error(
+            `Eventando API failed: ${eventandoResult.reason.message}`,
+          );
+        }
+
+        const managerEvent = managerResult.value?.data?.[0];
+        const eventandoEvent = eventandoResult.value?.data?.[0];
+
+        if (!managerEvent && !eventandoEvent) {
           throw new Error(`Event with slug or id "${slugOrId}" not found`);
         }
 
-        return response.data[0];
+        return {
+          ...(managerEvent || {}),
+          ...(eventandoEvent || {}),
+        };
       } catch (err) {
-        throw new Error(`Error fetching event: ${err}`);
+        throw new Error(`Error fetching event: ${err.message}`);
       }
     },
 
@@ -162,55 +202,220 @@ const Event = {
     }),
 
     createEvent: async (_, { data }, { dataSources }) => {
+      let managerResponse;
+
       try {
         // Create in Hub Community Manager
-        const hubResponse = await dataSources.managerIntegration.createEvent(data);
+        managerResponse = await dataSources.managerIntegration.createEvent(
+          {
+            title: data.title,
+            description: data.description,
+            start_date: data.start_date,
+            end_date: data.end_date,
+            location: data.location,
+            communities: data.communities,
+            talks: data.talks,
+          },
+          [
+            'location',
+            'images',
+            'communities',
+            'talks',
+            'talks.speakers',
+            'talks.speakers.avatar',
+            'tags',
+          ],
+        );
+      } catch (err) {
+        throw new Error(`Error creating event in manager: ${err.message}`);
+      }
+
+      try {
+        const eventId = managerResponse.data.documentId;
+
+        // Orchestrate talks association
+        if (data.talks && Array.isArray(data.talks)) {
+          await Promise.allSettled(
+            data.talks.map((talkId) =>
+              dataSources.managerIntegration.updateTalk(talkId, {
+                event: eventId,
+              }),
+            ),
+          );
+        }
+
+        // Orchestrate communities association
+        if (data.communities && Array.isArray(data.communities)) {
+          await Promise.allSettled(
+            data.communities.map(async (communityId) => {
+              try {
+                const community =
+                  await dataSources.managerIntegration.findCommunityById(
+                    communityId,
+                  );
+                const currentEvents = community?.data?.events || [];
+                const eventIds = [
+                  ...new Set([
+                    ...currentEvents.map((e) => e.documentId || e.id),
+                    eventId,
+                  ]),
+                ];
+                return dataSources.managerIntegration.updateCommunity(
+                  communityId,
+                  { events: eventIds },
+                );
+              } catch (err) {
+                // eslint-disable-next-line no-console
+                console.error(
+                  `Error associating community ${communityId}: ${err.message}`,
+                );
+                return Promise.reject(err);
+              }
+            }),
+          );
+        }
 
         // Create in Eventando Manager (mapping title to name)
         const eventandoData = {
           ...data,
+          uuid: eventId,
           name: data.title,
         };
         delete eventandoData.title;
         delete eventandoData.is_online;
         delete eventandoData.call_link;
-        await dataSources.eventandoIntegration.createEvent(eventandoData);
 
-        return hubResponse.data;
+        const response = await dataSources.eventandoIntegration.createEvent(eventandoData);
+
+        return response.data;
       } catch (err) {
-        throw new Error(`Error creating event: ${err.message}`);
+        throw new Error(`Error creating event in eventando: ${err.message}`);
       }
     },
 
     updateEvent: async (_, { id, data }, { dataSources }) => {
       try {
-        // Find current event to get the slug for orchestration
-        const currentEventResponse = await dataSources.manager.findEventById(id);
-        const slug = currentEventResponse?.data?.attributes?.slug || data.slug;
+        const events = await dataSources.eventandoIntegration.findEvents({
+          filters: {
+            or: [{ uuid: { eq: id } }, { id: { eq: id } }],
+          },
+        });
+        const event = events.data[0];
 
-        if (!slug) {
-          throw new Error('Event slug is required for orchestration');
+        if (!event) {
+          throw new Error(`Event with id "${id}" not found`);
         }
 
-        // Update in Hub Community Manager
-        const hubResponse = await dataSources.managerIntegration.updateEvent(
-          id,
-          data,
-        );
+        const managerResponse =
+          await dataSources.managerIntegration.updateEvent(
+            id,
+            {
+              title: data.title,
+              description: data.description,
+              start_date: data.start_date,
+              end_date: data.end_date,
+              location: data.location,
+              communities: data.communities,
+              talks: data.talks,
+            },
+            [
+              'location',
+              'images',
+              'communities',
+              'talks',
+              'talks.speakers',
+              'talks.speakers.avatar',
+              'tags',
+            ],
+          );
 
-        // Update in Eventando Manager using slug (mapping title to name)
+        // Update in Eventando Manager (mapping title to name)
         const eventandoData = {
           ...data,
+          uuid: managerResponse.data.documentId,
           name: data.title,
         };
         delete eventandoData.title;
         delete eventandoData.is_online;
         delete eventandoData.call_link;
-        await dataSources.eventandoIntegration.updateEventBySlug(slug, eventandoData);
 
-        return hubResponse.data;
+        const eventandoResponse =
+          await dataSources.eventandoIntegration.updateEvent(event.id, eventandoData);
+
+        const eventId = managerResponse.data.documentId;
+
+        // Orchestrate talks association
+        if (data.talks && Array.isArray(data.talks)) {
+          await Promise.allSettled(
+            data.talks.map((talkId) =>
+              dataSources.managerIntegration.updateTalk(talkId, {
+                event: eventId,
+              }),
+            ),
+          );
+        }
+
+        // Orchestrate communities association
+        if (data.communities && Array.isArray(data.communities)) {
+          await Promise.allSettled(
+            data.communities.map(async (communityId) => {
+              try {
+                const community =
+                  await dataSources.managerIntegration.findCommunityById(
+                    communityId,
+                  );
+                const currentEvents = community?.data?.events || [];
+                const eventIds = [
+                  ...new Set([
+                    ...currentEvents.map((e) => e.documentId || e.id),
+                    eventId,
+                  ]),
+                ];
+                return dataSources.managerIntegration.updateCommunity(
+                  communityId,
+                  { events: eventIds },
+                );
+              } catch (err) {
+                // eslint-disable-next-line no-console
+                console.error(
+                  `Error associating community ${communityId}: ${err.message}`,
+                );
+                return Promise.reject(err);
+              }
+            }),
+          );
+        }
+
+        return {
+          ...managerResponse.data,
+          ...eventandoResponse.data,
+        };
       } catch (err) {
         throw new Error(`Error updating event: ${err.message}`);
+      }
+    },
+
+    updateEventSale: async (_, { id, data }, { dataSources }) => {
+      try {
+        const events = await dataSources.eventandoIntegration.findEvents({
+          filters: {
+            or: [{ uuid: { eq: id } }, { id: { eq: id } }],
+          },
+        });
+        const event = events.data[0];
+
+        if (!event) {
+          throw new Error(`Event with id "${id}" not found`);
+        }
+
+        const response = await dataSources.eventandoIntegration.updateEvent(
+          event.id,
+          data,
+        );
+
+        return response.data;
+      } catch (err) {
+        throw new Error(`Error updating event sale: ${err.message}`);
       }
     },
 

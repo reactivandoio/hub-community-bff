@@ -49,6 +49,19 @@ extend type Query {
     pagination: PaginationInput
     search: String
   ): PaginatedSpeakers
-  
+
   speaker(id: String!): Speaker
+}
+
+input SpeakerInput {
+  name: String!
+  biography: JSON
+  highlight: Boolean
+  avatar: String
+}
+
+extend type Mutation {
+  createSpeaker(data: SpeakerInput!): Speaker
+  updateSpeaker(id: String!, data: SpeakerInput!): Speaker
+  deleteSpeaker(id: String!): Speaker
 }

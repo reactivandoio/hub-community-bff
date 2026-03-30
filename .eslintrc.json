@@ -12,7 +12,8 @@
   "rules": {
     "object-curly-newline": "off",
     "implicit-arrow-linebreak": "off",
-    "operator-linebreak": "off"
+    "operator-linebreak": "off",
+    "indent": "warn"
   }
   // "import/no-extraneous-dependencies": ["error", { "devDependencies": true }]
 }

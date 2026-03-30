@@ -66,3 +66,21 @@ extend type Query {
   community(id: String!): Community
   communityBySlugOrId(slugOrId: String!): Community
 }
+
+input CommunityInput {
+  title: String
+  slug: String
+  short_description: String
+  full_description: JSON
+  founded_in: String
+  members_quantity: Int
+  location: String
+  tags: [String]
+  organizers: [String]
+}
+
+extend type Mutation {
+  createCommunity(data: CommunityInput!): Community
+  updateCommunity(id: String!, data: CommunityInput!): Community
+  deleteCommunity(id: String!): Community
+}

@@ -60,3 +60,20 @@ extend type Query {
 
   talk(id: String!): Talk
 }
+
+input TalkInput {
+  title: String!
+  description: JSON
+  occur_date: String
+  room_description: String
+  highlight: Boolean
+  subtitle: String
+  speakers: [String]
+  event: String
+}
+
+extend type Mutation {
+  createTalk(data: TalkInput!): Talk
+  updateTalk(id: String!, data: TalkInput!): Talk
+  deleteTalk(id: String!): Talk
+}

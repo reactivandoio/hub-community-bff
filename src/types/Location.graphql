@@ -5,16 +5,21 @@ type Location {
   longitude: Float
   createdAt: String
   updatedAt: String
-
   title: String
   google_maps_url: String
-
-  events: [Event]
   full_address: String
   city: String
   region: String
+}
 
-  communities: [Community]
+input LocationInput {
+  latitude: Float
+  longitude: Float
+  title: String
+  google_maps_url: String
+  full_address: String
+  city: String
+  region: String
 }
 
 # Location filters
@@ -64,4 +69,11 @@ extend type Query {
   ): PaginatedLocations
 
   location(id: String!): Location
+}
+
+# Location mutations
+extend type Mutation {
+  createLocation(data: LocationInput!): Location
+  updateLocation(id: String!, data: LocationInput!): Location
+  deleteLocation(id: String!): Location
 }

@@ -1,6 +1,9 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import dotenv from 'dotenv';
-import { buildQuery, createStrapiFetch } from '../../utils/network/strapi/helpers';
+import {
+  buildQuery,
+  createStrapiFetch,
+} from '../../utils/network/strapi/helpers';
 
 dotenv.config();
 
@@ -13,8 +16,8 @@ const findEvents = async (
   sort = [],
   pagination = {},
   search = '',
-) => {
-  const populate = [
+  populate = [
+    'talks',
     'talks.speakers',
     'talks.speakers.avatar',
     'images',
@@ -23,16 +26,18 @@ const findEvents = async (
     'tags',
     'products',
     'products.batches',
-  ];
-
+  ],
+) => {
   const query = buildQuery(filters, sort, pagination, search, populate);
   const route = `/events${query ? `?${query}` : ''}`;
 
   return fetch(route, 'GET');
 };
 
-const findEventById = async (id) => {
-  const populate = [
+const findEventById = async (
+  id,
+  populate = [
+    'talks',
     'talks.speakers',
     'talks.speakers.avatar',
     'images',
@@ -41,8 +46,8 @@ const findEventById = async (id) => {
     'tags',
     'products',
     'products.batches',
-  ];
-
+  ],
+) => {
   const query = buildQuery({}, [], {}, '', populate);
   const route = `/events/${id}${query ? `?${query}` : ''}`;
 
@@ -56,7 +61,14 @@ const findCommunities = async (
   pagination = {},
   search = '',
 ) => {
-  const populate = ['events', 'tags', 'location', 'organizers', 'images', 'links'];
+  const populate = [
+    'events',
+    'tags',
+    'location',
+    'organizers',
+    'images',
+    'links',
+  ];
 
   const query = buildQuery(filters, sort, pagination, search, populate);
   const route = `/communities${query ? `?${query}` : ''}`;
@@ -65,7 +77,14 @@ const findCommunities = async (
 };
 
 const findCommunityById = async (id) => {
-  const populate = ['events', 'tags', 'location', 'organizers', 'images', 'links'];
+  const populate = [
+    'events',
+    'tags',
+    'location',
+    'organizers',
+    'images',
+    'links',
+  ];
 
   const query = buildQuery({}, [], {}, '', populate);
   const route = `/communities/${id}${query ? `?${query}` : ''}`;
@@ -128,7 +147,7 @@ const findLocations = async (
   pagination = {},
   search = '',
 ) => {
-  const populate = ['events', 'communities'];
+  const populate = [];
 
   const query = buildQuery(filters, sort, pagination, search, populate);
   const route = `/locations${query ? `?${query}` : ''}`;
@@ -137,7 +156,7 @@ const findLocations = async (
 };
 
 const findLocationById = async (id) => {
-  const populate = ['events', 'communities'];
+  const populate = [];
 
   const query = buildQuery({}, [], {}, '', populate);
   const route = `/locations/${id}${query ? `?${query}` : ''}`;
@@ -349,7 +368,7 @@ const deleteAgenda = async (id) => {
   return fetch(route, 'DELETE');
 };
 
-export default () => ({
+const managerRequest = () => ({
   // Events
   findEvents,
   findEventById,
@@ -394,3 +413,5 @@ export default () => ({
   updateAgenda,
   deleteAgenda,
 });
+
+export default managerRequest;

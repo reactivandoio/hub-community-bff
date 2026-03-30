@@ -66,6 +66,7 @@ extend type Mutation {
   signIn(identifier: String!, password: String!): User
   signUp(input: UserInput!): User
   forwardPassword(email: String!): Boolean
+  resetPassword(code: String!, password: String!, passwordConfirmation: String!): Boolean
 }
 
 # Pagination input

@@ -2,11 +2,17 @@ import managerNetworkUtils from '../../../utils/network/manager';
 
 const { fetch, buildQuery } = managerNetworkUtils;
 
-const createEvent = (data, headers) =>
-    fetch('/events', 'POST', headers, { data });
+const createEvent = (data, headers, populate = []) => {
+  const query = buildQuery({}, [], {}, '', populate);
+  const route = `/events${query ? `?${query}` : ''}`;
+  return fetch(route, 'POST', headers, { data });
+};
 
-const updateEvent = (id, data, headers) =>
-    fetch(`/events/${id}`, 'PUT', headers, { data });
+const updateEvent = (id, data, headers, populate = []) => {
+  const query = buildQuery({}, [], {}, '', populate);
+  const route = `/events/${id}${query ? `?${query}` : ''}`;
+  return fetch(route, 'PUT', headers, { data });
+};
 
 const deleteEvent = (id, headers) =>
     fetch(`/events/${id}`, 'DELETE', headers);
@@ -46,12 +52,12 @@ const deleteEventBySlug = async (slug, headers) => {
 };
 
 const events = ({ headers }) => ({
-    createEvent: (data) => createEvent(data, headers),
-    updateEvent: (id, data) => updateEvent(id, data, headers),
-    deleteEvent: (id) => deleteEvent(id, headers),
-    findEventBySlug: (slug) => findEventBySlug(slug, headers),
-    updateEventBySlug: (slug, data) => updateEventBySlug(slug, data, headers),
-    deleteEventBySlug: (slug) => deleteEventBySlug(slug, headers),
+  createEvent: (data, populate) => createEvent(data, headers, populate),
+  updateEvent: (id, data, populate) => updateEvent(id, data, headers, populate),
+  deleteEvent: (id) => deleteEvent(id, headers),
+  findEventBySlug: (slug) => findEventBySlug(slug, headers),
+  updateEventBySlug: (slug, data) => updateEventBySlug(slug, data, headers),
+  deleteEventBySlug: (slug) => deleteEventBySlug(slug, headers),
 });
 
 export default events;

@@ -54,12 +54,37 @@ input EventInput {
   pixai_token_integration_id: String
   is_online: Boolean
   call_link: String
+  location: String
+  communities: [String]
+  talks: [String]
+}
+
+input BatchSaleInput {
+  batch_number: Int
+  value: Float
+  max_quantity: Int
+  valid_from: String
+  valid_until: String
+  enabled: Boolean
+  half_price_eligible: Boolean
+}
+
+input ProductSaleInput {
+  name: String
+  enabled: Boolean
+  batches: [BatchSaleInput]
+}
+
+input EventSaleInput {
+  max_slots: Int
+  products: [ProductSaleInput]
 }
 
 type Mutation {
   submitEventComment(eventId: String!): Comment
   createEvent(data: EventInput!): Event
   updateEvent(id: String!, data: EventInput!): Event
+  updateEventSale(id: String!, data: EventSaleInput!): Event
   deleteEvent(id: String!): Event
   signupToEvent(
     eventId: String!
