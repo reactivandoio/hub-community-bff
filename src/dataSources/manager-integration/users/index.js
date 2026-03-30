@@ -1,4 +1,4 @@
-import { createStrapiFetch } from '../../../utils/network/strapi/helpers';
+import { createStrapiFetch, buildQuery } from '../../../utils/network/strapi/helpers';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -15,9 +15,17 @@ const findUserById = async (id, headers) => {
   return fetch(route, 'GET', headers);
 };
 
+const findUserByEmail = async (email, headers) => {
+  const query = buildQuery({ email: { eq: email } }, [], { pageSize: 1 });
+  const route = `/users${query ? `?${query}` : ''}`;
+  const response = await fetch(route, 'GET', headers);
+  return response?.data?.[0] ?? null;
+};
+
 const users = ({ headers }) => ({
   updateUser: (id, data) => updateUser(id, data, headers),
   findUserByIdIntegration: (id) => findUserById(id, headers),
+  findUserByEmail: (email) => findUserByEmail(email, headers),
 });
 
 export default users;

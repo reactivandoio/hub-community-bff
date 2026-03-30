@@ -184,10 +184,18 @@ const User = {
       }
     },
 
-    updateUserPhone: async (_, { userId, phone }, { dataSources }) => {
+    updateUserPhone: async (_, { email, phone }, { dataSources }) => {
       try {
+        // Find user by email using integration token to get Strapi integer ID
+        const foundUser = await dataSources.managerIntegration.findUserByEmail(email);
+        if (!foundUser) {
+          throw new Error('Usuário não encontrado.');
+        }
+
+        // foundUser.id is the Strapi integer ID needed by the users-permissions API
+        const strapiId = foundUser.id;
         const response = await dataSources.managerIntegration.updateUser(
-          userId,
+          strapiId,
           { phone },
         );
         return response.data;
