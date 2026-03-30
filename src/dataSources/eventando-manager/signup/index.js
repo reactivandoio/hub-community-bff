@@ -3,7 +3,7 @@ import eventandoNetworkUtils from '../../../utils/network/eventando-manager';
 const { fetch, buildQuery } = eventandoNetworkUtils;
 
 const signup = (eventId, data, headers) =>
-    fetch(`/signup/${eventId}`, 'POST', headers, { data });
+    fetch(`/signup/${eventId}`, 'POST', headers, data);
 
 const findSignupByEmail = (eventId, email, headers) => {
     const filters = {

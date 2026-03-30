@@ -1,5 +1,7 @@
 import dotenv from 'dotenv';
 import pubsub from '../../dataSources/pubsub';
+import { sendEmail } from '../../services/email';
+import { signupConfirmationTemplate } from '../../services/email/templates/signup-confirmation';
 
 dotenv.config();
 
@@ -38,9 +40,8 @@ const Event = {
         return [];
       }
     },
-    // Protect call_link: never expose directly in event queries
-    // Users must use isUserSignedUp to get the link
-    call_link: () => null,
+    // Return call_link from event data (frontend protects display via isUserSignedUp)
+    call_link: ({ call_link }) => call_link || null,
   },
 
   Query: {
@@ -406,23 +407,102 @@ const Event = {
 
     updateEventSale: async (_, { id, data }, { dataSources }) => {
       try {
+        // 1. Find the event in Eventando Manager
         const events = await dataSources.eventandoIntegration.findEvents({
           filters: {
             or: [{ uuid: { eq: id } }, { id: { eq: id } }],
           },
+          populate: ['products', 'products.batches'],
         });
         const event = events.data[0];
 
         if (!event) {
-          throw new Error(`Event with id "${id}" not found`);
+          throw new Error(`Event with id "${id}" not found in Eventando`);
         }
 
-        const response = await dataSources.eventandoIntegration.updateEvent(
-          event.id,
-          data,
-        );
+        const eventandoEventId = event.id;
 
-        return response.data;
+        // 2. Delete existing batches and products (clean slate)
+        const existingProducts = event.products || [];
+        for (const product of existingProducts) {
+          if (product.batches && product.batches.length > 0) {
+            for (const batch of product.batches) {
+              try {
+                await dataSources.eventandoIntegration.deleteBatch(batch.id);
+              } catch (batchErr) {
+                // Ignore — batch may already be deleted
+              }
+            }
+          }
+          try {
+            await dataSources.eventandoIntegration.deleteProduct(product.id);
+          } catch (prodErr) {
+            // Ignore — product may already be deleted
+          }
+        }
+
+        // 3. Update event max_slots if provided
+        if (data.max_slots !== undefined) {
+          await dataSources.eventandoIntegration.updateEvent(eventandoEventId, {
+            max_slots: data.max_slots,
+          });
+        }
+
+        // 4. Create new products and their batches
+        const createdProducts = [];
+        if (data.products && Array.isArray(data.products)) {
+          for (const productInput of data.products) {
+            const productResponse =
+              await dataSources.eventandoIntegration.createProduct({
+                name: productInput.name,
+                enabled: productInput.enabled !== false,
+                event: eventandoEventId,
+              });
+
+            const createdProduct = productResponse.data;
+            const createdBatches = [];
+
+            if (
+              productInput.batches &&
+              Array.isArray(productInput.batches)
+            ) {
+              for (const batchInput of productInput.batches) {
+                const batchResponse =
+                  await dataSources.eventandoIntegration.createBatch({
+                    batch_number: batchInput.batch_number || 1,
+                    value: batchInput.value || 0,
+                    max_quantity: batchInput.max_quantity || 0,
+                    valid_from:
+                      batchInput.valid_from ||
+                      new Date().toISOString(),
+                    valid_until:
+                      batchInput.valid_until ||
+                      new Date(
+                        Date.now() + 365 * 24 * 60 * 60 * 1000,
+                      ).toISOString(),
+                    enabled: batchInput.enabled !== false,
+                    half_price_eligible:
+                      batchInput.half_price_eligible || false,
+                    product: createdProduct.id,
+                  });
+
+                createdBatches.push(batchResponse.data);
+              }
+            }
+
+            createdProducts.push({
+              ...createdProduct,
+              batches: createdBatches,
+            });
+          }
+        }
+
+        // 5. Return the event with the newly created products
+        return {
+          id: event.uuid || id,
+          ...event,
+          products: createdProducts,
+        };
       } catch (err) {
         throw new Error(`Error updating event sale: ${err.message}`);
       }
@@ -503,6 +583,17 @@ const Event = {
           };
         }
 
+        // Send confirmation email asynchronously (don't block the response)
+        sendSignupConfirmationEmail({
+          dataSources,
+          eventId,
+          userName: name,
+          userEmail: email,
+          eventandoEvent,
+          productName: null, // Will be resolved from event data
+          isFree: response.data?.is_free || response.is_free || false,
+        }).catch(err => console.error('[Email] Error sending confirmation:', err.message));
+
         return {
           success: true,
           message: 'Inscrição realizada com sucesso!',
@@ -531,5 +622,119 @@ const Event = {
     },
   },
 };
+
+/**
+ * Fetches full event info from Hub Community Manager and sends confirmation email.
+ * Runs asynchronously — errors are caught by the caller.
+ */
+async function sendSignupConfirmationEmail({
+  dataSources,
+  eventId,
+  userName,
+  userEmail,
+  eventandoEvent,
+  isFree,
+}) {
+  // Flatten Eventando event (Strapi v4: fields under .attributes)
+  const eventandoFlat = {
+    ...(eventandoEvent?.attributes || {}),
+    id: eventandoEvent?.id,
+  };
+
+  // Flatten Eventando products (also Strapi v4)
+  const eventandoProducts = (eventandoFlat.products?.data || []).map(p => ({
+    ...p.attributes,
+    id: p.id,
+  }));
+
+  // Fetch complete event data from Hub Community Manager (Strapi v5: flat format)
+  let managerEvent = null;
+  try {
+    const slug = eventandoFlat.slug || eventId;
+    const managerResponse = await dataSources.managerIntegration.findEventBySlug(slug);
+    managerEvent = managerResponse?.data?.[0] || null;
+  } catch (err) {
+    console.error('[Email] Could not fetch manager event:', err.message);
+  }
+
+  // Hub Community Manager has the rich event data (dates, location, images, is_online)
+  // Eventando has the products/batches
+  const event = managerEvent || eventandoFlat;
+  const title = event.title || event.name || eventandoFlat.name || 'Evento';
+
+  // Format date/time
+  const startDate = event.start_date ? new Date(event.start_date) : null;
+  const dateStr = startDate
+    ? startDate.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'America/Sao_Paulo',
+      })
+    : 'A definir';
+  const timeStr = startDate
+    ? startDate.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/Sao_Paulo',
+      })
+    : 'A definir';
+
+  // Location
+  const isOnline = event.is_online || false;
+  let locationStr = 'A definir';
+  if (isOnline) {
+    locationStr = 'Online';
+  } else if (event.location) {
+    locationStr = event.location.title || event.location.city || 'Local a definir';
+  }
+
+  // Cover image — Hub Community Manager images are relative URLs
+  const managerBaseUrl = process.env.MANAGER_URL || 'https://manager.hubcommunity.io';
+  let imageUrl = null;
+  if (event.images && event.images.length > 0) {
+    const img = event.images[0];
+    const rawUrl = typeof img === 'string'
+      ? img
+      : img?.url || img?.formats?.large?.url || img?.formats?.medium?.url || null;
+    if (rawUrl) {
+      imageUrl = rawUrl.startsWith('http') ? rawUrl : `${managerBaseUrl}${rawUrl}`;
+    }
+  }
+
+  // Product name from Eventando products
+  let productName = 'Ingresso';
+  if (eventandoProducts.length > 0) {
+    productName = eventandoProducts[0].name || 'Ingresso';
+  }
+
+  // Call link (from Hub Community Manager)
+  const callLink = event.call_link || null;
+
+  // Build & send email
+  const baseUrl = process.env.FRONTEND_URL || 'https://hubcommunity.io';
+  const html = signupConfirmationTemplate({
+    userName: userName || userEmail.split('@')[0],
+    eventTitle: title,
+    eventDate: dateStr,
+    eventTime: timeStr,
+    eventLocation: locationStr,
+    eventDescription: typeof event.description === 'string' ? event.description : '',
+    eventImage: imageUrl,
+    eventSlug: event.slug || eventandoFlat.slug || eventId,
+    productName,
+    isFree,
+    isOnline,
+    callLink,
+    baseUrl,
+  });
+
+  await sendEmail({
+    to: userEmail,
+    subject: `✅ Inscrição Confirmada — ${title}`,
+    html,
+  });
+}
 
 export default Event;
