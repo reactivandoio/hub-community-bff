@@ -5,6 +5,7 @@ import events from './events';
 import locations from './locations';
 import talks from './talks';
 import communities from './communities';
+import users from './users';
 
 const managerIntegration = ({ headers }) => ({
   ...speakers({ headers }),
@@ -14,6 +15,7 @@ const managerIntegration = ({ headers }) => ({
   ...locations({ headers }),
   ...talks({ headers }),
   ...communities({ headers }),
+  ...users({ headers }),
 });
 
 export default managerIntegration;

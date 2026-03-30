@@ -183,6 +183,18 @@ const User = {
         throw new Error(`Error resetting password: ${err.message}`);
       }
     },
+
+    updateUserPhone: async (_, { userId, phone }, { dataSources }) => {
+      try {
+        const response = await dataSources.managerIntegration.updateUser(
+          userId,
+          { phone },
+        );
+        return response.data;
+      } catch (err) {
+        throw new Error(`Error updating user phone: ${err.message}`);
+      }
+    },
   },
 };
 
