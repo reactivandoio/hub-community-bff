@@ -3,7 +3,14 @@ type User {
   id: String
   username: String
   email: String
+  name: String
   phone: String
+  cover_photo: String
+  twitter: String
+  linkedin: String
+  github: String
+  website: String
+  instagram: String
   role: String
   communities: [Community]
   speaker: Speaker
@@ -42,6 +49,7 @@ input UserInput {
   email: String!
   password: String!
   name: String!
+  phone: String
 }
 
 # Paginated User response
@@ -63,12 +71,26 @@ extend type Query {
   userByUsername(username: String!): User
 }
 
+# Profile update input
+input ProfileInput {
+  name: String
+  phone: String
+  avatar: String
+  cover_photo: String
+  twitter: String
+  linkedin: String
+  github: String
+  website: String
+  instagram: String
+}
+
 extend type Mutation {
   signIn(identifier: String!, password: String!): User
   signUp(input: UserInput!): User
   forwardPassword(email: String!): Boolean
   resetPassword(code: String!, password: String!, passwordConfirmation: String!): Boolean
   updateUserPhone(email: String!, phone: String!): User
+  updateProfile(input: ProfileInput!): User
 }
 
 # Pagination input

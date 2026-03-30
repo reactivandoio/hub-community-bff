@@ -95,6 +95,8 @@ const User = {
         username: input.username,
         email: input.email,
         password: input.password,
+        name: input.name,
+        phone: input.phone || undefined,
       });
 
       const createdUser = response.data.user;
@@ -141,8 +143,8 @@ const User = {
         try {
           const createdSpeaker =
             await dataSources.managerIntegration.createSpeaker({
-              name: createdUser.username,
-              email: input.name,
+              name: input.name,
+              email: input.email,
               users_permissions_user: {
                 set: [createdUser.documentId],
               },
@@ -203,7 +205,64 @@ const User = {
         throw new Error(`Error updating user phone: ${err.message}`);
       }
     },
+
+    updateProfile: async (_, { input }, { user, dataSources }) => {
+      if (!user) {
+        throw new Error('Não autenticado. Faça login novamente.');
+      }
+
+      try {
+        // Build user update payload (only non-null fields)
+        const userUpdate = {};
+        if (input.name !== undefined && input.name !== null) userUpdate.name = input.name;
+        if (input.phone !== undefined && input.phone !== null) userUpdate.phone = input.phone;
+        if (input.cover_photo !== undefined) userUpdate.cover_photo = input.cover_photo;
+        if (input.twitter !== undefined) userUpdate.twitter = input.twitter;
+        if (input.linkedin !== undefined) userUpdate.linkedin = input.linkedin;
+        if (input.github !== undefined) userUpdate.github = input.github;
+        if (input.website !== undefined) userUpdate.website = input.website;
+        if (input.instagram !== undefined) userUpdate.instagram = input.instagram;
+
+        // Update user fields if there's anything to update
+        let updatedUser = user;
+        if (Object.keys(userUpdate).length > 0) {
+          const response = await dataSources.managerIntegration.updateUser(
+            user.id,
+            userUpdate,
+          );
+          updatedUser = response.data || updatedUser;
+        }
+
+        // Update speaker avatar if provided
+        if (input.avatar !== undefined && input.avatar !== null) {
+          try {
+            // Find speaker linked to this user
+            const speakerResponse = await dataSources.managerIntegration.findSpeakers({
+              filters: {
+                users_permissions_user: { documentId: { eq: user.documentId } },
+              },
+            });
+
+            if (speakerResponse.data && speakerResponse.data.length > 0) {
+              const speaker = speakerResponse.data[0];
+              await dataSources.managerIntegration.updateSpeaker(
+                speaker.documentId,
+                { avatar: input.avatar },
+              );
+            }
+          } catch (speakerErr) {
+            console.error('Error updating speaker avatar:', speakerErr.message);
+            // Don't fail the whole mutation if speaker update fails
+          }
+        }
+
+        return updatedUser;
+      } catch (err) {
+        throw new Error(`Error updating profile: ${err.message}`);
+      }
+    },
   },
 };
 
 export default User;
+

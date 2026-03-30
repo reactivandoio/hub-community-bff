@@ -9,12 +9,12 @@ function signIn({ identifier, password }) {
   );
 }
 
-function signUp({ username, email, password }) {
+function signUp({ username, email, password, name, phone }) {
   return managerPublicNetworkUtils.fetch(
     '/auth/local/register',
     'POST',
     {},
-    { username, email, password },
+    { username, email, password, name, phone },
   );
 }
 
