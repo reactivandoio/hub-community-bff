@@ -33,7 +33,8 @@ const findSignupsByEvent = async (eventId, headers) => {
         const data = response?.data || [];
         allSignups = [...allSignups, ...data];
 
-        const meta = response?.meta?.pagination;
+        // response.meta already IS the pagination object (extracted by createStrapiFetch)
+        const meta = response?.meta;
         if (meta && page < meta.pageCount) {
             page++;
         } else {

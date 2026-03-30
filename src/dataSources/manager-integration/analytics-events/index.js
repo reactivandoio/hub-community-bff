@@ -22,8 +22,9 @@ const findAllAnalyticsEvents = async (filters, headers) => {
     const data = response?.data || [];
     allEvents = allEvents.concat(Array.isArray(data) ? data : [data]);
 
-    const pagination = response?.meta?.pagination;
-    if (pagination && page < pagination.pageCount) {
+    // response.meta already IS the pagination object (extracted by createStrapiFetch)
+    const paginationMeta = response?.meta;
+    if (paginationMeta && page < paginationMeta.pageCount) {
       page += 1;
     } else {
       hasMore = false;
