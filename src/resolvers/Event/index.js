@@ -422,22 +422,32 @@ const Event = {
 
         const eventandoEventId = event.id;
 
-        // 2. Delete existing batches and products (clean slate)
+        // 2. Identify existing products and batches to potentially delete
         const existingProducts = event.products || [];
+        const inputProductIds = (data.products || []).filter(p => p.id).map(p => p.id);
+        const inputBatchIds = [];
+        (data.products || []).forEach(p => {
+          (p.batches || []).forEach(b => {
+             if (b.id) inputBatchIds.push(b.id);
+          });
+        });
+
+        // Delete batches that are no longer in the input
         for (const product of existingProducts) {
           if (product.batches && product.batches.length > 0) {
             for (const batch of product.batches) {
-              try {
-                await dataSources.eventandoIntegration.deleteBatch(batch.id);
-              } catch (batchErr) {
-                // Ignore — batch may already be deleted
+              if (!inputBatchIds.includes(batch.id)) {
+                try {
+                  await dataSources.eventandoIntegration.deleteBatch(batch.id);
+                } catch (batchErr) {}
               }
             }
           }
-          try {
-            await dataSources.eventandoIntegration.deleteProduct(product.id);
-          } catch (prodErr) {
-            // Ignore — product may already be deleted
+          // Delete products that are no longer in the input
+          if (!inputProductIds.includes(product.id)) {
+            try {
+              await dataSources.eventandoIntegration.deleteProduct(product.id);
+            } catch (prodErr) {}
           }
         }
 
@@ -448,60 +458,67 @@ const Event = {
           });
         }
 
-        // 4. Create new products and their batches
-        const createdProducts = [];
+        // 4. Create or update products and their batches
+        const processedProducts = [];
         if (data.products && Array.isArray(data.products)) {
           for (const productInput of data.products) {
-            const productResponse =
-              await dataSources.eventandoIntegration.createProduct({
-                name: productInput.name,
-                enabled: productInput.enabled !== false,
-                event: eventandoEventId,
-              });
+            let processedProduct;
+            
+            if (productInput.id) {
+               const res = await dataSources.eventandoIntegration.updateProduct(productInput.id, {
+                 name: productInput.name,
+                 enabled: productInput.enabled !== false,
+                 event: eventandoEventId,
+               });
+               processedProduct = res.data;
+            } else {
+               const res = await dataSources.eventandoIntegration.createProduct({
+                 name: productInput.name,
+                 enabled: productInput.enabled !== false,
+                 event: eventandoEventId,
+               });
+               processedProduct = res.data;
+            }
 
-            const createdProduct = productResponse.data;
-            const createdBatches = [];
+            const processedBatches = [];
 
-            if (
-              productInput.batches &&
-              Array.isArray(productInput.batches)
-            ) {
-              for (const batchInput of productInput.batches) {
-                const batchResponse =
-                  await dataSources.eventandoIntegration.createBatch({
+            if (productInput.batches && Array.isArray(productInput.batches)) {
+               for (const batchInput of productInput.batches) {
+                 const batchData = {
                     batch_number: batchInput.batch_number || 1,
                     value: batchInput.value || 0,
                     max_quantity: batchInput.max_quantity || 0,
-                    valid_from:
-                      batchInput.valid_from ||
-                      new Date().toISOString(),
-                    valid_until:
-                      batchInput.valid_until ||
-                      new Date(
-                        Date.now() + 365 * 24 * 60 * 60 * 1000,
-                      ).toISOString(),
+                    valid_from: batchInput.valid_from || undefined,
+                    valid_until: batchInput.valid_until || undefined,
                     enabled: batchInput.enabled !== false,
-                    half_price_eligible:
-                      batchInput.half_price_eligible || false,
-                    product: createdProduct.id,
-                  });
+                    half_price_eligible: batchInput.half_price_eligible || false,
+                    product: processedProduct.id,
+                 };
 
-                createdBatches.push(batchResponse.data);
-              }
+                 if (batchInput.id) {
+                    const res = await dataSources.eventandoIntegration.updateBatch(batchInput.id, batchData);
+                    processedBatches.push(res.data);
+                 } else {
+                    batchData.valid_from = batchData.valid_from || new Date().toISOString();
+                    batchData.valid_until = batchData.valid_until || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+                    const res = await dataSources.eventandoIntegration.createBatch(batchData);
+                    processedBatches.push(res.data);
+                 }
+               }
             }
 
-            createdProducts.push({
-              ...createdProduct,
-              batches: createdBatches,
+            processedProducts.push({
+               ...processedProduct,
+               batches: processedBatches,
             });
           }
         }
 
-        // 5. Return the event with the newly created products
+        // 5. Return the event with the processed products
         return {
           id: event.uuid || id,
           ...event,
-          products: createdProducts,
+          products: processedProducts,
         };
       } catch (err) {
         throw new Error(`Error updating event sale: ${err.message}`);

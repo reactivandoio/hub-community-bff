@@ -15,9 +15,39 @@ const findSignupByEmail = (eventId, email, headers) => {
     return fetch(route, 'GET', headers);
 };
 
+const findSignupsByEvent = async (eventId, headers) => {
+    let allSignups = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+        const filters = {
+            event: { id: { eq: eventId } },
+        };
+        const pagination = { page, pageSize: 100 };
+        const populate = ['payment', 'payment.product', 'payment.batch', 'event', 'event.products', 'event.products.batches'];
+        const query = buildQuery(filters, [{ createdAt: 'desc' }], pagination, '', populate);
+        const route = `/signups${query ? `?${query}` : ''}`;
+        const response = await fetch(route, 'GET', headers);
+
+        const data = response?.data || [];
+        allSignups = [...allSignups, ...data];
+
+        const meta = response?.meta?.pagination;
+        if (meta && page < meta.pageCount) {
+            page++;
+        } else {
+            hasMore = false;
+        }
+    }
+
+    return allSignups;
+};
+
 const signupDataSource = ({ headers }) => ({
     signup: (eventId, data) => signup(eventId, data, headers),
     findSignupByEmail: (eventId, email) => findSignupByEmail(eventId, email, headers),
+    findSignupsByEvent: (eventId) => findSignupsByEvent(eventId, headers),
 });
 
 export default signupDataSource;

@@ -60,6 +60,7 @@ input EventInput {
 }
 
 input BatchSaleInput {
+  id: String
   batch_number: Int
   value: Float
   max_quantity: Int
@@ -70,6 +71,7 @@ input BatchSaleInput {
 }
 
 input ProductSaleInput {
+  id: String
   name: String
   enabled: Boolean
   batches: [BatchSaleInput]

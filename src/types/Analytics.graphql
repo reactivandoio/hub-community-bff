@@ -1,0 +1,61 @@
+# Event Analytics types — aggregated data for admin dashboards
+
+type EventAnalytics {
+  event_id: String!
+  event_title: String!
+  event_slug: String
+
+  # Core signup metrics
+  total_signups: Int!
+  free_signups: Int!
+  paid_signups: Int!
+
+  # Capacity
+  max_slots: Int
+  occupancy_percentage: Float
+
+  # Certificate requests (Hub Community Manager participants)
+  certificate_requests: Int!
+
+  # Product/Batch breakdown
+  products_breakdown: [ProductAnalytics]
+
+  # Signup timeline (daily aggregation)
+  signups_timeline: [TimelineDataPoint]
+
+  # Recent signups list
+  recent_signups: [SignupEntry]
+}
+
+type ProductAnalytics {
+  product_id: String
+  product_name: String!
+  total_signups: Int!
+  batches: [BatchAnalytics]
+}
+
+type BatchAnalytics {
+  batch_id: String
+  batch_number: Int
+  value: Float
+  max_quantity: Int
+  sold_quantity: Int!
+  revenue: Float!
+}
+
+type TimelineDataPoint {
+  date: String!
+  count: Int!
+}
+
+type SignupEntry {
+  name: String
+  email: String
+  phone_number: String
+  created_at: String
+  product_name: String
+}
+
+type Query {
+  eventAnalytics(slugOrId: String!): EventAnalytics
+}
