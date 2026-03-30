@@ -1,3 +1,4 @@
+import analyticsEvents from './analytics-events';
 import speakers from './speakers';
 import agendas from './agendas';
 import comments from './comments';
@@ -9,6 +10,7 @@ import users from './users';
 import participants from './participants';
 
 const managerIntegration = ({ headers }) => ({
+  ...analyticsEvents({ headers }),
   ...speakers({ headers }),
   ...agendas({ headers }),
   ...comments({ headers }),

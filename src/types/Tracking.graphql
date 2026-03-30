@@ -1,0 +1,45 @@
+type AnalyticsTracking {
+  id: ID
+  event_type: String
+  metadata: JSON
+  session_id: String
+  user_agent: String
+  referrer: String
+  createdAt: String
+}
+
+input TrackEventInput {
+  event_type: String!
+  metadata: JSON
+  event_id: String
+  session_id: String
+  user_agent: String
+  referrer: String
+}
+
+type TrackEventResponse {
+  success: Boolean
+  id: ID
+}
+
+type EventAnalyticsMetrics {
+  total_visits: Int
+  unique_visitors: Int
+  signup_clicks: Int
+  share_clicks: Int
+  visits_by_day: [TimelineDataPoint]
+  visits_by_referrer: [ReferrerBreakdown]
+}
+
+type ReferrerBreakdown {
+  referrer: String
+  count: Int
+}
+
+extend type Query {
+  eventTrackingMetrics(eventDocumentId: String!, period: String): EventAnalyticsMetrics
+}
+
+extend type Mutation {
+  trackEvent(input: TrackEventInput!): TrackEventResponse
+}
