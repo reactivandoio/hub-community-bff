@@ -424,11 +424,13 @@ const Event = {
 
         // 2. Identify existing products and batches to potentially delete
         const existingProducts = event.products || [];
-        const inputProductIds = (data.products || []).filter(p => p.id).map(p => p.id);
+        const inputProductIds = (data.products || [])
+          .filter((p) => p.id && !p.id.toString().startsWith('new-'))
+          .map((p) => p.id);
         const inputBatchIds = [];
         (data.products || []).forEach(p => {
           (p.batches || []).forEach(b => {
-             if (b.id) inputBatchIds.push(b.id);
+             if (b.id && !b.id.toString().startsWith('new-')) inputBatchIds.push(b.id);
           });
         });
 
@@ -464,7 +466,7 @@ const Event = {
           for (const productInput of data.products) {
             let processedProduct;
             
-            if (productInput.id) {
+            if (productInput.id && !productInput.id.toString().startsWith('new-')) {
                const res = await dataSources.eventandoIntegration.updateProduct(productInput.id, {
                  name: productInput.name,
                  enabled: productInput.enabled !== false,
@@ -495,7 +497,7 @@ const Event = {
                     product: processedProduct.id,
                  };
 
-                 if (batchInput.id) {
+                 if (batchInput.id && !batchInput.id.toString().startsWith('new-')) {
                     const res = await dataSources.eventandoIntegration.updateBatch(batchInput.id, batchData);
                     processedBatches.push(res.data);
                  } else {
