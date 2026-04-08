@@ -428,11 +428,11 @@ const Event = {
         const existingProducts = event.products || [];
         const inputProductIds = (data.products || [])
           .filter((p) => p.id && !p.id.toString().startsWith('new-'))
-          .map((p) => p.id);
+          .map((p) => p.id.toString());
         const inputBatchIds = [];
         (data.products || []).forEach(p => {
           (p.batches || []).forEach(b => {
-             if (b.id && !b.id.toString().startsWith('new-')) inputBatchIds.push(b.id);
+             if (b.id && !b.id.toString().startsWith('new-')) inputBatchIds.push(b.id.toString());
           });
         });
 
@@ -440,7 +440,7 @@ const Event = {
         for (const product of existingProducts) {
           if (product.batches && product.batches.length > 0) {
             for (const batch of product.batches) {
-              if (!inputBatchIds.includes(batch.id)) {
+              if (!inputBatchIds.includes(batch.id?.toString())) {
                 try {
                   const targetBatchId = batch.documentId || batch.id;
                   await dataSources.eventandoIntegration.updateBatch(targetBatchId, { deleted: true, enabled: false });
@@ -451,10 +451,10 @@ const Event = {
             }
           }
           // Delete products that are no longer in the input
-          if (!inputProductIds.includes(product.id)) {
+          if (!inputProductIds.includes(product.id?.toString())) {
             try {
               const targetProdId = product.documentId || product.id;
-              await dataSources.eventandoIntegration.updateProduct(targetProdId, { deleted: true, enabled: false, can_be_listed: false });
+              await dataSources.eventandoIntegration.updateProduct(targetProdId, { deleted: true, enabled: false });
             } catch (prodErr) {
               console.error(`Failed to logically delete product ${product.id}:`, prodErr.message);
             }
