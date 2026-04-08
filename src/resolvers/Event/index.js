@@ -543,6 +543,7 @@ const Event = {
           products: processedProducts.filter(p => !p.deleted),
         };
       } catch (err) {
+        console.error(`[updateEventSale] Error full trace:`, err);
         throw new Error(`Error updating event sale: ${err.message}`);
       }
     },

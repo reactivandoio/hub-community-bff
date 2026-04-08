@@ -1,0 +1,17 @@
+{
+  "query": "mutation UpdateSale($id: String!, $data: EventSaleInput!) { updateEventSale(id: $id, data: $data) { id } }",
+  "variables": {
+    "id": "eckytmk6f1mw4dgdisgwnvwc",
+    "data": {
+      "max_slots": 50,
+      "products": [
+        {
+          "id": "27",
+          "name": "Final Test Updated",
+          "enabled": true,
+          "batches": []
+        }
+      ]
+    }
+  }
+}

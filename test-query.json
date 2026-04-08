@@ -1,0 +1,4 @@
+{
+  "query": "query GetEvent($slug: String!) { eventBySlugOrId(slugOrId: $slug) { id title products { id name batches { id } } } }",
+  "variables": { "slug": "eckytmk6f1mw4dgdisgwnvwc" }
+}

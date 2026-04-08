@@ -1,0 +1,12 @@
+{
+  "data": {
+    "batch_number": 1,
+    "value": 10,
+    "max_quantity": 100,
+    "valid_from": "2024-04-08T00:00:00.000Z",
+    "valid_until": "2026-04-08T00:00:00.000Z",
+    "enabled": true,
+    "half_price_eligible": false,
+    "product": 27
+  }
+}
