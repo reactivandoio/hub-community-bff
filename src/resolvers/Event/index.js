@@ -457,6 +457,7 @@ const Event = {
               await dataSources.eventandoIntegration.updateProduct(targetProdId, { deleted: true, enabled: false });
             } catch (prodErr) {
               console.error(`Failed to logically delete product ${product.id}:`, prodErr.message);
+              throw new Error(`Failed to logically delete product ${product.name || product.id}: ${prodErr.response?.data?.error?.message || prodErr.message}`);
             }
           }
         }
