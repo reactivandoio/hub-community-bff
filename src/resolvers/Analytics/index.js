@@ -106,37 +106,43 @@ const Analytics = {
 
         // 6. Product & batch breakdown
         const products = eventandoEvent?.products || [];
-        const productsBreakdown = products.map(product => {
-          // Count signups per product/batch
-          const productSignups = allSignups.filter(s => {
-            const paymentProductId = s.payment?.batch?.product?.id || s.payment?.batch?.product;
-            return paymentProductId === product.id;
-          });
-
-          const batches = (product.batches || []).map(batch => {
-            const batchSignups = allSignups.filter(s => {
-              const paymentBatchId = s.payment?.batch?.id || s.payment?.batch;
-              return paymentBatchId === batch.id;
+        const productsBreakdown = products
+          .map(product => {
+            // Count signups per product/batch
+            const productSignups = allSignups.filter(s => {
+              const paymentProductId = s.payment?.batch?.product?.documentId || s.payment?.batch?.product?.id || s.payment?.batch?.product;
+              return paymentProductId === product.documentId || paymentProductId === product.id;
             });
 
-            const batchValue = batch.value || 0;
-            return {
-              batch_id: String(batch.id),
-              batch_number: batch.batch_number,
-              value: batchValue,
-              max_quantity: batch.max_quantity,
-              sold_quantity: batchSignups.length,
-              revenue: batchSignups.length * batchValue,
-            };
-          });
+            const batches = (product.batches || [])
+              .map(batch => {
+                const batchSignups = allSignups.filter(s => {
+                  const paymentBatchId = s.payment?.batch?.documentId || s.payment?.batch?.id || s.payment?.batch;
+                  return paymentBatchId === batch.documentId || paymentBatchId === batch.id;
+                });
 
-          return {
-            product_id: String(product.id),
-            product_name: product.name || 'Produto',
-            total_signups: productSignups.length || batches.reduce((sum, b) => sum + b.sold_quantity, 0),
-            batches,
-          };
-        });
+                const batchValue = batch.value || 0;
+                return {
+                  batch_id: String(batch.documentId || batch.id),
+                  batch_number: batch.batch_number,
+                  value: batchValue,
+                  max_quantity: batch.max_quantity,
+                  sold_quantity: batchSignups.length,
+                  revenue: batchSignups.length * batchValue,
+                  deleted: batch.deleted || false,
+                };
+              })
+              .filter(b => !(b.deleted && b.sold_quantity === 0));
+
+            return {
+              product_id: String(product.documentId || product.id),
+              product_name: product.name || 'Produto',
+              total_signups: productSignups.length || batches.reduce((sum, b) => sum + b.sold_quantity, 0),
+              batches,
+              deleted: product.deleted || false,
+            };
+          })
+          .filter(p => !(p.deleted && p.total_signups === 0));
 
         // 7. Timeline — aggregate signups by day
         const timelineMap = {};

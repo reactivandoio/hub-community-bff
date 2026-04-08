@@ -104,6 +104,7 @@ const Event = {
           ]),
           dataSources.eventandoIntegration.findEvents({
             filters: eventandoFilters,
+            populate: ['products', 'products.batches'],
           }),
         ]);
 
@@ -129,7 +130,12 @@ const Event = {
         // Merge: Manager is the base, it holds truth for slug, title, images, location
         return {
           ...(managerEvent || {}),
-          products: eventandoEvent?.products,
+          products: eventandoEvent?.products
+            ?.filter(p => !p.deleted)
+            ?.map(p => ({
+              ...p,
+              batches: p.batches?.filter(b => !b.deleted) || [],
+            })) || [],
           max_slots: eventandoEvent?.max_slots ?? managerEvent?.max_slots,
           uuid: managerEvent?.documentId || eventandoEvent?.uuid,
         };
