@@ -55,6 +55,7 @@ input EventInput {
   is_online: Boolean
   call_link: String
   location: String
+  images: [String]
   communities: [String]
   talks: [String]
 }

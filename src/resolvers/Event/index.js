@@ -126,14 +126,12 @@ const Event = {
           throw new Error(`Event with slug or id "${slugOrId}" not found`);
         }
 
-        // Merge: Manager is the base, Eventando provides only defined fields
-        const eventandoDefinedFields = Object.fromEntries(
-          Object.entries(eventandoEvent || {}).filter(([, v]) => v !== undefined && v !== null),
-        );
-
+        // Merge: Manager is the base, it holds truth for slug, title, images, location
         return {
           ...(managerEvent || {}),
-          ...eventandoDefinedFields,
+          products: eventandoEvent?.products,
+          max_slots: eventandoEvent?.max_slots ?? managerEvent?.max_slots,
+          uuid: managerEvent?.documentId || eventandoEvent?.uuid,
         };
       } catch (err) {
         throw new Error(`Error fetching event: ${err.message}`);
@@ -223,6 +221,7 @@ const Event = {
             is_online: data.is_online || false,
             call_link: data.call_link || null,
             location: data.location,
+            images: data.images,
             communities: data.communities,
             talks: data.talks,
           },
@@ -327,6 +326,7 @@ const Event = {
               is_online: data.is_online || false,
               call_link: data.call_link || null,
               location: data.location,
+              images: data.images,
               communities: data.communities,
               talks: data.talks,
             },

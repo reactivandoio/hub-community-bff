@@ -1,0 +1,3 @@
+{
+  "query": "query { eventBySlugOrId(slugOrId: \"eckytmk6f1mw4dgdisgwnvwc\") { id documentId slug uuid } }"
+}
