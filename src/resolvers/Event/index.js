@@ -450,11 +450,22 @@ const Event = {
               }
             }
           }
-          // Delete products that are no longer in the input
-          if (!inputProductIds.includes(product.id?.toString())) {
+        } // <--- Added missing closing brace
+        // Delete products that are no longer in the input
+        console.log(`[DELETION LOGIC] existingProducts count:`, existingProducts.length);
+        console.log(`[DELETION LOGIC] inputProductIds array:`, inputProductIds);
+        
+        for (const product of existingProducts) {
+          const prodIdStr = product.id?.toString();
+          console.log(`[DELETION LOGIC] Checking product ID: ${prodIdStr} - included in input?`, inputProductIds.includes(prodIdStr));
+          
+          if (!inputProductIds.includes(prodIdStr)) {
             try {
               const targetProdId = product.documentId || product.id;
-              await dataSources.eventandoIntegration.updateProduct(targetProdId, { deleted: true, enabled: false });
+              console.log(`[DELETION LOGIC] Executing updateProduct for targetProdId:`, targetProdId);
+              
+              const res = await dataSources.eventandoIntegration.updateProduct(targetProdId, { deleted: true, enabled: false });
+              console.log(`[DELETION LOGIC] updateProduct SUCCESS for ${targetProdId}. Response:`, JSON.stringify(res.data));
             } catch (prodErr) {
               console.error(`Failed to logically delete product ${product.id}:`, prodErr.message);
               throw new Error(`Failed to logically delete product ${product.name || product.id}: ${prodErr.response?.data?.error?.message || prodErr.message}`);
