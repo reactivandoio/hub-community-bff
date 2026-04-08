@@ -31,10 +31,12 @@ const Event = {
         const response = await dataSources.eventandoIntegration.findEventBySlug(slug);
         const eventandoEvent = response?.data?.[0];
         if (!eventandoEvent || !eventandoEvent.products) return [];
-        return eventandoEvent.products.map((product) => ({
-          ...product,
-          batches: product.batches || [],
-        }));
+        return eventandoEvent.products
+          .filter((p) => !p.deleted)
+          .map((product) => ({
+            ...product,
+            batches: (product.batches || []).filter((b) => !b.deleted),
+          }));
       } catch (err) {
         // If Eventando Manager is unreachable, return empty
         return [];
@@ -440,16 +442,22 @@ const Event = {
             for (const batch of product.batches) {
               if (!inputBatchIds.includes(batch.id)) {
                 try {
-                  await dataSources.eventandoIntegration.deleteBatch(batch.id);
-                } catch (batchErr) {}
+                  const targetBatchId = batch.documentId || batch.id;
+                  await dataSources.eventandoIntegration.updateBatch(targetBatchId, { deleted: true, enabled: false });
+                } catch (batchErr) {
+                  console.error(`Failed to logically delete batch ${batch.id}:`, batchErr.message);
+                }
               }
             }
           }
           // Delete products that are no longer in the input
           if (!inputProductIds.includes(product.id)) {
             try {
-              await dataSources.eventandoIntegration.deleteProduct(product.id);
-            } catch (prodErr) {}
+              const targetProdId = product.documentId || product.id;
+              await dataSources.eventandoIntegration.updateProduct(targetProdId, { deleted: true, enabled: false, can_be_listed: false });
+            } catch (prodErr) {
+              console.error(`Failed to logically delete product ${product.id}:`, prodErr.message);
+            }
           }
         }
 
@@ -520,7 +528,7 @@ const Event = {
         return {
           id: event.uuid || id,
           ...event,
-          products: processedProducts,
+          products: processedProducts.filter(p => !p.deleted),
         };
       } catch (err) {
         throw new Error(`Error updating event sale: ${err.message}`);
