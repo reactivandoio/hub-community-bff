@@ -758,6 +758,20 @@ async function sendSignupConfirmationEmail({
   // Call link (from Hub Community Manager)
   const callLink = event.call_link || null;
 
+  // Does the registrant still need to confirm their account email?
+  // Covers two cases: (a) a brand-new account created via the inline signup
+  // flow on /events/[id]/signup, (b) a pre-existing account that was never
+  // confirmed and is now registering for an event. In both cases the user
+  // can't log in until they click the Strapi confirmation link, so remind
+  // them in the event-signup email.
+  let needsEmailConfirmation = false;
+  try {
+    const existingUser = await dataSources.managerIntegration.findUserByEmail(userEmail);
+    needsEmailConfirmation = Boolean(existingUser && existingUser.confirmed === false);
+  } catch (err) {
+    console.error('[Email] Could not check user confirmation status:', err.message);
+  }
+
   // Build & send email
   const baseUrl = process.env.FRONTEND_URL || 'https://hubcommunity.io';
   const html = signupConfirmationTemplate({
@@ -774,6 +788,7 @@ async function sendSignupConfirmationEmail({
     isOnline,
     callLink,
     baseUrl,
+    needsEmailConfirmation,
   });
 
   await sendEmail({
