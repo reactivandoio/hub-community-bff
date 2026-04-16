@@ -15,6 +15,9 @@
  * @param {boolean} params.isOnline - If it's an online event
  * @param {string} params.callLink - Online call link (if applicable)
  * @param {string} params.baseUrl - Base URL for links (e.g. https://hubcommunity.io)
+ * @param {boolean} params.needsEmailConfirmation - If true, renders a
+ *        reminder block telling the user to click the separate account
+ *        confirmation link Strapi sent them.
  */
 export const signupConfirmationTemplate = ({
   userName,
@@ -30,6 +33,7 @@ export const signupConfirmationTemplate = ({
   isOnline,
   callLink,
   baseUrl = 'https://hubcommunity.io',
+  needsEmailConfirmation = false,
 }) => {
   const eventUrl = `${baseUrl}/events/${eventSlug}`;
   const truncatedDescription = eventDescription
@@ -140,6 +144,22 @@ export const signupConfirmationTemplate = ({
                       <span style="font-size:14px;font-weight:600;color:#22c55e;">🔗 Link da Chamada Online</span>
                       <p style="margin:8px 0 0;">
                         <a href="${callLink}" style="font-size:14px;color:#22c55e;text-decoration:underline;word-break:break-all;">${callLink}</a>
+                      </p>
+                    </div>
+                    ` : ''}
+
+                    ${needsEmailConfirmation ? `
+                    <!-- Account confirmation reminder -->
+                    <div style="margin-top:20px;padding:20px;background-color:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);border-radius:12px;">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <span style="font-size:18px;">📧</span>
+                        <span style="font-size:14px;font-weight:600;color:#fbbf24;">Confirme sua conta por email</span>
+                      </div>
+                      <p style="margin:0;font-size:14px;line-height:1.6;color:#d1d5db;">
+                        Enviamos um email separado com um link de confirmação da sua conta. Clique nesse link para ativar seu acesso e conseguir entrar na plataforma. Sua inscrição neste evento <strong style="color:#ffffff;">já está garantida</strong> mesmo antes da confirmação — mas você só vai conseguir acessar a área do participante depois de confirmar.
+                      </p>
+                      <p style="margin:12px 0 0;font-size:13px;color:#9ca3af;">
+                        Não encontrou o email? Verifique a caixa de spam ou lixo eletrônico.
                       </p>
                     </div>
                     ` : ''}
