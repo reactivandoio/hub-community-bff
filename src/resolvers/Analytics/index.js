@@ -159,8 +159,8 @@ const Analytics = {
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([date, count]) => ({ date, count }));
 
-        // 8. Recent signups (last 20)
-        const recentSignups = allSignups.slice(0, 20).map(signup => ({
+        // 8. All signups list
+        const allSignupsMapped = allSignups.map(signup => ({
           name: signup.name,
           email: signup.email,
           phone_number: signup.phone_number,
@@ -180,7 +180,7 @@ const Analytics = {
           certificate_requests: certificateRequests,
           products_breakdown: productsBreakdown,
           signups_timeline: signupsTimeline,
-          recent_signups: recentSignups,
+          all_signups: allSignupsMapped,
         };
       } catch (err) {
         throw new Error(`Error fetching event analytics: ${err.message}`);

@@ -23,8 +23,8 @@ type EventAnalytics {
   # Signup timeline (daily aggregation)
   signups_timeline: [TimelineDataPoint]
 
-  # Recent signups list
-  recent_signups: [SignupEntry]
+  # Full signups list
+  all_signups: [SignupEntry]
 }
 
 type ProductAnalytics {
