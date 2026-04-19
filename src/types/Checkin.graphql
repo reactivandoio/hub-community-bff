@@ -1,0 +1,29 @@
+# Checkin types — credentialing system for event check-in
+
+type EventSignup {
+  id: String!
+  name: String!
+  email: String
+  phone_number: String
+  checked_in: Boolean
+  checked_in_at: String
+  product_name: String
+}
+
+type CheckinResponse {
+  success: Boolean!
+  message: String
+  signup: EventSignup
+}
+
+type Query {
+  eventSignups(eventSlug: String!, search: String): [EventSignup]
+}
+
+type Mutation {
+  checkinSignup(eventSlug: String!, signupId: String!): CheckinResponse
+}
+
+type Subscription {
+  credentialCheckedIn(eventSlug: String!): EventSignup
+}
