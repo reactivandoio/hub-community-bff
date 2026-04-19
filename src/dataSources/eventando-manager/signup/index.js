@@ -61,12 +61,17 @@ const findSignupsByEvent = async (eventId, headers) => {
 const updateSignup = (signupId, data, headers) =>
   fetch(`/signups/${signupId}`, 'PUT', headers, { data });
 
+const createSignupDirect = (data, headers) =>
+  fetch('/signups', 'POST', headers, { data });
+
 const signupDataSource = ({ headers }) => ({
   signup: (eventId, data) => signup(eventId, data, headers),
   findSignupByEmail: (eventId, email) =>
     findSignupByEmail(eventId, email, headers),
   findSignupsByEvent: (eventId) => findSignupsByEvent(eventId, headers),
   updateSignup: (signupId, data) => updateSignup(signupId, data, headers),
+  createSignupDirect: (data) => createSignupDirect(data, headers),
 });
 
 export default signupDataSource;
+

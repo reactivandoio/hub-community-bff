@@ -16,12 +16,41 @@ type CheckinResponse {
   signup: EventSignup
 }
 
+input SignupImportInput {
+  name: String!
+  email: String
+  phone_number: String
+}
+
+type ImportSignupsResponse {
+  success: Boolean!
+  message: String
+  imported_count: Int!
+  skipped_count: Int!
+  errors: [String]
+}
+
 type Query {
   eventSignups(eventSlug: String!, search: String): [EventSignup]
 }
 
+input ManualSignupInput {
+  name: String!
+  email: String!
+  cpf: String
+  phone_number: String
+}
+
+type ManualSignupResponse {
+  success: Boolean!
+  message: String
+  account_created: Boolean
+}
+
 type Mutation {
   checkinSignup(eventSlug: String!, signupId: String!): CheckinResponse
+  importSignups(eventSlug: String!, batchId: String!, signups: [SignupImportInput!]!): ImportSignupsResponse
+  manualSignup(eventSlug: String!, batchId: String!, input: ManualSignupInput!): ManualSignupResponse
 }
 
 type Subscription {

@@ -3,6 +3,7 @@ import signup from './signup';
 import products from './products';
 import batches from './batches';
 import coupons from './coupons';
+import payments from './payments';
 
 const eventandoManager = ({ headers }) => ({
     ...events({ headers }),
@@ -10,6 +11,8 @@ const eventandoManager = ({ headers }) => ({
     ...products({ headers }),
     ...batches({ headers }),
     ...coupons({ headers }),
+    ...payments({ headers }),
 });
 
 export default eventandoManager;
+
