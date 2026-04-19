@@ -315,10 +315,23 @@ const Event = {
             or: [{ uuid: { eq: id } }, { id: { eq: id } }],
           },
         });
-        const event = events.data[0];
+        let event = events.data[0];
 
+        // Auto-create in Eventando Manager if not found
         if (!event) {
-          throw new Error(`Event with id "${id}" not found`);
+          console.log(`[updateEvent] Event "${id}" not found in Eventando. Auto-creating...`);
+          const eventandoData = {
+            uuid: id,
+            name: data.title || 'Evento sem título',
+            slug: data.slug || id,
+            start_date: data.start_date || new Date().toISOString(),
+            end_date: data.end_date || new Date().toISOString(),
+            max_slots: data.max_slots || 0,
+            description: data.description || [],
+          };
+          const createRes = await dataSources.eventandoIntegration.createEvent(eventandoData);
+          event = createRes.data;
+          console.log(`[updateEvent] Auto-created event in Eventando with id: ${event.id}`);
         }
 
         const managerResponse =
@@ -422,10 +435,33 @@ const Event = {
           },
           populate: ['products', 'products.batches'],
         });
-        const event = events.data[0];
+        let event = events.data[0];
 
+        // Auto-create in Eventando Manager if not found
         if (!event) {
-          throw new Error(`Event with id "${id}" not found in Eventando`);
+          console.log(`[updateEventSale] Event "${id}" not found in Eventando. Auto-creating...`);
+
+          // Fetch event data from Hub Community Manager
+          const hubEvent = await dataSources.manager.findEventById(id);
+          const hubData = hubEvent?.data;
+
+          if (!hubData) {
+            throw new Error(`Event with id "${id}" not found in Hub Community Manager either.`);
+          }
+
+          const eventandoData = {
+            uuid: hubData.documentId || id,
+            name: hubData.title || 'Evento sem título',
+            slug: hubData.slug || id,
+            start_date: hubData.start_date || new Date().toISOString(),
+            end_date: hubData.end_date || new Date().toISOString(),
+            max_slots: data.max_slots || hubData.max_slots || 0,
+            description: hubData.description || [],
+          };
+
+          const createRes = await dataSources.eventandoIntegration.createEvent(eventandoData);
+          event = createRes.data;
+          console.log(`[updateEventSale] Auto-created event in Eventando with id: ${event.id}`);
         }
 
         const eventandoEventId = event.id;
