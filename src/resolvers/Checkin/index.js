@@ -272,23 +272,34 @@ const Checkin = {
           };
         }
 
-        // 4. Create event signup via custom controller (handles payment/batch)
-        const signupData = {
-          name: input.name,
-          email: input.email,
-          batch_id: parseInt(batchId, 10),
-          phone_number: input.phone_number || undefined,
-        };
+        // 4. Create event signup directly (same pattern as importSignups)
+        try {
+          // 4a. Create a CONFIRMED payment with value=0
+          const paymentResponse = await dataSources.eventandoIntegration.createPaymentDirect({
+            value: 0,
+            original_value: 0,
+            event: event.id,
+            batch: parseInt(batchId, 10),
+            payment_identification: `MANUAL_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            status: 'CONFIRMED',
+            confirmed_at: new Date().toISOString(),
+          });
 
-        const response = await dataSources.eventandoIntegration.signup(
-          event.id,
-          signupData,
-        );
+          const paymentId = paymentResponse?.data?.id || paymentResponse?.data?.documentId;
 
-        if (response.status === 'error' || response.error) {
+          // 4b. Create the signup linked to the payment
+          await dataSources.eventandoIntegration.createSignupDirect({
+            name: input.name,
+            email: input.email,
+            phone_number: input.phone_number || null,
+            event: event.id,
+            payment: paymentId || null,
+            checked_in: false,
+          });
+        } catch (signupErr) {
           return {
             success: false,
-            message: response.message || response.error?.message || 'Erro ao inscrever participante.',
+            message: `Erro ao criar inscrição: ${signupErr.message}`,
             account_created: accountCreated,
           };
         }
