@@ -14,7 +14,7 @@ function signUp({ username, email, password, name, phone, social_security_number
     '/auth/local/register',
     'POST',
     {},
-    { username, email, password, name, phone, social_security_number },
+    { username, email, password, name, phone, social_security_number, confirmed: true },
   );
 }
 
