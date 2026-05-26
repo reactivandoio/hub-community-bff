@@ -97,6 +97,7 @@ const User = {
         password: input.password,
         name: input.name,
         phone: input.phone || undefined,
+        social_security_number: input.social_security_number || undefined,
       });
 
       const createdUser = response.data.user;

@@ -50,6 +50,7 @@ input UserInput {
   password: String!
   name: String!
   phone: String
+  social_security_number: String
 }
 
 # Paginated User response
