@@ -92,10 +92,14 @@ const User = {
     signUp: async (_, { input }, { dataSources }) => {
       let speaker;
 
+      // Generate a random secure password for the initial registration
+      const temporaryPassword = Math.random().toString(36).slice(-12) + 
+                               Math.random().toString(36).toUpperCase().slice(-4);
+
       const response = await dataSources.managerPublic.signUp({
         username: input.username,
         email: input.email,
-        password: input.password,
+        password: temporaryPassword,
         name: input.name,
         phone: input.phone || undefined,
         social_security_number: input.social_security_number || undefined,
@@ -104,6 +108,17 @@ const User = {
       const createdUser = response.data.user;
 
       if (createdUser) {
+        // Immediately trigger a forgot-password email to allow the user to set their password
+        try {
+          await dataSources.managerPublic.forwardPassword({
+            email: createdUser.email,
+          });
+        } catch (err) {
+          console.error('Failed to trigger set-password email:', err.message);
+          // We don't fail the whole registration if email fails, 
+          // user can still use "Forgot Password" manually.
+        }
+
         try {
           const speakerResponse =
             await dataSources.managerIntegration.findSpeakers({
