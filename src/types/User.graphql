@@ -83,6 +83,7 @@ input ProfileInput {
   github: String
   website: String
   instagram: String
+  social_security_number: String
 }
 
 extend type Mutation {

@@ -82,6 +82,7 @@ const User = {
         return {
           ...user,
           token: jwt,
+          social_security_number: user.social_security_number,
         };
       } catch (err) {
         throw new Error(`Error signing in: ${err.message}`);
@@ -218,6 +219,7 @@ const User = {
         if (input.github !== undefined) userUpdate.github = input.github;
         if (input.website !== undefined) userUpdate.website = input.website;
         if (input.instagram !== undefined) userUpdate.instagram = input.instagram;
+        if (input.social_security_number !== undefined) userUpdate.social_security_number = input.social_security_number;
 
         // Update user fields if there's anything to update
         let updatedUser = user;
