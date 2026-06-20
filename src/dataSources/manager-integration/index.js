@@ -8,6 +8,7 @@ import talks from './talks';
 import communities from './communities';
 import users from './users';
 import participants from './participants';
+import attendances from './attendances';
 
 const managerIntegration = ({ headers }) => ({
   ...analyticsEvents({ headers }),
@@ -20,6 +21,7 @@ const managerIntegration = ({ headers }) => ({
   ...communities({ headers }),
   ...users({ headers }),
   ...participants({ headers }),
+  ...attendances({ headers }),
 });
 
 export default managerIntegration;

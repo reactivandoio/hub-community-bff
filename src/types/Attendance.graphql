@@ -1,0 +1,26 @@
+# Attendance types — lista de presença
+
+type Attendance {
+  id: String!
+  user: User
+  createdAt: String
+}
+
+type CreateAttendanceResponse {
+  success: Boolean!
+  message: String
+}
+
+type Query {
+  eventAttendances(eventDocumentId: String!): [Attendance]
+}
+
+type Mutation {
+  createAttendance(
+    eventDocumentId: String!
+    cpf: String!
+    date_of_birth: String!
+    phone: String!
+    name: String!
+  ): CreateAttendanceResponse
+}

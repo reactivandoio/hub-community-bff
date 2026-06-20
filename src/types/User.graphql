@@ -5,6 +5,8 @@ type User {
   email: String
   name: String
   phone: String
+  cpf: String
+  date_of_birth: String
   cover_photo: String
   twitter: String
   linkedin: String
@@ -75,6 +77,8 @@ extend type Query {
 input ProfileInput {
   name: String
   phone: String
+  cpf: String
+  date_of_birth: String
   avatar: String
   cover_photo: String
   twitter: String
