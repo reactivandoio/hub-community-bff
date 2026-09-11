@@ -7,6 +7,8 @@ import {
   findAttendanceForIdentifier,
   REVOKED_MESSAGE,
 } from './eligibility';
+import { buildCandidates } from './candidates';
+import { sendCertificateEmail } from './email';
 
 export const requireUser = (user) => {
   if (!user) throw new Error('Não autenticado.');
@@ -76,6 +78,30 @@ const configToInput = (raw) => ({
   sponsors: (raw.sponsors || []).map((s) => ({ name: s.name, url: s.url, logo: s.logo?.id })),
   signatures: (raw.signatures || []).map((s) => ({ name: s.name, role: s.role, image: s.image?.id })),
 });
+
+const BATCH_SIZE = 10;
+
+// Signups live in Eventando Manager, keyed by the hub event's slug.
+const loadEventandoSignups = async (dataSources, event) => {
+  if (!event?.slug) return [];
+  try {
+    const response = await dataSources.eventandoIntegration.findEvents({
+      filters: { or: [{ slug: { eq: event.slug } }, { uuid: { eq: event.slug } }] },
+    });
+    const eventandoEvent = response?.data?.[0];
+    if (!eventandoEvent) return [];
+    return dataSources.eventandoIntegration.findSignupsByEvent(eventandoEvent.id);
+  } catch (err) {
+    console.error('[certificates] Eventando unreachable, ignoring signups:', err.message);
+    return [];
+  }
+};
+
+const chunk = (list, size) => {
+  const out = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+};
 
 const Certificate = {
   Query: {
@@ -148,6 +174,21 @@ const Certificate = {
         revoked: false,
       };
     },
+
+    certificateCandidates: async (_, { eventId }, { user, dataSources }) => {
+      requireUser(user);
+      const { event } = await loadEventAndConfig(dataSources, eventId);
+      const [signups, attendances, participants, certificates] = await Promise.all([
+        loadEventandoSignups(dataSources, event),
+        dataSources.managerIntegration.findAttendancesByEvent(eventId),
+        dataSources.managerIntegration.findParticipantsByEvent(eventId),
+        dataSources.managerIntegration.findCertificatesByEvent(eventId),
+      ]);
+      return buildCandidates({ signups, attendances, participants, certificates }).map((c) => ({
+        ...c,
+        certificate: mapCertificate(c.certificate ? { ...c.certificate, event } : null),
+      }));
+    },
   },
 
   Mutation: {
@@ -189,6 +230,55 @@ const Certificate = {
         source: 'SELF_REQUEST',
       });
       return mapCertificate(created?.data);
+    },
+
+    issueCertificates: async (_, { eventId, entries, actions }, { user, dataSources }) => {
+      requireUser(user);
+      if (actions.email && !actions.register) {
+        throw new Error('Enviar e-mail exige registrar o certificado.');
+      }
+      if (!actions.register) {
+        return { issued: 0, emailed: 0, certificates: [], errors: [] };
+      }
+
+      const { event } = await loadEventAndConfig(dataSources, eventId);
+      const result = { issued: 0, emailed: 0, certificates: [], errors: [] };
+
+      const issueOne = async (entry) => {
+        const cpf = normalizeIdentifier(entry.identifier);
+        const label = entry.name || entry.email || cpf;
+        if (!isValidCpf(cpf)) throw new Error(`${label}: CPF inválido`);
+        if (!entry.email?.trim()) throw new Error(`${label}: e-mail obrigatório`);
+
+        const created = await dataSources.managerIntegration.createCertificate({
+          event: eventId,
+          name: entry.name.trim(),
+          identifier: cpf,
+          email: entry.email.trim().toLowerCase(),
+          source: 'ADMIN',
+        });
+        let certificate = created?.data;
+        result.issued += 1;
+
+        if (actions.email) {
+          const sent = await sendCertificateEmail({ certificate, event });
+          if (!sent.success) throw new Error(`${label}: falha ao enviar e-mail (${sent.error})`);
+          const updated = await dataSources.managerIntegration.updateCertificate(certificate.documentId, {
+            sent_at: new Date().toISOString(),
+          });
+          certificate = updated?.data || certificate;
+          result.emailed += 1;
+        }
+        result.certificates.push(mapCertificate({ ...certificate, event }));
+      };
+
+      for (const batch of chunk(entries, BATCH_SIZE)) {
+        const settled = await Promise.allSettled(batch.map(issueOne));
+        settled.forEach((s) => {
+          if (s.status === 'rejected') result.errors.push(s.reason?.message || String(s.reason));
+        });
+      }
+      return result;
     },
   },
 };

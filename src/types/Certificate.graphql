@@ -101,3 +101,46 @@ type Mutation {
     phone: String
   ): Certificate
 }
+
+enum CandidateSource {
+  SIGNUP
+  ATTENDANCE
+  REQUEST
+}
+
+type CertificateCandidate {
+  key: String!
+  name: String!
+  email: String
+  identifier: String
+  phone: String
+  sources: [CandidateSource!]!
+  checked_in: Boolean
+  certificate: Certificate
+}
+
+input IssueEntryInput {
+  name: String!
+  identifier: String!
+  email: String!
+}
+
+input IssueActionsInput {
+  register: Boolean!
+  email: Boolean!
+}
+
+type IssueResult {
+  issued: Int!
+  emailed: Int!
+  certificates: [Certificate!]!
+  errors: [String!]!
+}
+
+extend type Query {
+  certificateCandidates(eventId: String!): [CertificateCandidate!]!
+}
+
+extend type Mutation {
+  issueCertificates(eventId: String!, entries: [IssueEntryInput!]!, actions: IssueActionsInput!): IssueResult!
+}
