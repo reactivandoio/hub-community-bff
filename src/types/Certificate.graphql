@@ -1,0 +1,146 @@
+# Certificate types — certificado de participação
+
+type CertificateConfig {
+  id: String
+  enabled: Boolean!
+  allow_self_request: Boolean!
+  title: String
+  body_template: String
+  workload_hours: Float
+  issuer_name: String
+  primary_color: String
+  logo: String        # URL absoluta
+  logo_id: String     # id de mídia no Strapi (para re-salvar sem novo upload)
+  background: String
+  background_id: String
+  sponsors: [Sponsor!]!
+  signatures: [Signature!]!
+}
+
+type Sponsor {
+  name: String!
+  logo: String
+  logo_id: String
+  url: String
+}
+
+type Signature {
+  name: String!
+  role: String
+  image: String
+  image_id: String
+}
+
+enum CertificateSource {
+  ATTENDANCE
+  SELF_REQUEST
+  ADMIN
+}
+
+type Certificate {
+  id: String
+  code: String!
+  name: String!
+  identifier: String!
+  email: String!
+  source: CertificateSource!
+  issued_at: String
+  sent_at: String
+  revoked_at: String
+  event: Event
+}
+
+type LookupResult {
+  certificate: Certificate
+  eligible_by_attendance: Boolean!
+  self_request_allowed: Boolean!
+  event_ended: Boolean!
+  revoked: Boolean!
+}
+
+input SponsorInput {
+  name: String!
+  logo: String!
+  url: String
+}
+
+input SignatureInput {
+  name: String!
+  role: String
+  image: String
+}
+
+input CertificateConfigInput {
+  enabled: Boolean
+  allow_self_request: Boolean
+  title: String
+  body_template: String
+  workload_hours: Float
+  issuer_name: String
+  primary_color: String
+  logo: String
+  background: String
+  sponsors: [SponsorInput!]
+  signatures: [SignatureInput!]
+}
+
+type Query {
+  certificateConfig(eventId: String!): CertificateConfig
+  certificateByCode(code: String!): Certificate
+  lookupCertificate(eventId: String!, identifier: String!): LookupResult!
+}
+
+type Mutation {
+  upsertCertificateConfig(eventId: String!, data: CertificateConfigInput!): CertificateConfig
+  copyCertificateConfig(fromEventId: String!, toEventId: String!): CertificateConfig
+  requestCertificate(
+    eventId: String!
+    name: String!
+    identifier: String!
+    email: String!
+    phone: String
+  ): Certificate
+}
+
+enum CandidateSource {
+  SIGNUP
+  ATTENDANCE
+  REQUEST
+}
+
+type CertificateCandidate {
+  key: String!
+  name: String!
+  email: String
+  identifier: String
+  phone: String
+  sources: [CandidateSource!]!
+  checked_in: Boolean
+  certificate: Certificate
+}
+
+input IssueEntryInput {
+  name: String!
+  identifier: String!
+  email: String!
+}
+
+input IssueActionsInput {
+  register: Boolean!
+  email: Boolean!
+}
+
+type IssueResult {
+  issued: Int!
+  emailed: Int!
+  certificates: [Certificate!]!
+  errors: [String!]!
+}
+
+extend type Query {
+  certificateCandidates(eventId: String!): [CertificateCandidate!]!
+}
+
+extend type Mutation {
+  issueCertificates(eventId: String!, entries: [IssueEntryInput!]!, actions: IssueActionsInput!): IssueResult!
+}

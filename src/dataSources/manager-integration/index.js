@@ -9,6 +9,7 @@ import communities from './communities';
 import users from './users';
 import participants from './participants';
 import attendances from './attendances';
+import certificates from './certificates';
 
 const managerIntegration = ({ headers }) => ({
   ...analyticsEvents({ headers }),
@@ -22,6 +23,7 @@ const managerIntegration = ({ headers }) => ({
   ...users({ headers }),
   ...participants({ headers }),
   ...attendances({ headers }),
+  ...certificates({ headers }),
 });
 
 export default managerIntegration;

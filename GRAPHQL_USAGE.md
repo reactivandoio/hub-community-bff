@@ -418,4 +418,57 @@ subscription {
     }
   }
 }
+```
+
+## Certificados
+
+Certificado de participação em evento. `eventId` é sempre o `documentId` do evento no hub Strapi.
+
+### Queries
+
+- `certificateConfig(eventId: String!): CertificateConfig` — configuração do certificado do evento (modelo, logo, patrocinadores, assinaturas). **Não exige autenticação.**
+- `certificateByCode(code: String!): Certificate` — busca um certificado pelo código público (usado na página de verificação). **Não exige autenticação.**
+- `lookupCertificate(eventId: String!, identifier: String!): LookupResult!` — verifica elegibilidade de um CPF para autoatendimento; emite automaticamente se o evento já terminou, a config permite e o CPF tem presença registrada. **Não exige autenticação.**
+- `certificateCandidates(eventId: String!): [CertificateCandidate!]!` — lista consolidada (sem duplicar) de quem pode receber certificado: inscritos do Eventando (fonte `SIGNUP`), presenças confirmadas no hub (`ATTENDANCE`) e pedidos legados (`REQUEST`), unificados por CPF ou e-mail; quem já tem certificado emitido vem com `certificate.code` preenchido. **Exige autenticação** (`authorization: Bearer <jwt>` de organizador).
+
+```graphql
+query { certificateConfig(eventId: "EV") { enabled title workload_hours issuer_name primary_color sponsors { name } signatures { name role } } }
+```
+
+```graphql
+query { certificateByCode(code: "COD-XXXXXXXX") { code name event { title } } }
+```
+
+```graphql
+query { lookupCertificate(eventId: "EV", identifier: "529.982.247-25") {
+  certificate { code } eligible_by_attendance self_request_allowed event_ended revoked } }
+```
+
+```graphql
+query { certificateCandidates(eventId: "EV") { key name email identifier sources checked_in certificate { code sent_at } } }
+```
+
+### Mutations
+
+- `upsertCertificateConfig(eventId: String!, data: CertificateConfigInput!): CertificateConfig` — cria ou atualiza a configuração de certificado do evento. **Exige autenticação.**
+- `copyCertificateConfig(fromEventId: String!, toEventId: String!): CertificateConfig` — copia a configuração de um evento para outro (sempre criada com `enabled: false`). **Exige autenticação.**
+- `requestCertificate(eventId: String!, name: String!, identifier: String!, email: String!, phone: String): Certificate` — solicitação avulsa de certificado pelo próprio participante (autoatendimento). **Não exige autenticação.**
+- `issueCertificates(eventId: String!, entries: [IssueEntryInput!]!, actions: IssueActionsInput!): IssueResult!` — emissão em lote pelo organizador, com `actions.register` (grava o certificado) e `actions.email` (envia o e-mail de aviso, exige `register: true`). Erros de itens individuais (CPF inválido, e-mail obrigatório, falha de SMTP) são coletados em `errors` e não interrompem o lote; reemitir para o mesmo CPF é idempotente (mesmo `code`). **Exige autenticação.**
+
+```graphql
+mutation { upsertCertificateConfig(eventId: "EV", data: { enabled: true, title: "Certificado", sponsors: [], signatures: [{ name: "Ana", role: "Organizadora" }] }) { id enabled title signatures { name role image } } }
+```
+
+```graphql
+mutation { copyCertificateConfig(fromEventId: "EV1", toEventId: "EV2") { id enabled title } }
+```
+
+```graphql
+mutation { requestCertificate(eventId: "EV", name: "Maria", identifier: "529.982.247-25", email: "m@x.com") { code source } }
+```
+
+```graphql
+mutation { issueCertificates(eventId: "EV",
+  entries: [{ name: "Ana Souza", identifier: "529.982.247-25", email: "<seu e-mail>" }, { name: "X", identifier: "123", email: "x@x.com" }],
+  actions: { register: true, email: true }) { issued emailed errors certificates { code sent_at } } }
 ``` 
