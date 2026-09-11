@@ -58,6 +58,33 @@ const merge = (existing, row) => {
   };
 };
 
+// Two passes so CPF authority never depends on iteration order: every CPF match is reserved
+// first, and only then may an e-mail-only candidate claim a still-unreserved certificate (adopting
+// its CPF). A certificate attaches to at most one candidate, whichever way it is matched.
+const attachCertificates = (candidates, { certByIdentifier, certByEmail }) => {
+  const attachedCertificates = new Set();
+  const withCert = candidates.map((c) => ({ ...c, certificate: null }));
+
+  withCert.forEach((c) => {
+    if (!c.identifier) return;
+    const certificate = certByIdentifier.get(c.identifier);
+    if (!certificate) return;
+    c.certificate = certificate;
+    attachedCertificates.add(certificate);
+  });
+
+  withCert.forEach((c) => {
+    if (c.identifier || !c.email) return;
+    const certificate = certByEmail.get(c.email);
+    if (!certificate || attachedCertificates.has(certificate)) return;
+    c.certificate = certificate;
+    c.identifier = normalizeIdentifier(certificate.identifier);
+    attachedCertificates.add(certificate);
+  });
+
+  return { candidates: withCert, attachedCertificates };
+};
+
 export const buildCandidates = ({ signups = [], attendances = [], participants = [], certificates = [] }) => {
   const rows = [
     ...attendances.map(fromAttendance).filter(Boolean),
@@ -109,36 +136,21 @@ export const buildCandidates = ({ signups = [], attendances = [], participants =
     if (email && !certByEmail.has(email)) certByEmail.set(email, c);
   });
 
-  // A certificate may attach to at most one candidate, whichever way it is matched.
-  const attachedCertificates = new Set();
+  const { candidates: attachedCandidates, attachedCertificates } = attachCertificates(
+    [...byKey.values()],
+    { certByIdentifier, certByEmail },
+  );
 
-  const candidates = [...byKey.values()].map((c) => {
-    let certificate = certByIdentifier.get(c.identifier) || null;
-    let identifier = c.identifier;
-
-    // CPF is authoritative: only fall back to an e-mail match when the candidate has no CPF at
-    // all. A candidate who already carries a (non-matching) CPF never adopts a different one.
-    if (!certificate && !identifier && c.email) {
-      const byEmail = certByEmail.get(c.email);
-      if (byEmail && !attachedCertificates.has(byEmail)) {
-        certificate = byEmail;
-        identifier = normalizeIdentifier(byEmail.identifier);
-      }
-    }
-
-    if (certificate) attachedCertificates.add(certificate);
-
-    return {
-      key: c.key,
-      name: c.name,
-      email: c.email,
-      identifier,
-      phone: c.phone,
-      sources: [...c.sources].sort((a, b) => SOURCE_PRIORITY[b] - SOURCE_PRIORITY[a]),
-      checked_in: c.checked_in,
-      certificate,
-    };
-  });
+  const candidates = attachedCandidates.map((c) => ({
+    key: c.key,
+    name: c.name,
+    email: c.email,
+    identifier: c.identifier,
+    phone: c.phone,
+    sources: [...c.sources].sort((a, b) => SOURCE_PRIORITY[b] - SOURCE_PRIORITY[a]),
+    checked_in: c.checked_in,
+    certificate: c.certificate,
+  }));
 
   const seenIdentifiers = new Set(candidates.map((c) => c.identifier).filter(Boolean));
   certificates.forEach((cert) => {

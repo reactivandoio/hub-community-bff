@@ -181,4 +181,19 @@ describe('buildCandidates certificate by e-mail', () => {
     expect(byKey['11144477735'].certificate).toBeNull();
     expect(byKey['52998224725'].certificate.code).toBe('RCT-WRONG');
   });
+
+  it('attaches by CPF over e-mail regardless of iteration order: an earlier email-only candidate never steals the CPF holder\'s certificate', () => {
+    const signups = [{ name: 'Ana', email: 'shared@x.com' }];
+    const participants = [{ name: 'Ze', email: 'ze@other.com', identifier: '52998224725' }];
+    const certificates = [{ code: 'RCT-X', identifier: '52998224725', email: 'shared@x.com', name: 'Ze' }];
+
+    const result = buildCandidates({ signups, attendances: [], participants, certificates });
+    const byKey = Object.fromEntries(result.map((c) => [c.key, c]));
+
+    expect(result).toHaveLength(2);
+    expect(byKey['52998224725'].certificate.code).toBe('RCT-X');
+    expect(byKey['shared@x.com'].certificate).toBeNull();
+    expect(byKey['shared@x.com'].identifier).toBe('');
+    expect(result.filter((c) => c.certificate?.code === 'RCT-X')).toHaveLength(1);
+  });
 });
