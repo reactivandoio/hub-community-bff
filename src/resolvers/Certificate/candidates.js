@@ -74,7 +74,9 @@ export const buildCandidates = ({ signups = [], attendances = [], participants =
   });
 
   const certByIdentifier = new Map(
-    certificates.filter((c) => c.identifier).map((c) => [normalizeIdentifier(c.identifier), c]),
+    certificates
+      .map((c) => [normalizeIdentifier(c.identifier), c])
+      .filter(([id]) => id),
   );
 
   const candidates = [...byKey.values()].map((c) => ({
@@ -92,6 +94,7 @@ export const buildCandidates = ({ signups = [], attendances = [], participants =
   certificates.forEach((cert) => {
     const id = normalizeIdentifier(cert.identifier);
     if (!id || seenIdentifiers.has(id)) return;
+    seenIdentifiers.add(id);
     candidates.push({
       key: id,
       name: cert.name || '',

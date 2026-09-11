@@ -70,3 +70,31 @@ describe('buildCandidates', () => {
     expect(result.map((c) => c.name)).toEqual(['Ana Silva', 'Bruno', 'Carla', 'Diego']);
   });
 });
+
+describe('buildCandidates - orphan certificate dedup (F1)', () => {
+  it('produces exactly one candidate when two certificates share an identifier matching no list', () => {
+    const certificates = [
+      { code: 'RCT-FIRST', identifier: '98765432100', name: 'Diego' },
+      { code: 'RCT-SECOND', identifier: '98765432100', name: 'Diego' },
+    ];
+
+    const result = buildCandidates({ signups: [], attendances: [], participants: [], certificates });
+    const matches = result.filter((c) => c.key === '98765432100');
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].certificate.code).toBe('RCT-FIRST');
+  });
+});
+
+describe('buildCandidates - bogus identifier certificates (F2)', () => {
+  it('does not attach or create an orphan row for a certificate whose identifier has no digits', () => {
+    const signups = [{ name: 'Elis', email: 'elis@x.com' }];
+    const certificates = [{ code: 'RCT-BOGUS', identifier: 'sem-cpf', name: 'Ninguem' }];
+
+    const result = buildCandidates({ signups, attendances: [], participants: [], certificates });
+    const byKey = Object.fromEntries(result.map((c) => [c.key, c]));
+
+    expect(byKey['elis@x.com'].certificate).toBeNull();
+    expect(result.find((c) => c.name === 'Ninguem')).toBeUndefined();
+  });
+});
