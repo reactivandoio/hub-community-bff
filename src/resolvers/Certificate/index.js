@@ -246,9 +246,10 @@ const Certificate = {
 
       const issueOne = async (entry) => {
         const cpf = normalizeIdentifier(entry.identifier);
-        const label = entry.name || entry.email || cpf;
+        const label = (entry.name || '').trim() || entry.email || cpf;
         if (!isValidCpf(cpf)) throw new Error(`${label}: CPF inválido`);
         if (!entry.email?.trim()) throw new Error(`${label}: e-mail obrigatório`);
+        if (!(entry.name || '').trim()) throw new Error(`${label}: nome obrigatório`);
 
         const created = await dataSources.managerIntegration.createCertificate({
           event: eventId,
@@ -257,8 +258,9 @@ const Certificate = {
           email: entry.email.trim().toLowerCase(),
           source: 'ADMIN',
         });
-        let certificate = created?.data;
+        const certificate = created?.data;
         result.issued += 1;
+        result.certificates.push(mapCertificate({ ...certificate, event }));
 
         if (actions.email) {
           const sent = await sendCertificateEmail({ certificate, event });
@@ -266,16 +268,23 @@ const Certificate = {
           const updated = await dataSources.managerIntegration.updateCertificate(certificate.documentId, {
             sent_at: new Date().toISOString(),
           });
-          certificate = updated?.data || certificate;
+          const updatedCertificate = updated?.data || certificate;
           result.emailed += 1;
+          const mapped = mapCertificate({ ...updatedCertificate, event });
+          const idx = result.certificates.findIndex((c) => c.code === certificate.code);
+          if (idx >= 0) result.certificates[idx] = mapped;
+          else result.certificates.push(mapped);
         }
-        result.certificates.push(mapCertificate({ ...certificate, event }));
       };
 
       for (const batch of chunk(entries, BATCH_SIZE)) {
         const settled = await Promise.allSettled(batch.map(issueOne));
-        settled.forEach((s) => {
-          if (s.status === 'rejected') result.errors.push(s.reason?.message || String(s.reason));
+        settled.forEach((s, i) => {
+          if (s.status !== 'rejected') return;
+          const msg = s.reason?.message || String(s.reason);
+          const e = batch[i];
+          const label = (e.name || '').trim() || e.email || normalizeIdentifier(e.identifier);
+          result.errors.push(msg.startsWith(`${label}:`) ? msg : `${label}: ${msg}`);
         });
       }
       return result;

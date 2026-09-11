@@ -432,6 +432,19 @@ Certificado de participação em evento. `eventId` é sempre o `documentId` do e
 - `certificateCandidates(eventId: String!): [CertificateCandidate!]!` — lista consolidada (sem duplicar) de quem pode receber certificado: inscritos do Eventando (fonte `SIGNUP`), presenças confirmadas no hub (`ATTENDANCE`) e pedidos legados (`REQUEST`), unificados por CPF ou e-mail; quem já tem certificado emitido vem com `certificate.code` preenchido. **Exige autenticação** (`authorization: Bearer <jwt>` de organizador).
 
 ```graphql
+query { certificateConfig(eventId: "EV") { enabled title workload_hours issuer_name primary_color sponsors { name } signatures { name role } } }
+```
+
+```graphql
+query { certificateByCode(code: "COD-XXXXXXXX") { code name event { title } } }
+```
+
+```graphql
+query { lookupCertificate(eventId: "EV", identifier: "529.982.247-25") {
+  certificate { code } eligible_by_attendance self_request_allowed event_ended revoked } }
+```
+
+```graphql
 query { certificateCandidates(eventId: "EV") { key name email identifier sources checked_in certificate { code sent_at } } }
 ```
 
