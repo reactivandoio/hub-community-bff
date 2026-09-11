@@ -141,3 +141,44 @@ describe('buildCandidates identity merge', () => {
     expect(result).toHaveLength(2);
   });
 });
+
+describe('buildCandidates certificate by e-mail', () => {
+  it('attaches an issued certificate to an email-only signup and adopts its CPF, with no orphan row', () => {
+    const signups = [{ name: 'Elis', email: 'elis@x.com' }];
+    const certificates = [{ code: 'RCT-ELIS', identifier: '52998224725', email: 'elis@x.com', name: 'Elis' }];
+
+    const result = buildCandidates({ signups, attendances: [], participants: [], certificates });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].key).toBe('elis@x.com');
+    expect(result[0].identifier).toBe('52998224725');
+    expect(result[0].certificate.code).toBe('RCT-ELIS');
+    expect(result.find((c) => c.key === '52998224725')).toBeUndefined();
+  });
+
+  it('attaches a certificate to only the matching signup among several by e-mail, with no orphan', () => {
+    const signups = [{ name: 'Fabio', email: 'fabio@x.com' }, { name: 'Gina', email: 'gina@x.com' }];
+    const certificates = [{ code: 'RCT-GINA', identifier: '39053344705', email: 'gina@x.com', name: 'Gina' }];
+
+    const result = buildCandidates({ signups, attendances: [], participants: [], certificates });
+    const byKey = Object.fromEntries(result.map((c) => [c.key, c]));
+
+    expect(byKey['fabio@x.com'].certificate).toBeNull();
+    expect(byKey['gina@x.com'].certificate.code).toBe('RCT-GINA');
+    expect(result.find((c) => c.key === '39053344705')).toBeUndefined();
+  });
+
+  it('lets CPF authority win: a candidate with its own CPF never adopts a different CPF via e-mail match', () => {
+    const attendances = [
+      { users_permissions_user: { name: 'Helio', email: 'helio@x.com', cpf: '11144477735' } },
+    ];
+    const certificates = [{ code: 'RCT-WRONG', identifier: '52998224725', email: 'helio@x.com', name: 'Helio' }];
+
+    const result = buildCandidates({ signups: [], attendances, participants: [], certificates });
+    const byKey = Object.fromEntries(result.map((c) => [c.key, c]));
+
+    expect(byKey['11144477735'].identifier).toBe('11144477735');
+    expect(byKey['11144477735'].certificate).toBeNull();
+    expect(byKey['52998224725'].certificate.code).toBe('RCT-WRONG');
+  });
+});

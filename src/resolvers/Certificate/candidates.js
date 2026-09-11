@@ -102,22 +102,51 @@ export const buildCandidates = ({ signups = [], attendances = [], participants =
       .filter(([id]) => id),
   );
 
-  const candidates = [...byKey.values()].map((c) => ({
-    key: c.key,
-    name: c.name,
-    email: c.email,
-    identifier: c.identifier,
-    phone: c.phone,
-    sources: [...c.sources].sort((a, b) => SOURCE_PRIORITY[b] - SOURCE_PRIORITY[a]),
-    checked_in: c.checked_in,
-    certificate: certByIdentifier.get(c.identifier) || null,
-  }));
+  // First-wins: if two certificates share an e-mail, only the first one is reachable by e-mail.
+  const certByEmail = new Map();
+  certificates.forEach((c) => {
+    const email = normalizeEmail(c.email);
+    if (email && !certByEmail.has(email)) certByEmail.set(email, c);
+  });
+
+  // A certificate may attach to at most one candidate, whichever way it is matched.
+  const attachedCertificates = new Set();
+
+  const candidates = [...byKey.values()].map((c) => {
+    let certificate = certByIdentifier.get(c.identifier) || null;
+    let identifier = c.identifier;
+
+    // CPF is authoritative: only fall back to an e-mail match when the candidate has no CPF at
+    // all. A candidate who already carries a (non-matching) CPF never adopts a different one.
+    if (!certificate && !identifier && c.email) {
+      const byEmail = certByEmail.get(c.email);
+      if (byEmail && !attachedCertificates.has(byEmail)) {
+        certificate = byEmail;
+        identifier = normalizeIdentifier(byEmail.identifier);
+      }
+    }
+
+    if (certificate) attachedCertificates.add(certificate);
+
+    return {
+      key: c.key,
+      name: c.name,
+      email: c.email,
+      identifier,
+      phone: c.phone,
+      sources: [...c.sources].sort((a, b) => SOURCE_PRIORITY[b] - SOURCE_PRIORITY[a]),
+      checked_in: c.checked_in,
+      certificate,
+    };
+  });
 
   const seenIdentifiers = new Set(candidates.map((c) => c.identifier).filter(Boolean));
   certificates.forEach((cert) => {
+    if (attachedCertificates.has(cert)) return;
     const id = normalizeIdentifier(cert.identifier);
     if (!id || seenIdentifiers.has(id)) return;
     seenIdentifiers.add(id);
+    attachedCertificates.add(cert);
     candidates.push({
       key: id,
       name: cert.name || '',
