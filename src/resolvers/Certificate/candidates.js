@@ -65,12 +65,35 @@ export const buildCandidates = ({ signups = [], attendances = [], participants =
     ...participants.map(fromParticipant),
   ];
 
+  // signups have no CPF (email-only) while attendances are CPF-keyed, so the same person can
+  // surface under two different keys; keyByEmail lets a later row find an earlier one by email
+  // and, when the earlier one lacked a CPF, re-key it once a CPF becomes known.
   const byKey = new Map();
+  const keyByEmail = new Map();
   rows.forEach((row) => {
-    const key = candidateKey(row);
+    const cpf = row.identifier;
+    const email = row.email;
+    const key = cpf || email;
     if (!key) return;
-    const existing = byKey.get(key);
-    byKey.set(key, existing ? merge(existing, row) : { key, ...row, sources: [row.source], topSource: row.source });
+
+    let existing = byKey.get(key) ?? (email ? byKey.get(keyByEmail.get(email)) : undefined);
+
+    // Two different CPFs sharing an email belong to different people.
+    if (existing && existing.identifier && cpf && existing.identifier !== cpf) {
+      existing = undefined;
+    }
+
+    // The earlier row only had an email; now we learn this person's CPF — re-key in place.
+    if (existing && !existing.identifier && cpf) {
+      byKey.delete(existing.key);
+      existing.key = cpf;
+      byKey.set(cpf, existing);
+      if (email) keyByEmail.set(email, cpf);
+    }
+
+    const merged = existing ? merge(existing, row) : { key, ...row, sources: [row.source], topSource: row.source };
+    byKey.set(merged.key, merged);
+    if (email) keyByEmail.set(email, merged.key);
   });
 
   const certByIdentifier = new Map(

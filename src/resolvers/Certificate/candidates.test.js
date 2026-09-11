@@ -98,3 +98,46 @@ describe('buildCandidates - bogus identifier certificates (F2)', () => {
     expect(result.find((c) => c.name === 'Ninguem')).toBeUndefined();
   });
 });
+
+describe('buildCandidates identity merge', () => {
+  it('merges an email-only signup into a CPF-keyed attendance for the same person', () => {
+    const attendances = [
+      { users_permissions_user: { name: 'Ana Silva', email: 'ana@x.com', cpf: '52998224725' } },
+    ];
+    const signups = [{ name: 'ana silva', email: 'ANA@x.com', checked_in: true }];
+
+    const result = buildCandidates({ signups, attendances, participants: [], certificates: [] });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].key).toBe('52998224725');
+    expect(result[0].sources).toEqual(['ATTENDANCE', 'SIGNUP']);
+    expect(result[0].checked_in).toBe(true);
+    expect(result[0].name).toBe('Ana Silva');
+  });
+
+  it('re-keys an email-only signup once a later participant row supplies the CPF, and attaches its certificate', () => {
+    const signups = [{ name: 'Bruno', email: 'bruno@x.com' }];
+    const participants = [{ name: 'Bruno Lima', email: 'bruno@x.com', identifier: '11144477735' }];
+    const certificates = [{ code: 'RCT-CCCCCCCC', identifier: '11144477735', name: 'Bruno Lima' }];
+
+    const result = buildCandidates({ signups, attendances: [], participants, certificates });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].key).toBe('11144477735');
+    expect(result[0].identifier).toBe('11144477735');
+    expect(result[0].name).toBe('Bruno');
+    expect(result[0].sources).toEqual(['SIGNUP', 'REQUEST']);
+    expect(result[0].certificate.code).toBe('RCT-CCCCCCCC');
+  });
+
+  it('keeps two different CPFs sharing the same email as separate candidates', () => {
+    const attendances = [
+      { users_permissions_user: { cpf: '52998224725', email: 'shared@x.com', name: 'A' } },
+      { users_permissions_user: { cpf: '11144477735', email: 'shared@x.com', name: 'B' } },
+    ];
+
+    const result = buildCandidates({ signups: [], attendances, participants: [], certificates: [] });
+
+    expect(result).toHaveLength(2);
+  });
+});
