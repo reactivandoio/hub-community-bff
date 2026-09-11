@@ -9,7 +9,8 @@
     "build": "babel ./src --out-dir build --source-maps=inline --copy-files --verbose",
     "dev": "nodemon src/index.js --exec babel-node",
     "start": "node build/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",
@@ -46,7 +47,9 @@
     "eslint-plugin-import": "^2.25.2",
     "eslint-plugin-prettier": "^4.2.1",
     "nodemon": "^2.0.20",
-    "prettier": "^2.8.3"
+    "prettier": "^2.8.3",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }
