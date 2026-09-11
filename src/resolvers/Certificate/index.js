@@ -5,6 +5,7 @@ import {
   hasEventEnded,
   selfRequestStatus,
   findAttendanceForIdentifier,
+  REVOKED_MESSAGE,
 } from './eligibility';
 
 export const requireUser = (user) => {
@@ -12,7 +13,12 @@ export const requireUser = (user) => {
 };
 
 export const loadEventAndConfig = async (dataSources, eventId) => {
-  const eventResponse = await dataSources.managerIntegration.findEventByDocumentId(eventId);
+  let eventResponse;
+  try {
+    eventResponse = await dataSources.managerIntegration.findEventByDocumentId(eventId);
+  } catch (_) {
+    throw new Error('Evento não encontrado.');
+  }
   const event = eventResponse?.data;
   if (!event) throw new Error('Evento não encontrado.');
   const configResponse = await dataSources.managerIntegration.findCertificateConfigByEvent(eventId);
@@ -99,6 +105,20 @@ const Certificate = {
           eligible_by_attendance: true,
           self_request_allowed: selfRequestAllowed,
           event_ended: eventEnded,
+          revoked: false,
+        };
+      }
+
+      const existingIncludingRevoked = await dataSources.managerIntegration
+        .findCertificateByEventAndIdentifier(eventId, cpf, { includeRevoked: true });
+      const revokedCertificate = existingIncludingRevoked?.data?.[0];
+      if (revokedCertificate) {
+        return {
+          certificate: null,
+          eligible_by_attendance: false,
+          self_request_allowed: false,
+          event_ended: eventEnded,
+          revoked: true,
         };
       }
 
@@ -125,6 +145,7 @@ const Certificate = {
         eligible_by_attendance: eligible,
         self_request_allowed: selfRequestAllowed,
         event_ended: eventEnded,
+        revoked: false,
       };
     },
   },
@@ -151,6 +172,14 @@ const Certificate = {
       const { event, config } = await loadEventAndConfig(dataSources, eventId);
       const status = selfRequestStatus(config, event);
       if (!status.ok) throw new Error(status.message);
+
+      const existing = await dataSources.managerIntegration
+        .findCertificateByEventAndIdentifier(eventId, cpf, { includeRevoked: true });
+      const existingCertificate = existing?.data?.[0];
+      if (existingCertificate) {
+        if (existingCertificate.revoked_at) throw new Error(REVOKED_MESSAGE);
+        return mapCertificate(existingCertificate);
+      }
 
       const created = await dataSources.managerIntegration.createCertificate({
         event: eventId,

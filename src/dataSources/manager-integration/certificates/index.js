@@ -27,7 +27,7 @@ const CERTIFICATE_POPULATE = ['event', 'event.location', 'event.communities', 'u
 
 const findEventByDocumentId = (documentId, headers) => {
   const query = buildQuery({}, [], {}, '', ['location', 'communities', 'images']);
-  return fetch(`/events/${documentId}?${query}`, 'GET', headers);
+  return fetch(`/events/${encodeURIComponent(documentId)}?${query}`, 'GET', headers);
 };
 
 const findCertificateConfigByEvent = (eventDocumentId, headers) => {
@@ -52,13 +52,19 @@ const findCertificateByCode = (code, headers) => {
   return fetch(`/certificates?${query}`, 'GET', headers);
 };
 
-const findCertificateByEventAndIdentifier = (eventDocumentId, identifier, headers) => {
+const findCertificateByEventAndIdentifier = (
+  eventDocumentId,
+  identifier,
+  headers,
+  { includeRevoked = false } = {},
+) => {
   const filters = {
     event: { documentId: { eq: eventDocumentId } },
     identifier: { eq: identifier },
-    revoked_at: { null: true },
+    ...(includeRevoked ? {} : { revoked_at: { null: true } }),
   };
-  const query = buildQuery(filters, [], { pageSize: 1 }, '', CERTIFICATE_POPULATE);
+  const sort = includeRevoked ? [{ createdAt: 'desc' }] : [];
+  const query = buildQuery(filters, sort, { pageSize: 1 }, '', CERTIFICATE_POPULATE);
   return fetch(`/certificates?${query}`, 'GET', headers);
 };
 
@@ -104,8 +110,8 @@ const certificates = ({ headers }) => ({
   updateCertificateConfig: (documentId, data) =>
     updateCertificateConfig(documentId, data, headers),
   findCertificateByCode: (code) => findCertificateByCode(code, headers),
-  findCertificateByEventAndIdentifier: (eventDocumentId, identifier) =>
-    findCertificateByEventAndIdentifier(eventDocumentId, identifier, headers),
+  findCertificateByEventAndIdentifier: (eventDocumentId, identifier, options) =>
+    findCertificateByEventAndIdentifier(eventDocumentId, identifier, headers, options),
   findCertificatesByEvent: (eventDocumentId) => findCertificatesByEvent(eventDocumentId, headers),
   createCertificate: (data) => createCertificate(data, headers),
   updateCertificate: (documentId, data) => updateCertificate(documentId, data, headers),

@@ -19,6 +19,8 @@ export const hasEventEnded = (event, now = new Date()) => {
   return new Date(event.end_date) <= now;
 };
 
+export const REVOKED_MESSAGE = 'Este certificado foi revogado. Fale com a organização do evento.';
+
 export const SELF_REQUEST_MESSAGES = {
   DISABLED: 'Os certificados deste evento ainda não estão disponíveis.',
   NOT_ALLOWED: 'Este evento não aceita solicitação livre de certificado. Fale com a organização.',

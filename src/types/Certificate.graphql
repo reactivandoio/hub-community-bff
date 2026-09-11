@@ -55,6 +55,7 @@ type LookupResult {
   eligible_by_attendance: Boolean!
   self_request_allowed: Boolean!
   event_ended: Boolean!
+  revoked: Boolean!
 }
 
 input SponsorInput {
