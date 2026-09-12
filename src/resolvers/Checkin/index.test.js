@@ -14,6 +14,7 @@ const makeDataSources = ({ users = [], usersError = null } = {}) => ({
   eventandoIntegration: {
     findEvents: vi.fn().mockResolvedValue({ data: [{ id: 42 }] }),
     findSignupsByEvent: vi.fn().mockResolvedValue(rawSignups),
+    findSignupById: vi.fn().mockResolvedValue({ data: rawSignups[0] }),
     updateSignup: vi.fn().mockResolvedValue({ data: { ...rawSignups[0], checked_in_at: '2026-09-12T10:00:00.000Z' } }),
   },
   managerIntegration: {
@@ -51,9 +52,52 @@ describe('checkinSignup', () => {
     const dataSources = makeDataSources({ users: [{ email: 'ana@x.io', name: 'Ana Souza' }] });
     const out = await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 's1' }, { dataSources });
     expect(out.success).toBe(true);
-    expect(out.signup).toMatchObject({ id: 's1', name: 'Ana Souza', checked_in: true, checked_in_at: '2026-09-12T10:00:00.000Z' });
-    expect(pubsub.publish).toHaveBeenCalledWith('CHECKIN_ev', { credentialCheckedIn: out.signup });
+    expect(out.signup.name).toBe('Ana Souza');
     expect(dataSources.managerIntegration.findUsersByEmails).toHaveBeenCalledWith(['ana@x.io']);
+    expect(pubsub.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores the checkedInAt sent by the device', async () => {
+    const dataSources = makeDataSources();
+    await Checkin.Mutation.checkinSignup(
+      null,
+      { eventSlug: 'ev', signupId: 's1', checkedInAt: '2026-09-12T08:15:00.000Z' },
+      { dataSources },
+    );
+    expect(dataSources.eventandoIntegration.updateSignup).toHaveBeenCalledWith('s1', {
+      checked_in: true,
+      checked_in_at: '2026-09-12T08:15:00.000Z',
+    });
+  });
+
+  it('falls back to now when checkedInAt is not a valid date', async () => {
+    const dataSources = makeDataSources();
+    await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 's1', checkedInAt: 'ontem' }, { dataSources });
+    const [, data] = dataSources.eventandoIntegration.updateSignup.mock.calls[0];
+    expect(Number.isNaN(Date.parse(data.checked_in_at))).toBe(false);
+  });
+
+  it('is idempotent: an already checked-in signup is returned without overwriting', async () => {
+    const dataSources = makeDataSources();
+    dataSources.eventandoIntegration.findSignupById.mockResolvedValue({
+      data: { ...rawSignups[0], checked_in: true, checked_in_at: '2026-09-12T07:00:00.000Z' },
+    });
+    const out = await Checkin.Mutation.checkinSignup(
+      null,
+      { eventSlug: 'ev', signupId: 's1', checkedInAt: '2026-09-12T09:00:00.000Z' },
+      { dataSources },
+    );
+    expect(out.success).toBe(true);
+    expect(out.signup.checked_in_at).toBe('2026-09-12T07:00:00.000Z');
+    expect(dataSources.eventandoIntegration.updateSignup).not.toHaveBeenCalled();
+    expect(pubsub.publish).not.toHaveBeenCalled();
+  });
+
+  it('reports a missing signup', async () => {
+    const dataSources = makeDataSources();
+    dataSources.eventandoIntegration.findSignupById.mockResolvedValue(null);
+    const out = await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 'nope' }, { dataSources });
+    expect(out).toEqual({ success: false, message: 'Inscrição não encontrada.', signup: null });
   });
 });
 

@@ -58,6 +58,16 @@ const findSignupsByEvent = async (eventId, headers) => {
   return allSignups;
 };
 
+// One signup by documentId; resolves null when Eventando answers 404.
+const findSignupById = async (signupId, headers) => {
+  try {
+    return await fetch(`/signups/${signupId}`, 'GET', headers);
+  } catch (err) {
+    if (/not found/i.test(err.message)) return null;
+    throw err;
+  }
+};
+
 const updateSignup = (signupId, data, headers) =>
   fetch(`/signups/${signupId}`, 'PUT', headers, { data });
 
@@ -69,6 +79,7 @@ const signupDataSource = ({ headers }) => ({
   findSignupByEmail: (eventId, email) =>
     findSignupByEmail(eventId, email, headers),
   findSignupsByEvent: (eventId) => findSignupsByEvent(eventId, headers),
+  findSignupById: (signupId) => findSignupById(signupId, headers),
   updateSignup: (signupId, data) => updateSignup(signupId, data, headers),
   createSignupDirect: (data) => createSignupDirect(data, headers),
 });
