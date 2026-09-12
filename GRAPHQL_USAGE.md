@@ -432,7 +432,7 @@ Certificado de participação em evento. `eventId` é sempre o `documentId` do e
 - `certificateCandidates(eventId: String!): [CertificateCandidate!]!` — lista consolidada (sem duplicar) de quem pode receber certificado: inscritos do Eventando (fonte `SIGNUP`), presenças confirmadas no hub (`ATTENDANCE`) e pedidos legados (`REQUEST`), unificados por CPF ou e-mail; quem já tem certificado emitido vem com `certificate.code` preenchido. **Exige autenticação** (`authorization: Bearer <jwt>` de organizador).
 
 ```graphql
-query { certificateConfig(eventId: "EV") { enabled title workload_hours issuer_name primary_color sponsors { name } signatures { name role } } }
+query { certificateConfig(eventId: "EV") { enabled title workload_hours issuer_name primary_color sponsors { name } signatures { name role text font } } }
 ```
 
 ```graphql
@@ -451,12 +451,13 @@ query { certificateCandidates(eventId: "EV") { key name email identifier sources
 ### Mutations
 
 - `upsertCertificateConfig(eventId: String!, data: CertificateConfigInput!): CertificateConfig` — cria ou atualiza a configuração de certificado do evento. **Exige autenticação.**
+  Cada assinatura pode ter `image` (id de mídia) ou `text` + `font` (assinatura em texto cursivo; `font` é `SignatureFont`: `great_vibes` (padrão), `allura` ou `dancing_script`). Quando `image` existe, ela prevalece sobre `text`.
 - `copyCertificateConfig(fromEventId: String!, toEventId: String!): CertificateConfig` — copia a configuração de um evento para outro (sempre criada com `enabled: false`). **Exige autenticação.**
 - `requestCertificate(eventId: String!, name: String!, identifier: String!, email: String!, phone: String): Certificate` — solicitação avulsa de certificado pelo próprio participante (autoatendimento). **Não exige autenticação.**
 - `issueCertificates(eventId: String!, entries: [IssueEntryInput!]!, actions: IssueActionsInput!): IssueResult!` — emissão em lote pelo organizador, com `actions.register` (grava o certificado) e `actions.email` (envia o e-mail de aviso, exige `register: true`). Erros de itens individuais (CPF inválido, e-mail obrigatório, falha de SMTP) são coletados em `errors` e não interrompem o lote; reemitir para o mesmo CPF é idempotente (mesmo `code`). **Exige autenticação.**
 
 ```graphql
-mutation { upsertCertificateConfig(eventId: "EV", data: { enabled: true, title: "Certificado", sponsors: [], signatures: [{ name: "Ana", role: "Organizadora" }] }) { id enabled title signatures { name role image } } }
+mutation { upsertCertificateConfig(eventId: "EV", data: { enabled: true, title: "Certificado", sponsors: [], signatures: [{ name: "Ana", role: "Organizadora", text: "Ana Souza", font: allura }] }) { id enabled title signatures { name role image text font } } }
 ```
 
 ```graphql

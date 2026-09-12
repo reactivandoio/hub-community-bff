@@ -41,6 +41,8 @@ export const mapConfig = (raw, baseUrl = process.env.MANAGER_URL) => {
       role: s.role ?? null,
       image: mediaUrl(s.image, baseUrl),
       image_id: mediaId(s.image),
+      text: s.text ?? null,
+      font: s.font ?? 'great_vibes',
     })),
   };
 };

@@ -24,11 +24,19 @@ type Sponsor {
   url: String
 }
 
+enum SignatureFont {
+  great_vibes
+  allura
+  dancing_script
+}
+
 type Signature {
   name: String!
   role: String
   image: String
   image_id: String
+  text: String
+  font: SignatureFont
 }
 
 enum CertificateSource {
@@ -68,6 +76,8 @@ input SignatureInput {
   name: String!
   role: String
   image: String
+  text: String
+  font: SignatureFont
 }
 
 input CertificateConfigInput {
