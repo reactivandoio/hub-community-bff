@@ -56,3 +56,60 @@ describe('checkinSignup', () => {
     expect(dataSources.managerIntegration.findUsersByEmails).toHaveBeenCalledWith(['ana@x.io']);
   });
 });
+
+describe('manualSignup', () => {
+  const input = { name: 'Ana Souza', email: 'ana@x.io', phone_number: '+55 62 9' };
+
+  const walkInDataSources = ({ signUpError = null, existing = [] } = {}) => ({
+    managerPublic: {
+      signUp: signUpError
+        ? vi.fn().mockRejectedValue(signUpError)
+        : vi.fn().mockResolvedValue({ data: { user: { id: 1 } } }),
+      forwardPassword: vi.fn().mockResolvedValue({ data: { ok: true } }),
+    },
+    eventandoIntegration: {
+      findEvents: vi.fn().mockResolvedValue({ data: [{ id: 42 }] }),
+      findSignupByEmail: vi.fn().mockResolvedValue({ data: existing }),
+      createPaymentDirect: vi.fn().mockResolvedValue({ data: { id: 7 } }),
+      createSignupDirect: vi.fn().mockResolvedValue({
+        data: { documentId: 's9', name: 'Ana Souza', email: 'ana@x.io', phone_number: '+55 62 9', checked_in: false },
+      }),
+    },
+    managerIntegration: { findUsersByEmails: vi.fn().mockResolvedValue([]) },
+  });
+
+  it('sends the set-password e-mail when the account was just created and returns the signup', async () => {
+    const dataSources = walkInDataSources();
+    const out = await Checkin.Mutation.manualSignup(null, { eventSlug: 'ev', batchId: '3', input }, { dataSources });
+    expect(out.success).toBe(true);
+    expect(out.account_created).toBe(true);
+    expect(dataSources.managerPublic.forwardPassword).toHaveBeenCalledWith({ email: 'ana@x.io' });
+    expect(out.signup).toMatchObject({ id: 's9', name: 'Ana Souza', email: 'ana@x.io', checked_in: false });
+  });
+
+  it('does not e-mail an account that already existed', async () => {
+    const dataSources = walkInDataSources({ signUpError: new Error('Email is already taken') });
+    const out = await Checkin.Mutation.manualSignup(null, { eventSlug: 'ev', batchId: '3', input }, { dataSources });
+    expect(out.success).toBe(true);
+    expect(out.account_created).toBe(false);
+    expect(dataSources.managerPublic.forwardPassword).not.toHaveBeenCalled();
+    expect(out.signup).toMatchObject({ id: 's9' });
+  });
+
+  it('returns the existing signup when the person is already registered', async () => {
+    const existing = [{ id: 5, name: 'ana-4f2k', email: 'ana@x.io', checked_in: true }];
+    const dataSources = walkInDataSources({ signUpError: new Error('Email is already taken'), existing });
+    const out = await Checkin.Mutation.manualSignup(null, { eventSlug: 'ev', batchId: '3', input }, { dataSources });
+    expect(out.success).toBe(true);
+    expect(dataSources.eventandoIntegration.createSignupDirect).not.toHaveBeenCalled();
+    expect(out.signup).toMatchObject({ id: '5', checked_in: true });
+  });
+
+  it('still succeeds when the set-password e-mail fails', async () => {
+    const dataSources = walkInDataSources();
+    dataSources.managerPublic.forwardPassword.mockRejectedValue(new Error('smtp down'));
+    const out = await Checkin.Mutation.manualSignup(null, { eventSlug: 'ev', batchId: '3', input }, { dataSources });
+    expect(out.success).toBe(true);
+    expect(out.signup).toMatchObject({ id: 's9' });
+  });
+});

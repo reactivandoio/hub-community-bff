@@ -4,6 +4,15 @@ import mapSignup from './mappers';
 
 const CHECKIN_TOPIC_PREFIX = 'CHECKIN_';
 
+// One signup in the EventSignup shape, with the same name resolution as eventSignups.
+const toEventSignup = async (dataSources, raw) => {
+  const [signup] = withUserNames(
+    [mapSignup(raw)],
+    await resolveUsers(dataSources, [raw.email]),
+  );
+  return signup;
+};
+
 const Checkin = {
   Query: {
     eventSignups: async (_, { eventSlug, search }, { dataSources }) => {
@@ -236,6 +245,17 @@ const Checkin = {
           }
         }
 
+        // The account has a random password: the set-password link is how the person
+        // finishes registering. E-mail confirmation is off in Strapi, so the account is
+        // already usable once the password is set. Never block the signup on SMTP.
+        if (accountCreated) {
+          try {
+            await dataSources.managerPublic.forwardPassword({ email: input.email });
+          } catch (err) {
+            console.error('[ManualSignup] Could not send set-password e-mail:', err.message);
+          }
+        }
+
         // 2. Resolve the event in Eventando Manager
         const eventResponse = await dataSources.eventandoIntegration.findEvents({
           filters: {
@@ -268,10 +288,12 @@ const Checkin = {
               ? 'Conta criada! Participante já estava inscrito neste evento.'
               : 'Participante já está inscrito neste evento.',
             account_created: accountCreated,
+            signup: await toEventSignup(dataSources, existingSignup.data[0]),
           };
         }
 
         // 4. Create event signup directly (same pattern as importSignups)
+        let createdSignup = null;
         try {
           // 4a. Create a CONFIRMED payment with value=0
           const paymentResponse = await dataSources.eventandoIntegration.createPaymentDirect({
@@ -287,7 +309,7 @@ const Checkin = {
           const paymentId = paymentResponse?.data?.id || paymentResponse?.data?.documentId;
 
           // 4b. Create the signup linked to the payment
-          await dataSources.eventandoIntegration.createSignupDirect({
+          const created = await dataSources.eventandoIntegration.createSignupDirect({
             name: input.name,
             email: input.email,
             phone_number: input.phone_number || null,
@@ -295,6 +317,7 @@ const Checkin = {
             payment: paymentId || null,
             checked_in: false,
           });
+          createdSignup = created?.data || null;
         } catch (signupErr) {
           return {
             success: false,
@@ -309,6 +332,7 @@ const Checkin = {
             ? `${input.name} inscrito(a) com sucesso! Conta criada no HubCommunity.`
             : `${input.name} inscrito(a) com sucesso!`,
           account_created: accountCreated,
+          signup: createdSignup ? await toEventSignup(dataSources, createdSignup) : null,
         };
       } catch (err) {
         return {

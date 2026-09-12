@@ -45,6 +45,8 @@ type ManualSignupResponse {
   success: Boolean!
   message: String
   account_created: Boolean
+  "The signup (created or pre-existing), so the caller can print a badge right away."
+  signup: EventSignup
 }
 
 type Mutation {
