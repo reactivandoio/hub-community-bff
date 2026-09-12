@@ -149,3 +149,40 @@ describe('resolveIssueIdentifier', () => {
     expect(resolveIssueIdentifier({})).toBe('');
   });
 });
+
+describe('certificateConfigs (resolver)', () => {
+  it('lists every model with its event, newest event first, and requires a user', async () => {
+    const { default: Certificate } = await import('./index');
+    const raw = (title, startDate, documentId) => ({
+      documentId: `cfg-${documentId}`,
+      enabled: true,
+      title: `Certificado ${title}`,
+      event: {
+        documentId, slug: title.toLowerCase(), title, start_date: startDate,
+      },
+    });
+    const dataSources = {
+      managerIntegration: {
+        findAllCertificateConfigs: async () => [
+          raw('Antigo', '2025-03-01T12:00:00.000Z', 'e1'),
+          raw('Recente', '2026-08-01T12:00:00.000Z', 'e2'),
+          {
+            documentId: 'orphan', enabled: true, title: 'sem evento', event: null,
+          },
+        ],
+      },
+    };
+    const ctx = { user: { id: 1 }, dataSources };
+    const out = await Certificate.Query.certificateConfigs(null, {}, ctx);
+    expect(out.map((c) => c.event.title)).toEqual(['Recente', 'Antigo']);
+    expect(out[0].event).toEqual({
+      id: 'e2',
+      slug: 'recente',
+      title: 'Recente',
+      start_date: '2026-08-01T12:00:00.000Z',
+    });
+    expect(out[0].config.title).toBe('Certificado Recente');
+    const anonymous = { user: null, dataSources };
+    await expect(Certificate.Query.certificateConfigs(null, {}, anonymous)).rejects.toThrow();
+  });
+});
