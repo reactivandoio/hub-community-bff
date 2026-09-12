@@ -71,6 +71,7 @@ extend type Query {
 
   user(id: String!): User
   userByUsername(username: String!): User
+  me: User
 }
 
 # Profile update input

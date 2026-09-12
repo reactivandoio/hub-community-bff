@@ -44,3 +44,22 @@ describe('updateProfile', () => {
     expect(c.dataSources.managerAuthenticated.updateUser).toHaveBeenCalledWith(9, { name: 'Ana' });
   });
 });
+
+describe('me', () => {
+  it('returns the authenticated user fresh from Strapi (not the per-process cache)', async () => {
+    const fetchMe = vi.fn().mockResolvedValue({ data: { id: 9, name: 'Ana', cpf: '52998224725' } });
+    const out = await User.Query.me(null, {}, {
+      user: { id: 9, name: 'stale' },
+      dataSources: { managerAuthenticated: { fetchMe } },
+    });
+    expect(out).toEqual({ id: 9, name: 'Ana', cpf: '52998224725' });
+    expect(fetchMe).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when not authenticated', async () => {
+    const fetchMe = vi.fn();
+    const context = { user: undefined, dataSources: { managerAuthenticated: { fetchMe } } };
+    expect(await User.Query.me(null, {}, context)).toBeNull();
+    expect(fetchMe).not.toHaveBeenCalled();
+  });
+});

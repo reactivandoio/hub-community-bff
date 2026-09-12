@@ -63,6 +63,15 @@ const User = {
       }
     },
 
+    // The authenticated user's own profile (includes cpf / date_of_birth, which the
+    // public user queries must not expose). Read fresh: the context user is cached per
+    // process and may be stale after a profile update.
+    me: async (_, __, { user, dataSources }) => {
+      if (!user) return null;
+      const response = await dataSources.managerAuthenticated.fetchMe();
+      return response?.data ?? null;
+    },
+
     userByUsername: async (_, { username }, { dataSources }) => {
       try {
         return await dataSources.manager.findUserByUsername(username);
