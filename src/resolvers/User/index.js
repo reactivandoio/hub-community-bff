@@ -1,4 +1,7 @@
 import dotenv from 'dotenv';
+import { isValidCpf, normalizeIdentifier } from '../Certificate/eligibility';
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 dotenv.config();
 
@@ -211,6 +214,15 @@ const User = {
         const userUpdate = {};
         if (input.name !== undefined && input.name !== null) userUpdate.name = input.name;
         if (input.phone !== undefined && input.phone !== null) userUpdate.phone = input.phone;
+        // Certificate data: CPF is stored as digits only, date of birth as ISO yyyy-mm-dd.
+        if (input.cpf !== undefined && input.cpf !== null) {
+          if (!isValidCpf(input.cpf)) throw new Error('CPF inválido.');
+          userUpdate.cpf = normalizeIdentifier(input.cpf);
+        }
+        if (input.date_of_birth !== undefined && input.date_of_birth !== null) {
+          if (!ISO_DATE.test(input.date_of_birth)) throw new Error('Data de nascimento inválida.');
+          userUpdate.date_of_birth = input.date_of_birth;
+        }
         if (input.cover_photo !== undefined) userUpdate.cover_photo = input.cover_photo;
         if (input.twitter !== undefined) userUpdate.twitter = input.twitter;
         if (input.linkedin !== undefined) userUpdate.linkedin = input.linkedin;
