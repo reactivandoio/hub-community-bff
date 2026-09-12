@@ -142,6 +142,24 @@ const Certificate = {
       return mapConfig(config);
     },
 
+    // Models available to copy: every config that still has an event, newest event first.
+    certificateConfigs: async (_, __, { user, dataSources }) => {
+      requireUser(user);
+      const configs = await dataSources.managerIntegration.findAllCertificateConfigs();
+      return configs
+        .filter((raw) => raw?.event?.documentId)
+        .map((raw) => ({
+          event: {
+            id: raw.event.documentId,
+            slug: raw.event.slug || null,
+            title: raw.event.title || '',
+            start_date: raw.event.start_date || null,
+          },
+          config: mapConfig(raw),
+        }))
+        .sort((a, b) => (b.event.start_date || '').localeCompare(a.event.start_date || ''));
+    },
+
     certificateByCode: async (_, { code }, { dataSources }) => {
       const response = await dataSources.managerIntegration.findCertificateByCode(code.trim().toUpperCase());
       return maskPublicCertificate(mapCertificate(response?.data?.[0] || null));

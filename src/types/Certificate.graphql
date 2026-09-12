@@ -94,8 +94,23 @@ input CertificateConfigInput {
   signatures: [SignatureInput!]
 }
 
+"A certificate model together with the event it belongs to."
+type CertificateConfigSummary {
+  event: CertificateConfigEvent!
+  config: CertificateConfig!
+}
+
+type CertificateConfigEvent {
+  id: String!
+  slug: String
+  title: String!
+  start_date: String
+}
+
 type Query {
   certificateConfig(eventId: String!): CertificateConfig
+  "Every certificate model (admin): the source list for copying a model between events."
+  certificateConfigs: [CertificateConfigSummary!]!
   certificateByCode(code: String!): Certificate
   lookupCertificate(eventId: String!, identifier: String!): LookupResult!
 }

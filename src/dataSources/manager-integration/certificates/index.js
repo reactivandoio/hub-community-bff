@@ -38,6 +38,13 @@ const findCertificateConfigByEvent = (eventDocumentId, headers) => {
   return fetch(`/certificate-configs?${query}`, 'GET', headers);
 };
 
+// Every certificate model, with its event — for "copy the model from another event".
+const findAllCertificateConfigs = (headers) =>
+  fetchAllPages((pagination) => {
+    const query = buildQuery({}, [{ updatedAt: 'desc' }], pagination, '', CONFIG_POPULATE);
+    return `/certificate-configs?${query}`;
+  }, headers);
+
 const createCertificateConfig = (data, headers) => {
   const query = buildQuery({}, [], {}, '', CONFIG_POPULATE);
   return fetch(`/certificate-configs?${query}`, 'POST', headers, { data });
@@ -130,6 +137,7 @@ const certificates = ({ headers }) => ({
   findEventByDocumentId: (documentId) => findEventByDocumentId(documentId, headers),
   findCertificateConfigByEvent: (eventDocumentId) =>
     findCertificateConfigByEvent(eventDocumentId, headers),
+  findAllCertificateConfigs: () => findAllCertificateConfigs(headers),
   createCertificateConfig: (data) => createCertificateConfig(data, headers),
   updateCertificateConfig: (documentId, data) =>
     updateCertificateConfig(documentId, data, headers),
