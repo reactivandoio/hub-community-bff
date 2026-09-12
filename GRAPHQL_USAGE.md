@@ -427,9 +427,9 @@ Certificado de participação em evento. `eventId` é sempre o `documentId` do e
 ### Queries
 
 - `certificateConfig(eventId: String!): CertificateConfig` — configuração do certificado do evento (modelo, logo, patrocinadores, assinaturas). **Não exige autenticação.**
-- `certificateByCode(code: String!): Certificate` — busca um certificado pelo código público (usado na página de verificação). **Não exige autenticação.**
+- `certificateByCode(code: String!): Certificate` — busca um certificado pelo código público (usado na página de verificação). **Não exige autenticação.** Por privacidade, nesta query `identifier` e `email` voltam sempre `null` (as demais queries/mutations continuam devolvendo os dois campos).
 - `lookupCertificate(eventId: String!, identifier: String!): LookupResult!` — verifica elegibilidade de um CPF para autoatendimento; emite automaticamente se o evento já terminou, a config permite e o CPF tem presença registrada. **Não exige autenticação.**
-- `certificateCandidates(eventId: String!): [CertificateCandidate!]!` — lista consolidada (sem duplicar) de quem pode receber certificado: inscritos do Eventando (fonte `SIGNUP`), presenças confirmadas no hub (`ATTENDANCE`) e pedidos legados (`REQUEST`), unificados por CPF ou e-mail; quem já tem certificado emitido vem com `certificate.code` preenchido. **Exige autenticação** (`authorization: Bearer <jwt>` de organizador).
+- `certificateCandidates(eventId: String!): [CertificateCandidate!]!` — lista consolidada (sem duplicar) de quem pode receber certificado: inscritos do Eventando (fonte `SIGNUP`), presenças confirmadas no hub (`ATTENDANCE`) e pedidos legados (`REQUEST`), unificados por CPF ou e-mail; quem já tem certificado emitido vem com `certificate.code` preenchido. Candidatos sem CPF têm o `identifier` preenchido a partir do formulário `sw-form` do hub (busca por e-mail, sem diferenciar maiúsculas), quando lá existe um CPF válido; um CPF já conhecido nunca é sobrescrito e uma falha nessa consulta não derruba a listagem. **Exige autenticação** (`authorization: Bearer <jwt>` de organizador).
 
 ```graphql
 query { certificateConfig(eventId: "EV") { enabled title workload_hours issuer_name primary_color sponsors { name } signatures { name role text font } } }
@@ -454,7 +454,7 @@ query { certificateCandidates(eventId: "EV") { key name email identifier sources
   Cada assinatura pode ter `image` (id de mídia) ou `text` + `font` (assinatura em texto cursivo; `font` é `SignatureFont`: `great_vibes` (padrão), `allura` ou `dancing_script`). Quando `image` existe, ela prevalece sobre `text`.
 - `copyCertificateConfig(fromEventId: String!, toEventId: String!): CertificateConfig` — copia a configuração de um evento para outro (sempre criada com `enabled: false`). **Exige autenticação.**
 - `requestCertificate(eventId: String!, name: String!, identifier: String!, email: String!, phone: String): Certificate` — solicitação avulsa de certificado pelo próprio participante (autoatendimento). **Não exige autenticação.**
-- `issueCertificates(eventId: String!, entries: [IssueEntryInput!]!, actions: IssueActionsInput!): IssueResult!` — emissão em lote pelo organizador, com `actions.register` (grava o certificado) e `actions.email` (envia o e-mail de aviso, exige `register: true`). Erros de itens individuais (CPF inválido, e-mail obrigatório, falha de SMTP) são coletados em `errors` e não interrompem o lote; reemitir para o mesmo CPF é idempotente (mesmo `code`). **Exige autenticação.**
+- `issueCertificates(eventId: String!, entries: [IssueEntryInput!]!, actions: IssueActionsInput!): IssueResult!` — emissão em lote pelo organizador, com `actions.register` (grava o certificado) e `actions.email` (envia o e-mail de aviso, exige `register: true`). `IssueEntryInput.identifier` (CPF) é opcional: com um CPF válido ele vira o identificador do certificado (só dígitos); sem CPF válido o identificador passa a ser o e-mail normalizado (sem espaços, minúsculo). Se nenhum dos dois servir o item falha com `"<nome>: CPF ou e-mail válido é obrigatório"`. Erros de itens individuais (identificador inválido, e-mail obrigatório, falha de SMTP) são coletados em `errors` e não interrompem o lote; reemitir para o mesmo identificador (CPF ou e-mail) no mesmo evento é idempotente (mesmo `code`). O autoatendimento (`lookupCertificate`/`requestCertificate`) continua exigindo CPF. **Exige autenticação.**
 
 ```graphql
 mutation { upsertCertificateConfig(eventId: "EV", data: { enabled: true, title: "Certificado", sponsors: [], signatures: [{ name: "Ana", role: "Organizadora", text: "Ana Souza", font: allura }] }) { id enabled title signatures { name role image text font } } }
@@ -470,6 +470,6 @@ mutation { requestCertificate(eventId: "EV", name: "Maria", identifier: "529.982
 
 ```graphql
 mutation { issueCertificates(eventId: "EV",
-  entries: [{ name: "Ana Souza", identifier: "529.982.247-25", email: "<seu e-mail>" }, { name: "X", identifier: "123", email: "x@x.com" }],
+  entries: [{ name: "Ana Souza", identifier: "529.982.247-25", email: "<seu e-mail>" }, { name: "Sem CPF", email: "semcpf@x.com" }, { name: "X", identifier: "123", email: "x@x.com" }],
   actions: { register: true, email: true }) { issued emailed errors certificates { code sent_at } } }
 ``` 

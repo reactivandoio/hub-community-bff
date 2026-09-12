@@ -1,10 +1,16 @@
 // Pure eligibility rules for certificate self-service. No I/O here.
 
-export const normalizeIdentifier = (value) => (value || '').replace(/\D/g, '');
+// Identifier = CPF (digits only) or, when there is no CPF, a normalized e-mail (trimmed,
+// lower-case) — mirrors the backend's `normalizeIdentifier`.
+export const normalizeIdentifier = (value) => {
+  const raw = value || '';
+  if (raw.includes('@')) return raw.trim().toLowerCase();
+  return raw.replace(/\D/g, '');
+};
 
 export const isValidCpf = (value) => {
   const cpf = normalizeIdentifier(value);
-  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  if (!/^\d{11}$/.test(cpf) || /^(\d)\1{10}$/.test(cpf)) return false;
   const digit = (slice, factor) => {
     let sum = 0;
     for (let i = 0; i < slice.length; i += 1) sum += Number(slice[i]) * (factor - i);

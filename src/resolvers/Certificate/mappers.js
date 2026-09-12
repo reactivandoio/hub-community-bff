@@ -62,3 +62,9 @@ export const mapCertificate = (raw) => {
     event: raw.event ?? null,
   };
 };
+
+// The public verification page (QR target) must not expose who the holder is beyond the name.
+export const maskPublicCertificate = (certificate) => {
+  if (!certificate) return null;
+  return { ...certificate, identifier: null, email: null };
+};

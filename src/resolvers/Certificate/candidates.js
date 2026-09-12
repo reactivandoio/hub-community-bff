@@ -1,7 +1,14 @@
 // Merges the three "who was there" sources into one deduplicated list. Pure — no I/O.
-import { normalizeIdentifier } from './eligibility';
+import { normalizeIdentifier, isValidCpf } from './eligibility';
 
 export const normalizeEmail = (value) => (value || '').trim().toLowerCase();
+
+// A candidate's `identifier` is always a CPF; certificates issued without one carry the e-mail as
+// identifier, and that must never surface as a candidate CPF.
+const cpfDigits = (value) => {
+  const id = normalizeIdentifier(value);
+  return id.includes('@') ? '' : id;
+};
 
 export const candidateKey = ({ identifier, email } = {}) =>
   normalizeIdentifier(identifier) || normalizeEmail(email) || null;
@@ -12,7 +19,7 @@ const fromSignup = (s) => ({
   source: 'SIGNUP',
   name: s.name || '',
   email: normalizeEmail(s.email),
-  identifier: normalizeIdentifier(s.cpf || s.identifier),
+  identifier: cpfDigits(s.cpf || s.identifier),
   phone: s.phone_number || '',
   checked_in: Boolean(s.checked_in),
 });
@@ -24,7 +31,7 @@ const fromAttendance = (a) => {
     source: 'ATTENDANCE',
     name: u.name || u.username || '',
     email: normalizeEmail(u.email),
-    identifier: normalizeIdentifier(u.cpf),
+    identifier: cpfDigits(u.cpf),
     phone: u.phone || '',
     checked_in: false,
   };
@@ -34,7 +41,7 @@ const fromParticipant = (p) => ({
   source: 'REQUEST',
   name: p.name || '',
   email: normalizeEmail(p.email),
-  identifier: normalizeIdentifier(p.identifier),
+  identifier: cpfDigits(p.identifier),
   phone: p.phone_number || '',
   checked_in: false,
 });
@@ -78,7 +85,7 @@ const attachCertificates = (candidates, { certByIdentifier, certByEmail }) => {
     const certificate = certByEmail.get(c.email);
     if (!certificate || attachedCertificates.has(certificate)) return;
     c.certificate = certificate;
-    c.identifier = normalizeIdentifier(certificate.identifier);
+    c.identifier = cpfDigits(certificate.identifier);
     attachedCertificates.add(certificate);
   });
 
@@ -152,18 +159,20 @@ export const buildCandidates = ({ signups = [], attendances = [], participants =
     certificate: c.certificate,
   }));
 
-  const seenIdentifiers = new Set(candidates.map((c) => c.identifier).filter(Boolean));
+  // Orphan certificates (no matching source row) become candidates of their own, keyed like the
+  // rest: by CPF, or by e-mail when they were issued without one.
+  const seenKeys = new Set(candidates.flatMap((c) => [c.identifier, c.key]).filter(Boolean));
   certificates.forEach((cert) => {
     if (attachedCertificates.has(cert)) return;
     const id = normalizeIdentifier(cert.identifier);
-    if (!id || seenIdentifiers.has(id)) return;
-    seenIdentifiers.add(id);
+    if (!id || seenKeys.has(id)) return;
+    seenKeys.add(id);
     attachedCertificates.add(cert);
     candidates.push({
       key: id,
       name: cert.name || '',
       email: normalizeEmail(cert.email),
-      identifier: id,
+      identifier: cpfDigits(id),
       phone: '',
       sources: [],
       checked_in: false,
@@ -172,4 +181,22 @@ export const buildCandidates = ({ signups = [], attendances = [], participants =
   });
 
   return candidates.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+};
+
+// Fills the CPF of candidates that lack one from `sw-form` rows (matched by e-mail, case-insensitive)
+// Pure. Never overwrites a valid CPF; ignores rows whose CPF is invalid.
+export const enrichIdentifiersFromForms = (candidates, forms) => {
+  const cpfByEmail = new Map();
+  (forms || []).forEach((form) => {
+    const email = normalizeEmail(form?.email);
+    if (!email || cpfByEmail.has(email) || !isValidCpf(form?.cpf)) return;
+    cpfByEmail.set(email, normalizeIdentifier(form.cpf));
+  });
+  if (cpfByEmail.size === 0) return candidates;
+
+  return candidates.map((c) => {
+    if (isValidCpf(c.identifier)) return c;
+    const cpf = cpfByEmail.get(normalizeEmail(c.email));
+    return cpf ? { ...c, identifier: cpf } : c;
+  });
 };

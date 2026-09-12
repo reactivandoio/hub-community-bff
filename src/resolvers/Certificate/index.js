@@ -1,4 +1,4 @@
-import { mapConfig, mapCertificate, mediaIdFromInput } from './mappers';
+import { mapConfig, mapCertificate, maskPublicCertificate, mediaIdFromInput } from './mappers';
 import {
   normalizeIdentifier,
   isValidCpf,
@@ -7,7 +7,7 @@ import {
   findAttendanceForIdentifier,
   REVOKED_MESSAGE,
 } from './eligibility';
-import { buildCandidates } from './candidates';
+import { buildCandidates, enrichIdentifiersFromForms, normalizeEmail } from './candidates';
 import { sendCertificateEmail } from './email';
 
 export const requireUser = (user) => {
@@ -107,6 +107,34 @@ const chunk = (list, size) => {
   return out;
 };
 
+// Eventando signups carry no CPF; the SW signup form (`sw-form`) does. Best effort: a failure here
+// must not take the whole candidate list down.
+const enrichCandidatesFromSwForms = async (dataSources, candidates) => {
+  const emails = candidates.filter((c) => !isValidCpf(c.identifier) && c.email).map((c) => c.email);
+  if (emails.length === 0) return candidates;
+  try {
+    const forms = await dataSources.managerIntegration.findSwFormsByEmails(emails);
+    return enrichIdentifiersFromForms(candidates, forms);
+  } catch (err) {
+    console.error('[certificates] sw-form lookup failed, skipping CPF enrichment:', err.message);
+    return candidates;
+  }
+};
+
+// Same shape the backend's `isEmailIdentifier` accepts.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Issue key: a valid CPF when there is one, otherwise the normalized e-mail.
+export const resolveIssueIdentifier = (entry) => {
+  if (isValidCpf(entry?.identifier)) return normalizeIdentifier(entry.identifier);
+  const email = normalizeEmail(entry?.email);
+  return EMAIL_PATTERN.test(email) ? email : '';
+};
+
+// Mirrored by the frontend's `labelFor` to match batch errors back to rows — keep the chain.
+const entryLabel = (entry) =>
+  (entry?.name || '').trim() || entry?.email || normalizeIdentifier(entry?.identifier);
+
 const Certificate = {
   Query: {
     certificateConfig: async (_, { eventId }, { dataSources }) => {
@@ -116,7 +144,7 @@ const Certificate = {
 
     certificateByCode: async (_, { code }, { dataSources }) => {
       const response = await dataSources.managerIntegration.findCertificateByCode(code.trim().toUpperCase());
-      return mapCertificate(response?.data?.[0] || null);
+      return maskPublicCertificate(mapCertificate(response?.data?.[0] || null));
     },
 
     lookupCertificate: async (_, { eventId, identifier }, { dataSources }) => {
@@ -188,7 +216,9 @@ const Certificate = {
         dataSources.managerIntegration.findParticipantsByEvent(eventId),
         dataSources.managerIntegration.findCertificatesByEvent(eventId),
       ]);
-      return buildCandidates({ signups, attendances, participants, certificates }).map((c) => ({
+      const candidates = buildCandidates({ signups, attendances, participants, certificates });
+      const enriched = await enrichCandidatesFromSwForms(dataSources, candidates);
+      return enriched.map((c) => ({
         ...c,
         certificate: mapCertificate(c.certificate ? { ...c.certificate, event } : null),
       }));
@@ -249,17 +279,17 @@ const Certificate = {
       const result = { issued: 0, emailed: 0, certificates: [], errors: [] };
 
       const issueOne = async (entry) => {
-        const cpf = normalizeIdentifier(entry.identifier);
-        const label = (entry.name || '').trim() || entry.email || cpf;
-        if (!isValidCpf(cpf)) throw new Error(`${label}: CPF inválido`);
+        const label = entryLabel(entry);
+        const identifier = resolveIssueIdentifier(entry);
+        if (!identifier) throw new Error(`${label}: CPF ou e-mail válido é obrigatório`);
         if (!entry.email?.trim()) throw new Error(`${label}: e-mail obrigatório`);
         if (!(entry.name || '').trim()) throw new Error(`${label}: nome obrigatório`);
 
         const created = await dataSources.managerIntegration.createCertificate({
           event: eventId,
           name: entry.name.trim(),
-          identifier: cpf,
-          email: entry.email.trim().toLowerCase(),
+          identifier,
+          email: normalizeEmail(entry.email),
           source: 'ADMIN',
         });
         const certificate = created?.data;
@@ -286,8 +316,7 @@ const Certificate = {
         settled.forEach((s, i) => {
           if (s.status !== 'rejected') return;
           const msg = s.reason?.message || String(s.reason);
-          const e = batch[i];
-          const label = (e.name || '').trim() || e.email || normalizeIdentifier(e.identifier);
+          const label = entryLabel(batch[i]);
           result.errors.push(msg.startsWith(`${label}:`) ? msg : `${label}: ${msg}`);
         });
       }
