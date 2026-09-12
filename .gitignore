@@ -5,4 +5,5 @@ package-lock.json
 .env
 /build
 
-.DS_Store.env.docker
+.DS_Store
+.env.docker
