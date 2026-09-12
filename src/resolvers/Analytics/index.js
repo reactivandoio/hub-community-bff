@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { resolveUsers, withUserNames } from '../shared/signup-names';
 
 dotenv.config();
 
@@ -159,14 +160,18 @@ const Analytics = {
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([date, count]) => ({ date, count }));
 
-        // 8. All signups list
-        const allSignupsMapped = allSignups.map(signup => ({
-          name: signup.name,
-          email: signup.email,
-          phone_number: signup.phone_number,
-          created_at: signup.createdAt || signup.created_at,
-          product_name: signup.payment?.batch?.product?.name || null,
-        }));
+        // 8. All signups list — with the HubCommunity profile name when the account has
+        //    one (older signups stored the username as name); this feeds the CSV export.
+        const allSignupsMapped = withUserNames(
+          allSignups.map((signup) => ({
+            name: signup.name,
+            email: signup.email,
+            phone_number: signup.phone_number,
+            created_at: signup.createdAt || signup.created_at,
+            product_name: signup.payment?.batch?.product?.name || null,
+          })),
+          await resolveUsers(dataSources, allSignups.map((s) => s.email)),
+        );
 
         return {
           event_id: eventId,

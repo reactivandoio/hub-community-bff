@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapSignup, withUserNames } from './mappers';
+import { withUserNames } from '../shared/signup-names';
+import mapSignup from './mappers';
 
 describe('mapSignup', () => {
   it('maps an Eventando signup to the EventSignup shape', () => {
