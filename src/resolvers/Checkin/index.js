@@ -60,15 +60,30 @@ const Checkin = {
   },
 
   Mutation: {
-    checkinSignup: async (_, { eventSlug, signupId }, { dataSources }) => {
+    checkinSignup: async (_, { eventSlug, signupId, checkedInAt }, { dataSources }) => {
       try {
+        // 0. Idempotent: a signup that is already checked in keeps its original time
+        //    (several devices may sync the same person; the first one wins).
+        const existing = (await dataSources.eventandoIntegration.findSignupById(signupId))?.data;
+        if (!existing) {
+          return { success: false, message: 'Inscrição não encontrada.', signup: null };
+        }
+        if (existing.checked_in) {
+          const [signupData] = withUserNames(
+            [mapSignup(existing)],
+            await resolveUsers(dataSources, [existing.email]),
+          );
+          return { success: true, message: 'Check-in já realizado.', signup: signupData };
+        }
+
         // 1. Update signup in Eventando Manager
+        const parsed = Date.parse(checkedInAt || '');
+        const checkedInAtIso = Number.isNaN(parsed)
+          ? new Date().toISOString()
+          : new Date(parsed).toISOString();
         const updateResponse = await dataSources.eventandoIntegration.updateSignup(
           signupId,
-          {
-            checked_in: true,
-            checked_in_at: new Date().toISOString(),
-          },
+          { checked_in: true, checked_in_at: checkedInAtIso },
         );
 
         const updatedSignup = updateResponse?.data;

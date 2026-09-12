@@ -50,7 +50,8 @@ type ManualSignupResponse {
 }
 
 type Mutation {
-  checkinSignup(eventSlug: String!, signupId: String!): CheckinResponse
+  "checkedInAt: when the device did the check-in (ISO); defaults to now. Already checked-in signups are returned unchanged."
+  checkinSignup(eventSlug: String!, signupId: String!, checkedInAt: String): CheckinResponse
   importSignups(eventSlug: String!, batchId: String!, signups: [SignupImportInput!]!): ImportSignupsResponse
   manualSignup(eventSlug: String!, batchId: String!, input: ManualSignupInput!): ManualSignupResponse
 }
