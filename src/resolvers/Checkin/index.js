@@ -1,19 +1,8 @@
 import pubsub from '../../dataSources/pubsub';
-import { mapSignup, withUserNames } from './mappers';
+import { resolveUsers, withUserNames } from '../shared/signup-names';
+import mapSignup from './mappers';
 
 const CHECKIN_TOPIC_PREFIX = 'CHECKIN_';
-
-// HubCommunity users for these e-mails. A failure here must not break check-in or the
-// signup list — fall back to the names stored on the signups.
-const resolveUsers = async (dataSources, emails) => {
-  try {
-    return await dataSources.managerIntegration.findUsersByEmails(emails);
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[checkin] could not resolve user names:', err.message);
-    return [];
-  }
-};
 
 const Checkin = {
   Query: {
