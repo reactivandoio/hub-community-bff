@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import { resolveUsers, withUserNames } from '../shared/signup-names';
+import { resolveUsers, withUserNames } from '../../utils/signup-names';
 
 dotenv.config();
 

@@ -1,5 +1,5 @@
 import pubsub from '../../dataSources/pubsub';
-import { resolveUsers, withUserNames } from '../shared/signup-names';
+import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import mapSignup from './mappers';
 
 const CHECKIN_TOPIC_PREFIX = 'CHECKIN_';
