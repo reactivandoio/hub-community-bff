@@ -24,8 +24,12 @@ const updateUser = async ({ id, data, headers }) => {
   return fetch(route, 'PUT', headers, data);
 };
 
+// Uncached read of the current user — for callers that need the profile as it is now.
+const fetchMe = async ({ headers }) => fetch('/users/me', 'GET', headers);
+
 const user = ({ headers }) => ({
   me: ({ userId }) => me({ headers, userId }),
+  fetchMe: () => fetchMe({ headers }),
   updateUser: (id, data) => updateUser({ id, data, headers }),
 });
 
