@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withUserNames } from '../shared/signup-names';
+import { withUserNames } from '../../utils/signup-names';
 import mapSignup from './mappers';
 
 describe('mapSignup', () => {
