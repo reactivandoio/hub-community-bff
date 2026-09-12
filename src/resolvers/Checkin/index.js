@@ -1,6 +1,19 @@
 import pubsub from '../../dataSources/pubsub';
+import { mapSignup, withUserNames } from './mappers';
 
 const CHECKIN_TOPIC_PREFIX = 'CHECKIN_';
+
+// HubCommunity users for these e-mails. A failure here must not break check-in or the
+// signup list — fall back to the names stored on the signups.
+const resolveUsers = async (dataSources, emails) => {
+  try {
+    return await dataSources.managerIntegration.findUsersByEmails(emails);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[checkin] could not resolve user names:', err.message);
+    return [];
+  }
+};
 
 const Checkin = {
   Query: {
@@ -25,16 +38,13 @@ const Checkin = {
         // 2. Fetch all signups for this event
         const allSignups = await dataSources.eventandoIntegration.findSignupsByEvent(event.id);
 
-        // 3. Map signups to the EventSignup type
-        let signups = allSignups.map(signup => ({
-          id: String(signup.documentId || signup.id),
-          name: signup.name || '',
-          email: signup.email || '',
-          phone_number: signup.phone_number || '',
-          checked_in: signup.checked_in || false,
-          checked_in_at: signup.checked_in_at || null,
-          product_name: signup.payment?.batch?.product?.name || null,
-        }));
+        // 3. Map signups to the EventSignup type, using the HubCommunity profile name
+        //    when the account has one (older signups stored the username as name).
+        let signups = allSignups.map(mapSignup);
+        signups = withUserNames(
+          signups,
+          await resolveUsers(dataSources, signups.map((s) => s.email)),
+        );
 
         // 4. Filter by search term (case insensitive, matches name)
         if (search && search.trim()) {
@@ -73,16 +83,16 @@ const Checkin = {
           };
         }
 
-        // 2. Build the signup object for the response and subscription
-        const signupData = {
-          id: String(updatedSignup.documentId || updatedSignup.id),
-          name: updatedSignup.name || '',
-          email: updatedSignup.email || '',
-          phone_number: updatedSignup.phone_number || '',
-          checked_in: true,
-          checked_in_at: updatedSignup.checked_in_at || new Date().toISOString(),
-          product_name: updatedSignup.payment?.batch?.product?.name || null,
-        };
+        // 2. Build the signup object for the response and subscription (same name
+        //    resolution as eventSignups, so the printed badge matches the list)
+        const [signupData] = withUserNames(
+          [{
+            ...mapSignup(updatedSignup),
+            checked_in: true,
+            checked_in_at: updatedSignup.checked_in_at || new Date().toISOString(),
+          }],
+          await resolveUsers(dataSources, [updatedSignup.email]),
+        );
 
         // 3. Publish to subscription topic
         const topic = `${CHECKIN_TOPIC_PREFIX}${eventSlug}`;
