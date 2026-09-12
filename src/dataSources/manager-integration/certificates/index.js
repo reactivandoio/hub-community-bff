@@ -13,8 +13,9 @@ const fetchAllPages = async (buildRoute, headers) => {
   while (hasMore) {
     const response = await fetch(buildRoute({ page, pageSize: PAGE_SIZE }), 'GET', headers);
     all = [...all, ...(response?.data || [])];
-    const meta = response?.meta;
-    if (meta && page < meta.pageCount) {
+    // Strapi 5 REST: { meta: { pagination: { page, pageSize, pageCount, total } } }
+    const pageCount = response?.meta?.pagination?.pageCount ?? response?.meta?.pageCount ?? 1;
+    if (page < pageCount) {
       page += 1;
     } else {
       hasMore = false;
