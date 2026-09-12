@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mediaUrl, mapConfig, mapCertificate, mediaIdFromInput } from './mappers';
+import { buildConfigData } from './index';
 
 const BASE = 'https://manager.test';
 
@@ -34,7 +35,10 @@ describe('mapConfig', () => {
       logo: { id: 7, url: '/uploads/logo.png' },
       background: null,
       sponsors: [{ name: 'S', url: 'https://s', logo: { id: 8, url: '/uploads/s.png' } }],
-      signatures: [{ name: 'A', role: 'CEO', image: null }],
+      signatures: [
+        { name: 'A', role: 'CEO', image: null },
+        { name: 'B', role: 'Org', image: null, text: 'Bia Lima', font: 'allura' },
+      ],
     };
     expect(mapConfig(raw, BASE)).toEqual({
       id: 'cfg1',
@@ -50,7 +54,10 @@ describe('mapConfig', () => {
       background: null,
       background_id: null,
       sponsors: [{ name: 'S', url: 'https://s', logo: 'https://manager.test/uploads/s.png', logo_id: '8' }],
-      signatures: [{ name: 'A', role: 'CEO', image: null, image_id: null }],
+      signatures: [
+        { name: 'A', role: 'CEO', image: null, image_id: null, text: null, font: 'great_vibes' },
+        { name: 'B', role: 'Org', image: null, image_id: null, text: 'Bia Lima', font: 'allura' },
+      ],
     });
   });
   it('defaults booleans and arrays', () => {
@@ -59,6 +66,21 @@ describe('mapConfig', () => {
     expect(mapped.allow_self_request).toBe(true);
     expect(mapped.sponsors).toEqual([]);
     expect(mapped.signatures).toEqual([]);
+  });
+});
+
+describe('buildConfigData', () => {
+  it('carries cursive signature fields to strapi and defaults the font', () => {
+    const data = buildConfigData({
+      signatures: [
+        { name: 'A', role: 'CEO', image: '12' },
+        { name: 'B', text: 'Bia Lima', font: 'allura' },
+      ],
+    });
+    expect(data.signatures).toEqual([
+      { name: 'A', role: 'CEO', image: 12, text: null, font: 'great_vibes' },
+      { name: 'B', role: null, image: null, text: 'Bia Lima', font: 'allura' },
+    ]);
   });
 });
 

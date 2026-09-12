@@ -50,6 +50,8 @@ export const buildConfigData = (input) => {
       name: s.name,
       role: s.role || null,
       image: mediaIdFromInput(s.image),
+      text: s.text || null,
+      font: s.font || 'great_vibes',
     }));
   }
   return data;
@@ -76,7 +78,9 @@ const configToInput = (raw) => ({
   logo: raw.logo?.id ?? null,
   background: raw.background?.id ?? null,
   sponsors: (raw.sponsors || []).map((s) => ({ name: s.name, url: s.url, logo: s.logo?.id })),
-  signatures: (raw.signatures || []).map((s) => ({ name: s.name, role: s.role, image: s.image?.id })),
+  signatures: (raw.signatures || []).map((s) => ({
+    name: s.name, role: s.role, image: s.image?.id, text: s.text, font: s.font,
+  })),
 });
 
 const BATCH_SIZE = 10;
