@@ -49,8 +49,8 @@ type Certificate {
   id: String
   code: String!
   name: String!
-  identifier: String!
-  email: String!
+  identifier: String   # CPF (11 dígitos) ou e-mail normalizado; null em certificateByCode
+  email: String        # null em certificateByCode
   source: CertificateSource!
   issued_at: String
   sent_at: String
@@ -131,7 +131,7 @@ type CertificateCandidate {
 
 input IssueEntryInput {
   name: String!
-  identifier: String!
+  identifier: String   # CPF opcional; sem CPF válido o e-mail normalizado vira o identificador
   email: String!
 }
 

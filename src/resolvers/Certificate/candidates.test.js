@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCandidates, candidateKey } from './candidates';
+import { buildCandidates, candidateKey, enrichIdentifiersFromForms } from './candidates';
 
 describe('candidateKey', () => {
   it('prefers cpf, falls back to email, else null', () => {
@@ -195,5 +195,84 @@ describe('buildCandidates certificate by e-mail', () => {
     expect(byKey['shared@x.com'].certificate).toBeNull();
     expect(byKey['shared@x.com'].identifier).toBe('');
     expect(result.filter((c) => c.certificate?.code === 'RCT-X')).toHaveLength(1);
+  });
+});
+
+describe('buildCandidates with certificates issued by e-mail (no CPF)', () => {
+  it('attaches an e-mail-keyed certificate to the e-mail-only signup without inventing a CPF', () => {
+    const signups = [{ name: 'Sem Cpf', email: 'semcpf@x.com' }];
+    const certificates = [{ code: 'RCT-EMAIL', identifier: 'semcpf@x.com', email: 'semcpf@x.com', name: 'Sem Cpf' }];
+
+    const result = buildCandidates({ signups, attendances: [], participants: [], certificates });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].key).toBe('semcpf@x.com');
+    expect(result[0].identifier).toBe('');
+    expect(result[0].certificate.code).toBe('RCT-EMAIL');
+  });
+
+  it('lists an orphan e-mail-keyed certificate once, keyed by the e-mail, with an empty CPF', () => {
+    const certificates = [
+      { code: 'RCT-EMAIL', identifier: 'orfao@x.com', email: 'orfao@x.com', name: 'Orfao' },
+      { code: 'RCT-DUP', identifier: 'orfao@x.com', email: 'orfao@x.com', name: 'Orfao' },
+    ];
+
+    const result = buildCandidates({ signups: [], attendances: [], participants: [], certificates });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].key).toBe('orfao@x.com');
+    expect(result[0].identifier).toBe('');
+    expect(result[0].email).toBe('orfao@x.com');
+    expect(result[0].certificate.code).toBe('RCT-EMAIL');
+  });
+});
+
+describe('enrichIdentifiersFromForms', () => {
+  const candidates = [
+    { key: 'bruno@x.com', name: 'Bruno', email: 'bruno@x.com', identifier: '' },
+    { key: '52998224725', name: 'Ana', email: 'ana@x.com', identifier: '52998224725' },
+    { key: 'carla@x.com', name: 'Carla', email: 'carla@x.com', identifier: '' },
+    { key: 'dora@x.com', name: 'Dora', email: 'dora@x.com', identifier: '123' },
+  ];
+
+  it('fills a missing CPF from the form row with the same e-mail', () => {
+    const forms = [{ email: 'bruno@x.com', cpf: '111.444.777-35' }];
+    const result = enrichIdentifiersFromForms(candidates, forms);
+    expect(result.find((c) => c.key === 'bruno@x.com').identifier).toBe('11144477735');
+  });
+
+  it('never overwrites an existing valid CPF', () => {
+    const forms = [{ email: 'ana@x.com', cpf: '111.444.777-35' }];
+    const result = enrichIdentifiersFromForms(candidates, forms);
+    expect(result.find((c) => c.key === '52998224725').identifier).toBe('52998224725');
+  });
+
+  it('replaces an invalid CPF when the form has a valid one', () => {
+    const forms = [{ email: 'dora@x.com', cpf: '39053344705' }];
+    const result = enrichIdentifiersFromForms(candidates, forms);
+    expect(result.find((c) => c.key === 'dora@x.com').identifier).toBe('39053344705');
+  });
+
+  it('ignores form rows whose CPF is invalid', () => {
+    const forms = [{ email: 'carla@x.com', cpf: '111.111.111-11' }, { email: 'bruno@x.com', cpf: '123' }];
+    const result = enrichIdentifiersFromForms(candidates, forms);
+    expect(result.find((c) => c.key === 'carla@x.com').identifier).toBe('');
+    expect(result.find((c) => c.key === 'bruno@x.com').identifier).toBe('');
+  });
+
+  it('matches e-mails case-insensitively and trimmed, first valid CPF wins', () => {
+    const forms = [
+      { email: '  BRUNO@X.com ', cpf: '11144477735' },
+      { email: 'bruno@x.com', cpf: '52998224725' },
+    ];
+    const result = enrichIdentifiersFromForms(candidates, forms);
+    expect(result.find((c) => c.key === 'bruno@x.com').identifier).toBe('11144477735');
+  });
+
+  it('returns the same rows when there are no usable forms and never mutates the input', () => {
+    expect(enrichIdentifiersFromForms(candidates, [])).toBe(candidates);
+    expect(enrichIdentifiersFromForms(candidates, undefined)).toBe(candidates);
+    enrichIdentifiersFromForms(candidates, [{ email: 'bruno@x.com', cpf: '11144477735' }]);
+    expect(candidates[0].identifier).toBe('');
   });
 });

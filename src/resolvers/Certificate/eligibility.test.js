@@ -21,6 +21,20 @@ describe('isValidCpf', () => {
     expect(isValidCpf('1234')).toBe(false);
     expect(isValidCpf('')).toBe(false);
   });
+  it('rejects an e-mail identifier, even one that is 11 characters long', () => {
+    expect(isValidCpf('ana@x.com')).toBe(false);
+    expect(isValidCpf('a@bc.de.fgh')).toBe(false);
+  });
+});
+
+describe('normalizeIdentifier', () => {
+  it('keeps only digits for a CPF', () => {
+    expect(normalizeIdentifier('529.982.247-25')).toBe('52998224725');
+    expect(normalizeIdentifier(undefined)).toBe('');
+  });
+  it('trims and lower-cases an e-mail, keeping it intact', () => {
+    expect(normalizeIdentifier(' Ana.Silva+1@Example.com ')).toBe('ana.silva+1@example.com');
+  });
 });
 
 describe('hasEventEnded', () => {

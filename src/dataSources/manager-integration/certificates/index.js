@@ -3,6 +3,7 @@ import managerNetworkUtils from '../../../utils/network/manager';
 const { fetch, buildQuery } = managerNetworkUtils;
 
 const PAGE_SIZE = 100;
+const SW_FORM_EMAIL_CHUNK = 50;
 
 // Walks every page of a Strapi collection and returns a flat array.
 const fetchAllPages = async (buildRoute, headers) => {
@@ -12,8 +13,9 @@ const fetchAllPages = async (buildRoute, headers) => {
   while (hasMore) {
     const response = await fetch(buildRoute({ page, pageSize: PAGE_SIZE }), 'GET', headers);
     all = [...all, ...(response?.data || [])];
-    const meta = response?.meta;
-    if (meta && page < meta.pageCount) {
+    // Strapi 5 REST: { meta: { pagination: { page, pageSize, pageCount, total } } }
+    const pageCount = response?.meta?.pagination?.pageCount ?? response?.meta?.pageCount ?? 1;
+    if (page < pageCount) {
       page += 1;
     } else {
       hasMore = false;
@@ -102,6 +104,28 @@ const findParticipantsByEvent = (eventDocumentId, headers) =>
     return `/participants?${query}`;
   }, headers);
 
+// The Startup Weekend signup form (hub `sw-form`) is the only place the CPF of an Eventando signup
+// lives. Matched by e-mail, case-insensitively, in chunks so the query string stays short.
+const findSwFormsByEmails = async (emails, headers) => {
+  const normalized = (emails || []).map((e) => (e || '').trim().toLowerCase()).filter(Boolean);
+  const unique = [...new Set(normalized)];
+  let all = [];
+  for (let i = 0; i < unique.length; i += SW_FORM_EMAIL_CHUNK) {
+    const batch = unique.slice(i, i + SW_FORM_EMAIL_CHUNK);
+    // eslint-disable-next-line no-await-in-loop
+    const rows = await fetchAllPages((pagination) => {
+      // `$eqi` (case-insensitive equality) is not covered by buildQuery, so it is built here.
+      const params = new URLSearchParams(buildQuery({}, [], pagination, '', []));
+      batch.forEach((email, index) => params.append(`filters[$or][${index}][email][$eqi]`, email));
+      params.append('fields[0]', 'email');
+      params.append('fields[1]', 'cpf');
+      return `/sw-forms?${params.toString()}`;
+    }, headers);
+    all = [...all, ...rows];
+  }
+  return all;
+};
+
 const certificates = ({ headers }) => ({
   findEventByDocumentId: (documentId) => findEventByDocumentId(documentId, headers),
   findCertificateConfigByEvent: (eventDocumentId) =>
@@ -117,6 +141,7 @@ const certificates = ({ headers }) => ({
   updateCertificate: (documentId, data) => updateCertificate(documentId, data, headers),
   findAttendancesByEvent: (eventDocumentId) => findAttendancesByEvent(eventDocumentId, headers),
   findParticipantsByEvent: (eventDocumentId) => findParticipantsByEvent(eventDocumentId, headers),
+  findSwFormsByEmails: (emails) => findSwFormsByEmails(emails, headers),
 });
 
 export default certificates;
