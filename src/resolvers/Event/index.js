@@ -12,6 +12,18 @@ const signupIdOf = (signup) => {
   return id ? String(id) : null;
 };
 
+// An event created before `unlisted` existed has it NULL, and `unlisted != true`
+// never matches NULL in SQL — so ask for "false or unset" instead of "not true",
+// or the old events vanish from every listing. Nested under `and` on purpose:
+// `buildQuery` writes a plain `search` as `filters[$or][...]`, so a top-level
+// `or` here would collide with it.
+const LISTABLE = { or: [{ unlisted: { eq: false } }, { unlisted: { null: true } }] };
+
+const listableOnly = (filters = {}) => {
+  const { and, ...rest } = filters || {};
+  return { ...rest, and: [...(and || []), LISTABLE] };
+};
+
 const Event = {
   Event: {
     title: ({ name, title }) => title || name,
@@ -51,17 +63,18 @@ const Event = {
     },
     // Return call_link from event data (frontend protects display via isUserSignedUp)
     call_link: ({ call_link }) => call_link || null,
+    unlisted: ({ unlisted }) => unlisted === true,
   },
 
   Query: {
     events: async (
       _,
-      { filters, sort, pagination, search },
+      { filters, sort, pagination, search, include_unlisted: includeUnlisted },
       { dataSources },
     ) => {
       try {
         const response = await dataSources.manager.findEvents(
-          filters,
+          includeUnlisted ? filters : listableOnly(filters),
           sort,
           pagination,
           search,
@@ -234,6 +247,7 @@ const Event = {
             end_date: data.end_date,
             is_online: data.is_online || false,
             call_link: data.call_link || null,
+            unlisted: data.unlisted || false,
             location: data.location,
             images: data.images,
             communities: data.communities,
@@ -307,6 +321,8 @@ const Event = {
         delete eventandoData.title;
         delete eventandoData.is_online;
         delete eventandoData.call_link;
+        // Listing visibility is a Hub concern; Eventando rejects unknown keys.
+        delete eventandoData.unlisted;
 
         const response = await dataSources.eventandoIntegration.createEvent(eventandoData);
 
@@ -352,6 +368,7 @@ const Event = {
               end_date: data.end_date,
               is_online: data.is_online || false,
               call_link: data.call_link || null,
+              unlisted: data.unlisted || false,
               location: data.location,
               images: data.images,
               communities: data.communities,
@@ -377,6 +394,8 @@ const Event = {
         delete eventandoData.title;
         delete eventandoData.is_online;
         delete eventandoData.call_link;
+        // Listing visibility is a Hub concern; Eventando rejects unknown keys.
+        delete eventandoData.unlisted;
 
         const eventandoResponse =
           await dataSources.eventandoIntegration.updateEvent(event.id, eventandoData);

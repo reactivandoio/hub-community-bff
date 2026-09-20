@@ -35,7 +35,9 @@ const Community = {
     },
     events: ({ events }) => {
       if (!events || !Array.isArray(events)) return [];
-      return events;
+      // An unlisted event is hidden from the public listings, and the community
+      // page (plus the "next event" date on its card) is one of them.
+      return events.filter((event) => event?.unlisted !== true);
     },
     tags: ({ tags }) => {
       if (!tags || !Array.isArray(tags)) return [];
