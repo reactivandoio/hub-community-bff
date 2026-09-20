@@ -106,6 +106,8 @@ type SignupResponse {
   message: String
   payment: JSON
   is_free: Boolean
+  "Id of the created signup (EventSignup.id) — the kiosk reads it from the ticket QR."
+  signup_id: String
 }
 
 type Subscription {
@@ -115,6 +117,8 @@ type Subscription {
 type IsSignedUpResponse {
   is_signed_up: Boolean!
   call_link: String
+  "Id of the signup (EventSignup.id), so the page can render the ticket QR."
+  signup_id: String
 }
 
 # Event filters

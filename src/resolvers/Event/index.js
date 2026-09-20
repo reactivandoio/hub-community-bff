@@ -5,6 +5,13 @@ import { signupConfirmationTemplate } from '../../services/email/templates/signu
 
 dotenv.config();
 
+// Same id `eventSignups` exposes (see resolvers/Checkin/mappers.js), so the
+// ticket QR the web renders matches the check-in cache on the devices.
+const signupIdOf = (signup) => {
+  const id = signup?.documentId || signup?.id;
+  return id ? String(id) : null;
+};
+
 const Event = {
   Event: {
     title: ({ name, title }) => title || name,
@@ -173,9 +180,9 @@ const Event = {
           email,
         );
 
-        const isSignedUp = signupResponse?.data && signupResponse.data.length > 0;
+        const existingSignup = signupResponse?.data?.[0];
 
-        if (!isSignedUp) {
+        if (!existingSignup) {
           return {
             is_signed_up: false,
             call_link: null,
@@ -195,6 +202,7 @@ const Event = {
         return {
           is_signed_up: true,
           call_link: hubEvent?.call_link || null,
+          signup_id: signupIdOf(existingSignup),
         };
       } catch (err) {
         // If lookup fails, treat as not signed up
@@ -681,6 +689,7 @@ const Event = {
           message: 'Inscrição realizada com sucesso!',
           payment: response.data || response,
           is_free: response.data?.is_free || response.is_free || false,
+          signup_id: signupIdOf(response.data || response),
         };
       } catch (err) {
         // Extract error message from Eventando Manager response if available
