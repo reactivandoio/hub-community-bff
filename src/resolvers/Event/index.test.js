@@ -58,3 +58,79 @@ describe('signupToEvent', () => {
     expect(out).toEqual({ success: false, message: 'Lote esgotado', payment: null, is_free: false });
   });
 });
+
+describe('events', () => {
+  const listableClause = { or: [{ unlisted: { eq: false } }, { unlisted: { null: true } }] };
+
+  it('hides unlisted events by default', async () => {
+    const dataSources = makeDataSources();
+    await Event.Query.events(null, {}, { dataSources });
+    expect(dataSources.manager.findEvents).toHaveBeenCalledWith(
+      { and: [listableClause] },
+      undefined,
+      undefined,
+      undefined,
+    );
+  });
+
+  it('keeps the caller filters and adds the clause under `and`, never a top-level `or`', async () => {
+    const dataSources = makeDataSources();
+    const filters = { title: { contains: 'meetup' }, and: [{ slug: { eq: 'x' } }] };
+    await Event.Query.events(null, { filters, search: 'meetup' }, { dataSources });
+    expect(dataSources.manager.findEvents).toHaveBeenCalledWith(
+      { title: { contains: 'meetup' }, and: [{ slug: { eq: 'x' } }, listableClause] },
+      undefined,
+      undefined,
+      'meetup',
+    );
+  });
+
+  it('returns the unlisted ones too when the caller asks for them', async () => {
+    const dataSources = makeDataSources();
+    const filters = { title: { contains: 'meetup' } };
+    await Event.Query.events(null, { filters, include_unlisted: true }, { dataSources });
+    expect(dataSources.manager.findEvents)
+      .toHaveBeenCalledWith(filters, undefined, undefined, undefined);
+  });
+});
+
+describe('Event.unlisted', () => {
+  it('is false for an event saved before the field existed', () => {
+    expect(Event.Event.unlisted({})).toBe(false);
+    expect(Event.Event.unlisted({ unlisted: null })).toBe(false);
+    expect(Event.Event.unlisted({ unlisted: true })).toBe(true);
+  });
+});
+
+describe('createEvent', () => {
+  const makeWriteDataSources = () => ({
+    managerIntegration: {
+      createEvent: vi.fn().mockResolvedValue({ data: { documentId: 'ev1' } }),
+    },
+    eventandoIntegration: {
+      createEvent: vi.fn().mockResolvedValue({ data: { id: 1, uuid: 'ev1' } }),
+    },
+  });
+
+  const data = { title: 'Meetup', start_date: '2026-10-01', end_date: '2026-10-01', unlisted: true };
+
+  it('saves the listing visibility in the manager', async () => {
+    const dataSources = makeWriteDataSources();
+    await Event.Mutation.createEvent(null, { data }, { dataSources });
+    expect(dataSources.managerIntegration.createEvent.mock.calls[0][0])
+      .toMatchObject({ unlisted: true });
+  });
+
+  it('does not send `unlisted` to Eventando, which rejects unknown keys', async () => {
+    const dataSources = makeWriteDataSources();
+    await Event.Mutation.createEvent(null, { data }, { dataSources });
+    expect(dataSources.eventandoIntegration.createEvent.mock.calls[0][0]).not.toHaveProperty('unlisted');
+  });
+
+  it('defaults to listed when the form omits the flag', async () => {
+    const dataSources = makeWriteDataSources();
+    await Event.Mutation.createEvent(null, { data: { title: 'Meetup' } }, { dataSources });
+    expect(dataSources.managerIntegration.createEvent.mock.calls[0][0])
+      .toMatchObject({ unlisted: false });
+  });
+});

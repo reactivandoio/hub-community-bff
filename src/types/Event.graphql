@@ -22,6 +22,8 @@ type Event {
   products: [Product]
   is_online: Boolean
   call_link: String
+  "Hidden from the public listings; still reachable by its direct link."
+  unlisted: Boolean
 }
 
 type Query {
@@ -30,6 +32,8 @@ type Query {
     sort: [EventSort]
     pagination: PaginationInput
     search: String
+    "Admin listings pass true to also get the unlisted events."
+    include_unlisted: Boolean
   ): PaginatedEvents
 
   event(id: String!): Event
@@ -54,6 +58,7 @@ input EventInput {
   pixai_token_integration_id: String
   is_online: Boolean
   call_link: String
+  unlisted: Boolean
   location: String
   images: [String]
   communities: [String]
