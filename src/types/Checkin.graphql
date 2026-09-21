@@ -34,6 +34,12 @@ type Query {
   eventSignups(eventSlug: String!, search: String): [EventSignup]
 }
 
+input SignupUpdateInput {
+  name: String
+  email: String
+  phone_number: String
+}
+
 input ManualSignupInput {
   name: String!
   email: String!
@@ -54,6 +60,8 @@ type Mutation {
   checkinSignup(eventSlug: String!, signupId: String!, checkedInAt: String): CheckinResponse
   importSignups(eventSlug: String!, batchId: String!, signups: [SignupImportInput!]!): ImportSignupsResponse
   manualSignup(eventSlug: String!, batchId: String!, input: ManualSignupInput!): ManualSignupResponse
+  "Corrects an existing signup — a typo in the name, e-mail or phone. Only the fields sent change; the rest, including the check-in, is left alone."
+  updateSignup(eventSlug: String!, signupId: String!, input: SignupUpdateInput!): CheckinResponse
 }
 
 type Subscription {

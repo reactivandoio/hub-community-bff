@@ -157,3 +157,46 @@ describe('manualSignup', () => {
     expect(out.signup).toMatchObject({ id: 's9' });
   });
 });
+
+describe('updateSignup', () => {
+  const args = (input) => ({ eventSlug: 'meetup', signupId: 's1', input });
+
+  it('changes only the fields it was given', async () => {
+    const dataSources = makeDataSources();
+    dataSources.eventandoIntegration.updateSignup = vi
+      .fn()
+      .mockResolvedValue({ data: { ...rawSignups[0], phone_number: '62981219249' } });
+
+    const out = await Checkin.Mutation.updateSignup(null, args({ phone_number: ' 62981219249 ' }), { dataSources });
+
+    expect(dataSources.eventandoIntegration.updateSignup)
+      .toHaveBeenCalledWith('s1', { phone_number: '62981219249' });
+    expect(out).toMatchObject({ success: true, message: 'Inscrição atualizada.' });
+    expect(out.signup.phone_number).toBe('62981219249');
+  });
+
+  it('never touches the check-in, so fixing a name cannot un-credential anyone', async () => {
+    const dataSources = makeDataSources();
+    await Checkin.Mutation.updateSignup(null, args({ name: 'Ana Souza' }), { dataSources });
+
+    const [, patch] = dataSources.eventandoIntegration.updateSignup.mock.calls[0];
+    expect(patch).toEqual({ name: 'Ana Souza' });
+    expect(patch).not.toHaveProperty('checked_in');
+  });
+
+  it('says so when the signup does not exist', async () => {
+    const dataSources = makeDataSources();
+    dataSources.eventandoIntegration.findSignupById = vi.fn().mockResolvedValue(null);
+
+    const out = await Checkin.Mutation.updateSignup(null, args({ name: 'Ana' }), { dataSources });
+    expect(out).toMatchObject({ success: false, message: 'Inscrição não encontrada.', signup: null });
+  });
+
+  it('is a no-op for an empty input instead of writing nothing over everything', async () => {
+    const dataSources = makeDataSources();
+    const out = await Checkin.Mutation.updateSignup(null, args({}), { dataSources });
+
+    expect(dataSources.eventandoIntegration.updateSignup).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ success: true, message: 'Nada para alterar.' });
+  });
+});
