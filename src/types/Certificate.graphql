@@ -52,6 +52,7 @@ type Certificate {
   identifier: String   # CPF (11 dígitos) ou e-mail normalizado; null em certificateByCode
   email: String        # null em certificateByCode
   source: CertificateSource!
+  category: String!     # "Participante" (padrão), "Organizador", "Mentor"...
   issued_at: String
   sent_at: String
   revoked_at: String
@@ -144,6 +145,40 @@ type CertificateCandidate {
   certificate: Certificate
 }
 
+"Formulário público de solicitação de certificado, de uma categoria de um evento."
+type CertificateRequestForm {
+  id: String!
+  title: String!
+  category: String!
+  slug: String!
+  description: String
+  enabled: Boolean!
+  "Quantas pessoas já solicitaram por este formulário."
+  submissions: Int!
+}
+
+"O que a página pública do formulário precisa saber. Nunca expõe quem já solicitou."
+type CertificateRequestFormPage {
+  title: String!
+  category: String!
+  description: String
+  enabled: Boolean!
+  event: CertificateConfigEvent!
+}
+
+input CertificateRequestFormInput {
+  title: String!
+  category: String!
+  description: String
+  enabled: Boolean
+}
+
+type CertificateRequestReceipt {
+  ok: Boolean!
+  category: String!
+  event_title: String!
+}
+
 input IssueEntryInput {
   name: String!
   identifier: String   # CPF opcional; sem CPF válido o e-mail normalizado vira o identificador
@@ -163,9 +198,30 @@ type IssueResult {
 }
 
 extend type Query {
-  certificateCandidates(eventId: String!): [CertificateCandidate!]!
+  "A lista de uma categoria. Sem `category`, a de participantes: inscritos, presenças e solicitações."
+  certificateCandidates(eventId: String!, category: String): [CertificateCandidate!]!
+  "Os formulários de solicitação do evento (admin)."
+  certificateRequestForms(eventId: String!): [CertificateRequestForm!]!
+  "O formulário público, pelo slug do link."
+  certificateRequestForm(slug: String!): CertificateRequestFormPage
 }
 
 extend type Mutation {
-  issueCertificates(eventId: String!, entries: [IssueEntryInput!]!, actions: IssueActionsInput!): IssueResult!
+  issueCertificates(
+    eventId: String!
+    entries: [IssueEntryInput!]!
+    actions: IssueActionsInput!
+    category: String
+  ): IssueResult!
+  createCertificateRequestForm(eventId: String!, data: CertificateRequestFormInput!): CertificateRequestForm!
+  updateCertificateRequestForm(id: String!, data: CertificateRequestFormInput!): CertificateRequestForm!
+  deleteCertificateRequestForm(id: String!): Boolean!
+  "Envio público do formulário: entra na lista da categoria, para a organização emitir depois."
+  submitCertificateRequest(
+    slug: String!
+    name: String!
+    identifier: String!
+    email: String!
+    phone: String!
+  ): CertificateRequestReceipt!
 }

@@ -61,6 +61,8 @@ const findCertificateByCode = (code, headers) => {
   return fetch(`/certificates?${query}`, 'GET', headers);
 };
 
+// Returns every certificate that person holds in the event — one per category since categories
+// exist — newest first, so the caller can pick the category it is asking about.
 const findCertificateByEventAndIdentifier = (
   eventDocumentId,
   identifier,
@@ -72,8 +74,7 @@ const findCertificateByEventAndIdentifier = (
     identifier: { eq: identifier },
     ...(includeRevoked ? {} : { revoked_at: { null: true } }),
   };
-  const sort = includeRevoked ? [{ createdAt: 'desc' }] : [];
-  const query = buildQuery(filters, sort, { pageSize: 1 }, '', CERTIFICATE_POPULATE);
+  const query = buildQuery(filters, [{ createdAt: 'desc' }], { pageSize: PAGE_SIZE }, '', CERTIFICATE_POPULATE);
   return fetch(`/certificates?${query}`, 'GET', headers);
 };
 

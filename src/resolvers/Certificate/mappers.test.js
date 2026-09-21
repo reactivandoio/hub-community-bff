@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { mediaUrl, mapConfig, mapCertificate, maskPublicCertificate, mediaIdFromInput } from './mappers';
+import {
+  mediaUrl,
+  mapConfig,
+  mapCertificate,
+  mapRequestForm,
+  maskPublicCertificate,
+  mediaIdFromInput,
+} from './mappers';
 import { buildConfigData, resolveIssueIdentifier } from './index';
 
 const BASE = 'https://manager.test';
@@ -94,12 +101,52 @@ describe('mapCertificate', () => {
     };
     expect(mapCertificate(raw)).toEqual({
       id: 'c1', code: 'RCT-AAAAAAAA', name: 'N', identifier: '12345678909',
-      email: 'e@e.com', source: 'ADMIN', issued_at: '2026-01-01', sent_at: null,
-      revoked_at: null, event,
+      email: 'e@e.com', source: 'ADMIN', category: 'Participante', issued_at: '2026-01-01',
+      sent_at: null, revoked_at: null, event,
     });
+  });
+  it('reads a certificate issued before categories existed as a participante one', () => {
+    expect(mapCertificate({ documentId: 'c1', category: null }).category).toBe('Participante');
+  });
+  it('keeps the category it was issued with', () => {
+    expect(mapCertificate({ documentId: 'c1', category: 'Mentor' }).category).toBe('Mentor');
   });
   it('returns null for null', () => {
     expect(mapCertificate(null)).toBeNull();
+  });
+});
+
+describe('mapRequestForm', () => {
+  const raw = {
+    documentId: 'f1',
+    title: 'Certificado de organização',
+    category: 'Organizador',
+    slug: 'evento-organizador',
+    description: 'Para quem organizou',
+    enabled: true,
+  };
+
+  it('maps the form and carries the submission count', () => {
+    expect(mapRequestForm(raw, 3)).toEqual({
+      id: 'f1',
+      title: 'Certificado de organização',
+      category: 'Organizador',
+      slug: 'evento-organizador',
+      description: 'Para quem organizou',
+      enabled: true,
+      submissions: 3,
+    });
+  });
+
+  it('defaults enabled to true, description to null and submissions to zero', () => {
+    const mapped = mapRequestForm({ documentId: 'f2', title: 'T', slug: 's' });
+    expect(mapped).toMatchObject({
+      category: 'Participante', description: null, enabled: true, submissions: 0,
+    });
+  });
+
+  it('returns null for null', () => {
+    expect(mapRequestForm(null)).toBeNull();
   });
 });
 

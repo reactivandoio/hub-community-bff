@@ -1,4 +1,10 @@
-import { mapConfig, mapCertificate, maskPublicCertificate, mediaIdFromInput } from './mappers';
+import {
+  mapConfig,
+  mapCertificate,
+  mapRequestForm,
+  maskPublicCertificate,
+  mediaIdFromInput,
+} from './mappers';
 import {
   normalizeIdentifier,
   isValidCpf,
@@ -8,6 +14,12 @@ import {
   REVOKED_MESSAGE,
 } from './eligibility';
 import { buildCandidates, enrichIdentifiersFromForms, normalizeEmail } from './candidates';
+import {
+  DEFAULT_CATEGORY,
+  filterByCategory,
+  isDefaultCategory,
+  normalizeCategory,
+} from './categories';
 import { sendCertificateEmail } from './email';
 
 export const requireUser = (user) => {
@@ -131,9 +143,41 @@ export const resolveIssueIdentifier = (entry) => {
   return EMAIL_PATTERN.test(email) ? email : '';
 };
 
+// The public pages (lookup / self-request) only ever deal with the default category, so the
+// person's mentor or organizador certificate must not answer for their participante one.
+const pickDefaultCategory = (rows) => filterByCategory(rows, DEFAULT_CATEGORY)[0] || null;
+
 // Mirrored by the frontend's `labelFor` to match batch errors back to rows — keep the chain.
 const entryLabel = (entry) =>
   (entry?.name || '').trim() || entry?.email || normalizeIdentifier(entry?.identifier);
+
+// The public page of a form only needs the event's identity, never its full payload.
+const formEventSummary = (event) => ({
+  id: event?.documentId || null,
+  slug: event?.slug || null,
+  title: event?.title || '',
+  start_date: event?.start_date || null,
+});
+
+const requestFormInput = (data) => ({
+  title: (data.title || '').trim(),
+  category: normalizeCategory(data.category),
+  description: data.description?.trim() || null,
+  enabled: data.enabled !== false,
+});
+
+const validateRequestFormInput = (input) => {
+  if (!input.title) throw new Error('Título é obrigatório.');
+  if (!input.category) throw new Error('Categoria é obrigatória.');
+};
+
+const loadRequestFormBySlug = async (dataSources, slug) => {
+  const response = await dataSources.managerIntegration
+    .findCertificateRequestFormBySlug((slug || '').trim().toLowerCase());
+  const form = response?.data?.[0];
+  if (!form) throw new Error('Formulário não encontrado.');
+  return form;
+};
 
 const Certificate = {
   Query: {
@@ -174,7 +218,7 @@ const Certificate = {
       const selfRequestAllowed = selfRequestStatus(config, event).ok;
 
       const existing = await dataSources.managerIntegration.findCertificateByEventAndIdentifier(eventId, cpf);
-      const existingCertificate = existing?.data?.[0];
+      const existingCertificate = pickDefaultCategory(existing?.data);
       if (existingCertificate) {
         return {
           certificate: mapCertificate(existingCertificate),
@@ -187,7 +231,7 @@ const Certificate = {
 
       const existingIncludingRevoked = await dataSources.managerIntegration
         .findCertificateByEventAndIdentifier(eventId, cpf, { includeRevoked: true });
-      const revokedCertificate = existingIncludingRevoked?.data?.[0];
+      const revokedCertificate = pickDefaultCategory(existingIncludingRevoked?.data);
       if (revokedCertificate) {
         return {
           certificate: null,
@@ -211,6 +255,7 @@ const Certificate = {
           identifier: cpf,
           email: user.email,
           source: 'ATTENDANCE',
+          category: DEFAULT_CATEGORY,
           users_permissions_user: user.documentId,
         });
         certificate = mapCertificate(created?.data);
@@ -225,21 +270,48 @@ const Certificate = {
       };
     },
 
-    certificateCandidates: async (_, { eventId }, { user, dataSources }) => {
+    // One list per category. Inscritos and presenças only ever belong to the default list
+    // ("Participante"): an organizador or mentor gets in by filling that category's form.
+    certificateCandidates: async (_, { eventId, category }, { user, dataSources }) => {
       requireUser(user);
+      const wanted = normalizeCategory(category);
+      const isDefault = isDefaultCategory(wanted);
       const { event } = await loadEventAndConfig(dataSources, eventId);
-      const [signups, attendances, participants, certificates] = await Promise.all([
-        loadEventandoSignups(dataSources, event),
-        dataSources.managerIntegration.findAttendancesByEvent(eventId),
+      const [signups, attendances, allParticipants, allCertificates] = await Promise.all([
+        isDefault ? loadEventandoSignups(dataSources, event) : [],
+        isDefault ? dataSources.managerIntegration.findAttendancesByEvent(eventId) : [],
         dataSources.managerIntegration.findParticipantsByEvent(eventId),
         dataSources.managerIntegration.findCertificatesByEvent(eventId),
       ]);
+      const participants = filterByCategory(allParticipants, wanted);
+      const certificates = filterByCategory(allCertificates, wanted);
       const candidates = buildCandidates({ signups, attendances, participants, certificates });
       const enriched = await enrichCandidatesFromSwForms(dataSources, candidates);
       return enriched.map((c) => ({
         ...c,
         certificate: mapCertificate(c.certificate ? { ...c.certificate, event } : null),
       }));
+    },
+
+    certificateRequestForms: async (_, { eventId }, { user, dataSources }) => {
+      requireUser(user);
+      const [response, participants] = await Promise.all([
+        dataSources.managerIntegration.findCertificateRequestFormsByEvent(eventId),
+        dataSources.managerIntegration.findParticipantsByEvent(eventId),
+      ]);
+      return (response?.data || []).map((raw) =>
+        mapRequestForm(raw, filterByCategory(participants, raw.category).length));
+    },
+
+    certificateRequestForm: async (_, { slug }, { dataSources }) => {
+      const form = await loadRequestFormBySlug(dataSources, slug);
+      return {
+        title: form.title,
+        category: normalizeCategory(form.category),
+        description: form.description ?? null,
+        enabled: form.enabled !== false,
+        event: formEventSummary(form.event),
+      };
     },
   },
 
@@ -268,7 +340,7 @@ const Certificate = {
 
       const existing = await dataSources.managerIntegration
         .findCertificateByEventAndIdentifier(eventId, cpf, { includeRevoked: true });
-      const existingCertificate = existing?.data?.[0];
+      const existingCertificate = pickDefaultCategory(existing?.data);
       if (existingCertificate) {
         if (existingCertificate.revoked_at) throw new Error(REVOKED_MESSAGE);
         return mapCertificate(existingCertificate);
@@ -280,12 +352,18 @@ const Certificate = {
         identifier: cpf,
         email: email.trim().toLowerCase(),
         source: 'SELF_REQUEST',
+        category: DEFAULT_CATEGORY,
       });
       return mapCertificate(created?.data);
     },
 
-    issueCertificates: async (_, { eventId, entries, actions }, { user, dataSources }) => {
+    issueCertificates: async (
+      _,
+      { eventId, entries, actions, category },
+      { user, dataSources },
+    ) => {
       requireUser(user);
+      const issueCategory = normalizeCategory(category);
       if (actions.email && !actions.register) {
         throw new Error('Enviar e-mail exige registrar o certificado.');
       }
@@ -309,6 +387,7 @@ const Certificate = {
           identifier,
           email: normalizeEmail(entry.email),
           source: 'ADMIN',
+          category: issueCategory,
         });
         const certificate = created?.data;
         result.issued += 1;
@@ -339,6 +418,71 @@ const Certificate = {
         });
       }
       return result;
+    },
+
+    createCertificateRequestForm: async (_, { eventId, data }, { user, dataSources }) => {
+      requireUser(user);
+      const input = requestFormInput(data);
+      validateRequestFormInput(input);
+      // Fails early with "Evento não encontrado." instead of letting Strapi drop the relation.
+      await loadEventAndConfig(dataSources, eventId);
+      const response = await dataSources.managerIntegration
+        .createCertificateRequestForm({ ...input, event: eventId });
+      return mapRequestForm(response?.data, 0);
+    },
+
+    updateCertificateRequestForm: async (_, { id, data }, { user, dataSources }) => {
+      requireUser(user);
+      const input = requestFormInput(data);
+      validateRequestFormInput(input);
+      const response = await dataSources.managerIntegration.updateCertificateRequestForm(id, input);
+      const form = response?.data;
+      if (!form) throw new Error('Formulário não encontrado.');
+      const participants = await dataSources.managerIntegration
+        .findParticipantsByEvent(form.event?.documentId);
+      return mapRequestForm(form, filterByCategory(participants, form.category).length);
+    },
+
+    deleteCertificateRequestForm: async (_, { id }, { user, dataSources }) => {
+      requireUser(user);
+      await dataSources.managerIntegration.deleteCertificateRequestForm(id);
+      return true;
+    },
+
+    // Public: the person asking for their certificate joins the list of that form's category.
+    // Re-sending the same form is a no-op, so a double click never duplicates a row.
+    submitCertificateRequest: async (
+      _,
+      { slug, name, identifier, email, phone },
+      { dataSources },
+    ) => {
+      const form = await loadRequestFormBySlug(dataSources, slug);
+      if (form.enabled === false) throw new Error('Este formulário não está mais aceitando solicitações.');
+
+      const eventId = form.event?.documentId;
+      if (!eventId) throw new Error('Formulário sem evento.');
+
+      const cpf = normalizeIdentifier(identifier);
+      if (!isValidCpf(cpf)) throw new Error('CPF inválido.');
+      if (!name?.trim()) throw new Error('Nome é obrigatório.');
+      if (!email?.trim()) throw new Error('E-mail é obrigatório.');
+      if (!phone?.trim()) throw new Error('WhatsApp é obrigatório.');
+
+      const category = normalizeCategory(form.category);
+      // No read-back to dedup: this runs unauthenticated, and the public role must not be able
+      // to list who already requested. Sending the form twice is harmless — `buildCandidates`
+      // merges rows that share a CPF or an e-mail into one candidate.
+      await dataSources.managerIntegration.createParticipant({
+        name: name.trim(),
+        identifier: cpf,
+        email: normalizeEmail(email),
+        phone_number: phone.trim(),
+        category,
+        event: eventId,
+        certificate_request_form: form.documentId,
+      });
+
+      return { ok: true, category, event_title: form.event?.title || '' };
     },
   },
 };

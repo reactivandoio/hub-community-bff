@@ -1,5 +1,7 @@
 // Maps raw Strapi payloads (already flattened by graphqlUtils) into the GraphQL shapes.
 
+import { normalizeCategory } from './categories';
+
 export const mediaUrl = (media, baseUrl = process.env.MANAGER_URL) => {
   if (!media) return null;
   const url = typeof media === 'string' ? media : media.url;
@@ -56,10 +58,24 @@ export const mapCertificate = (raw) => {
     identifier: raw.identifier,
     email: raw.email,
     source: raw.source,
+    category: normalizeCategory(raw.category),
     issued_at: raw.issued_at ?? null,
     sent_at: raw.sent_at ?? null,
     revoked_at: raw.revoked_at ?? null,
     event: raw.event ?? null,
+  };
+};
+
+export const mapRequestForm = (raw, submissions = 0) => {
+  if (!raw) return null;
+  return {
+    id: raw.documentId,
+    title: raw.title,
+    category: normalizeCategory(raw.category),
+    slug: raw.slug,
+    description: raw.description ?? null,
+    enabled: raw.enabled !== false,
+    submissions,
   };
 };
 
