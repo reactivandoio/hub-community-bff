@@ -21,6 +21,7 @@ const fromSignup = (s) => ({
   email: normalizeEmail(s.email),
   identifier: cpfDigits(s.cpf || s.identifier),
   phone: s.phone_number || '',
+  date_of_birth: null,
   checked_in: Boolean(s.checked_in),
 });
 
@@ -33,16 +34,19 @@ const fromAttendance = (a) => {
     email: normalizeEmail(u.email),
     identifier: cpfDigits(u.cpf),
     phone: u.phone || '',
+    date_of_birth: null,
     checked_in: false,
   };
 };
 
+// The request form is the only source that asks for a date of birth.
 const fromParticipant = (p) => ({
   source: 'REQUEST',
   name: p.name || '',
   email: normalizeEmail(p.email),
   identifier: cpfDigits(p.identifier),
   phone: p.phone_number || '',
+  date_of_birth: p.date_of_birth || null,
   checked_in: false,
 });
 
@@ -58,6 +62,7 @@ const merge = (existing, row) => {
     name: pick('name'),
     email: pick('email'),
     phone: pick('phone'),
+    date_of_birth: pick('date_of_birth'),
     identifier: existing.identifier || row.identifier,
     checked_in: existing.checked_in || row.checked_in,
     sources: existing.sources.includes(row.source) ? existing.sources : [...existing.sources, row.source],
@@ -154,6 +159,7 @@ export const buildCandidates = ({ signups = [], attendances = [], participants =
     email: c.email,
     identifier: c.identifier,
     phone: c.phone,
+    date_of_birth: c.date_of_birth || null,
     sources: [...c.sources].sort((a, b) => SOURCE_PRIORITY[b] - SOURCE_PRIORITY[a]),
     checked_in: c.checked_in,
     certificate: c.certificate,
@@ -174,6 +180,7 @@ export const buildCandidates = ({ signups = [], attendances = [], participants =
       email: normalizeEmail(cert.email),
       identifier: cpfDigits(id),
       phone: '',
+      date_of_birth: null,
       sources: [],
       checked_in: false,
       certificate: cert,

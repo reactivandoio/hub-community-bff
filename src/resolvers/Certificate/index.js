@@ -14,6 +14,7 @@ import {
   REVOKED_MESSAGE,
 } from './eligibility';
 import { buildCandidates, enrichIdentifiersFromForms, normalizeEmail } from './candidates';
+import { normalizeDateOfBirth } from './birthdate';
 import {
   DEFAULT_CATEGORY,
   filterByCategory,
@@ -453,7 +454,7 @@ const Certificate = {
     // Re-sending the same form is a no-op, so a double click never duplicates a row.
     submitCertificateRequest: async (
       _,
-      { slug, name, identifier, email, phone },
+      { slug, name, identifier, email, phone, date_of_birth: dateOfBirth },
       { dataSources },
     ) => {
       const form = await loadRequestFormBySlug(dataSources, slug);
@@ -468,6 +469,11 @@ const Certificate = {
       if (!email?.trim()) throw new Error('E-mail é obrigatório.');
       if (!phone?.trim()) throw new Error('WhatsApp é obrigatório.');
 
+      // Optional in the schema, so an older frontend still submits; but a value that was typed
+      // and makes no sense is worth saying out loud instead of silently dropping.
+      const birthDate = normalizeDateOfBirth(dateOfBirth);
+      if (dateOfBirth?.trim() && !birthDate) throw new Error('Data de nascimento inválida.');
+
       const category = normalizeCategory(form.category);
       // No read-back to dedup: this runs unauthenticated, and the public role must not be able
       // to list who already requested. Sending the form twice is harmless — `buildCandidates`
@@ -477,6 +483,7 @@ const Certificate = {
         identifier: cpf,
         email: normalizeEmail(email),
         phone_number: phone.trim(),
+        date_of_birth: birthDate,
         category,
         event: eventId,
         certificate_request_form: form.documentId,
