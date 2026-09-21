@@ -225,6 +225,46 @@ const Checkin = {
       }
     },
 
+    // Nothing else could fix a typo: the other mutations only create signups or
+    // check them in, so a wrong phone or a misspelt name had to be corrected in
+    // Eventando by hand. Only the fields sent change — the check-in is not one
+    // of them, so correcting a name cannot silently un-credential anyone.
+    updateSignup: async (_, { signupId, input }, { dataSources }) => {
+      try {
+        const existing = (await dataSources.eventandoIntegration.findSignupById(signupId))?.data;
+        if (!existing) {
+          return { success: false, message: 'Inscrição não encontrada.', signup: null };
+        }
+
+        const patch = ['name', 'email', 'phone_number'].reduce((acc, field) => {
+          const value = input[field];
+          return value === undefined || value === null ? acc : { ...acc, [field]: value.trim() };
+        }, {});
+
+        if (Object.keys(patch).length === 0) {
+          const [unchanged] = withUserNames(
+            [mapSignup(existing)],
+            await resolveUsers(dataSources, [existing.email]),
+          );
+          return { success: true, message: 'Nada para alterar.', signup: unchanged };
+        }
+
+        const response = await dataSources.eventandoIntegration.updateSignup(signupId, patch);
+        const updated = response?.data;
+        if (!updated) {
+          return { success: false, message: 'Não foi possível atualizar a inscrição.', signup: null };
+        }
+
+        const [signup] = withUserNames(
+          [mapSignup(updated)],
+          await resolveUsers(dataSources, [updated.email]),
+        );
+        return { success: true, message: 'Inscrição atualizada.', signup };
+      } catch (err) {
+        return { success: false, message: `Erro ao atualizar inscrição: ${err.message}`, signup: null };
+      }
+    },
+
     manualSignup: async (_, { eventSlug, batchId, input }, { dataSources }) => {
       try {
         // 1. Try to create account in hub-community
