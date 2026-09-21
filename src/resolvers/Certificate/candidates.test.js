@@ -20,7 +20,7 @@ describe('buildCandidates', () => {
     { users_permissions_user: null },
   ];
   const participants = [
-    { name: 'Carla', email: 'carla@x.com', identifier: '11144477735', phone_number: '62977770000' },
+    { name: 'Carla', email: 'carla@x.com', identifier: '11144477735', phone_number: '62977770000', date_of_birth: '1990-04-07' },
     { name: 'Bruno Lima', email: 'BRUNO@x.com', identifier: '', phone_number: '62966660000' },
   ];
   const certificates = [
@@ -48,6 +48,16 @@ describe('buildCandidates', () => {
     expect(bruno.identifier).toBe('');
     expect(bruno.phone).toBe('62966660000'); // signup had none, request fills the gap
     expect(bruno.checked_in).toBe(false);
+  });
+
+  it('carries the date of birth the request form asked for', () => {
+    expect(byKey['11144477735'].date_of_birth).toBe('1990-04-07');
+  });
+
+  it('leaves the date of birth null for the sources that never ask for it', () => {
+    expect(byKey['52998224725'].date_of_birth).toBeNull();
+    expect(byKey['bruno@x.com'].date_of_birth).toBeNull();
+    expect(byKey['98765432100'].date_of_birth).toBeNull();
   });
 
   it('drops rows without cpf or email', () => {

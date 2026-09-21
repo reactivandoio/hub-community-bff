@@ -140,6 +140,8 @@ type CertificateCandidate {
   email: String
   identifier: String
   phone: String
+  "Só quem preencheu um formulário de solicitação informa — \"YYYY-MM-DD\"."
+  date_of_birth: String
   sources: [CandidateSource!]!
   checked_in: Boolean
   certificate: Certificate
@@ -223,5 +225,7 @@ extend type Mutation {
     identifier: String!
     email: String!
     phone: String!
+    "\"YYYY-MM-DD\". Opcional no schema para não quebrar um front antigo em deploy."
+    date_of_birth: String
   ): CertificateRequestReceipt!
 }
