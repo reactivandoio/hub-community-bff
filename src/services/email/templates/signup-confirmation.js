@@ -15,9 +15,12 @@
  * @param {boolean} params.isOnline - If it's an online event
  * @param {string} params.callLink - Online call link (if applicable)
  * @param {string} params.baseUrl - Base URL for links (e.g. https://hubcommunity.io)
- * @param {boolean} params.needsEmailConfirmation - If true, renders a
- *        reminder block telling the user to click the separate account
- *        confirmation link Strapi sent them.
+ * @param {string} [params.ticketUrl] - Ticket URL (the one the QR encodes); renders
+ *        the "Seu ingresso" block
+ * @param {string} [params.ticketQrCid] - cid of the inline QR attachment; the block
+ *        shows the image only when it is set
+ * @param {string} [params.setPasswordUrl] - Link for an account without a password
+ *        yet; renders the "Crie sua senha" block
  */
 export const signupConfirmationTemplate = ({
   userName,
@@ -33,7 +36,9 @@ export const signupConfirmationTemplate = ({
   isOnline,
   callLink,
   baseUrl = 'https://hubcommunity.io',
-  needsEmailConfirmation = false,
+  ticketUrl = null,
+  ticketQrCid = null,
+  setPasswordUrl = null,
 }) => {
   const eventUrl = `${baseUrl}/events/${eventSlug}`;
   const truncatedDescription = eventDescription
@@ -148,18 +153,45 @@ export const signupConfirmationTemplate = ({
                     </div>
                     ` : ''}
 
-                    ${needsEmailConfirmation ? `
-                    <!-- Account confirmation reminder -->
+                    ${ticketUrl ? `
+                    <!-- Ticket -->
+                    <div style="margin-top:20px;padding:20px;background-color:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.2);border-radius:12px;text-align:center;">
+                      <span style="font-size:14px;font-weight:600;color:#22c55e;">🎟️ Seu ingresso</span>
+                      ${ticketQrCid ? `
+                      <p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#d1d5db;">
+                        Apresente este QR code na entrada do evento para fazer seu check-in.
+                      </p>
+                      <div style="margin:16px auto 0;width:220px;padding:10px;background-color:#ffffff;border-radius:12px;">
+                        <img src="cid:${ticketQrCid}" alt="QR code do ingresso" width="200" height="200" style="display:block;width:200px;height:200px;" />
+                      </div>
+                      ` : `
+                      <p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#d1d5db;">
+                        Abra o link abaixo para ver o QR code do seu ingresso e apresente-o na entrada do evento.
+                      </p>
+                      `}
+                      <p style="margin:12px 0 0;">
+                        <a href="${ticketUrl}" style="font-size:14px;color:#22c55e;text-decoration:underline;word-break:break-all;">Ver meu ingresso</a>
+                      </p>
+                    </div>
+                    ` : ''}
+
+                    ${setPasswordUrl ? `
+                    <!-- Set password -->
                     <div style="margin-top:20px;padding:20px;background-color:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);border-radius:12px;">
-                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                        <span style="font-size:18px;">📧</span>
-                        <span style="font-size:14px;font-weight:600;color:#fbbf24;">Confirme sua conta por email</span>
+                      <div style="margin-bottom:8px;">
+                        <span style="font-size:18px;">🔑</span>
+                        <span style="font-size:14px;font-weight:600;color:#fbbf24;">Crie sua senha</span>
                       </div>
                       <p style="margin:0;font-size:14px;line-height:1.6;color:#d1d5db;">
-                        Enviamos um email separado com um link de confirmação da sua conta. Clique nesse link para ativar seu acesso e conseguir entrar na plataforma. Sua inscrição neste evento <strong style="color:#ffffff;">já está garantida</strong> mesmo antes da confirmação — mas você só vai conseguir acessar a área do participante depois de confirmar.
+                        Criamos uma conta no Hub Community para você com este email. Sua inscrição <strong style="color:#ffffff;">já está garantida</strong> — crie sua senha para acessar a plataforma e acompanhar seus eventos.
+                      </p>
+                      <p style="margin:16px 0 0;text-align:center;">
+                        <a href="${setPasswordUrl}" style="display:inline-block;padding:12px 28px;background-color:#fbbf24;color:#0f1117;text-decoration:none;font-size:14px;font-weight:600;border-radius:50px;">
+                          Crie sua senha
+                        </a>
                       </p>
                       <p style="margin:12px 0 0;font-size:13px;color:#9ca3af;">
-                        Não encontrou o email? Verifique a caixa de spam ou lixo eletrônico.
+                        O link vale para um único uso. Se você receber outro email como este, use o link mais recente.
                       </p>
                     </div>
                     ` : ''}

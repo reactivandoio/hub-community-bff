@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { sendSignupConfirmation } from '../../services/email/signup-confirmation';
 import Event from './index';
 
 // vi.mock is hoisted above the imports by vitest.
 vi.mock('../../dataSources/pubsub', () => ({ default: { publish: vi.fn(), asyncIterator: vi.fn() } }));
-vi.mock('../../services/email', () => ({ sendEmail: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../../services/email/signup-confirmation', () => ({
+  sendSignupConfirmation: vi.fn().mockResolvedValue({ success: true }),
+}));
 
 const makeDataSources = ({ signup, existing = [] } = {}) => ({
   eventandoIntegration: {
@@ -14,11 +17,7 @@ const makeDataSources = ({ signup, existing = [] } = {}) => ({
   manager: {
     findEvents: vi.fn().mockResolvedValue({ data: [{ slug: 'meetup', call_link: null }] }),
   },
-  // Used by the fire-and-forget confirmation email after signupToEvent.
-  managerIntegration: {
-    findEventBySlug: vi.fn().mockResolvedValue({ data: [] }),
-    findUserByEmail: vi.fn().mockResolvedValue(null),
-  },
+  managerIntegration: {},
 });
 
 beforeEach(() => vi.clearAllMocks());
@@ -44,6 +43,29 @@ describe('signupToEvent', () => {
     const dataSources = makeDataSources({ signup: { id: 9, documentId: 'sig9', is_free: true, qr_code: null } });
     const out = await Event.Mutation.signupToEvent(null, args, { dataSources });
     expect(out).toMatchObject({ success: true, is_free: true, signup_id: 'sig9' });
+  });
+
+  it('sends the confirmation e-mail with the signup id, without waiting for it', async () => {
+    sendSignupConfirmation.mockReturnValueOnce(new Promise(() => {}));
+    const dataSources = makeDataSources({ signup: { id: 9, documentId: 'sig9', is_free: true } });
+    const out = await Event.Mutation.signupToEvent(null, { ...args, phone_number: '62999' }, { dataSources });
+    expect(out.success).toBe(true);
+    expect(sendSignupConfirmation).toHaveBeenCalledWith({
+      dataSources,
+      eventSlug: 'meetup',
+      eventandoEvent: { id: 42, name: 'Meetup' },
+      signupId: 'sig9',
+      name: 'Ana',
+      email: 'ana@x.io',
+      phone: '62999',
+      isFree: true,
+    });
+  });
+
+  it('does not e-mail on a business error', async () => {
+    const dataSources = makeDataSources({ signup: { status: 'error', message: 'Lote esgotado' } });
+    await Event.Mutation.signupToEvent(null, args, { dataSources });
+    expect(sendSignupConfirmation).not.toHaveBeenCalled();
   });
 
   it('falls back to the numeric id when Eventando returns no documentId', async () => {

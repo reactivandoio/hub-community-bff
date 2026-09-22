@@ -1,16 +1,9 @@
 import dotenv from 'dotenv';
 import pubsub from '../../dataSources/pubsub';
-import { sendEmail } from '../../services/email';
-import { signupConfirmationTemplate } from '../../services/email/templates/signup-confirmation';
+import { sendSignupConfirmation } from '../../services/email/signup-confirmation';
+import { signupIdOf } from '../../utils/signup-id';
 
 dotenv.config();
-
-// Same id `eventSignups` exposes (see resolvers/Checkin/mappers.js), so the
-// ticket QR the web renders matches the check-in cache on the devices.
-const signupIdOf = (signup) => {
-  const id = signup?.documentId || signup?.id;
-  return id ? String(id) : null;
-};
 
 // An event created before `unlisted` existed has it NULL, and `unlisted != true`
 // never matches NULL in SQL — so ask for "false or unset" instead of "not true",
@@ -692,23 +685,28 @@ const Event = {
           };
         }
 
-        // Send confirmation email asynchronously (don't block the response)
-        sendSignupConfirmationEmail({
+        const isFree = response.data?.is_free || response.is_free || false;
+        const signupId = signupIdOf(response.data || response);
+
+        // Confirmation e-mail (ticket QR + set-password link) in the background:
+        // it never blocks nor fails the signup.
+        sendSignupConfirmation({
           dataSources,
-          eventId,
-          userName: name,
-          userEmail: email,
+          eventSlug: eventId,
           eventandoEvent,
-          productName: null, // Will be resolved from event data
-          isFree: response.data?.is_free || response.is_free || false,
-        }).catch(err => console.error('[Email] Error sending confirmation:', err.message));
+          signupId,
+          name,
+          email,
+          phone: phone_number,
+          isFree,
+        }).catch((err) => console.error('[Email] Error sending confirmation:', err.message));
 
         return {
           success: true,
           message: 'Inscrição realizada com sucesso!',
           payment: response.data || response,
-          is_free: response.data?.is_free || response.is_free || false,
-          signup_id: signupIdOf(response.data || response),
+          is_free: isFree,
+          signup_id: signupId,
         };
       } catch (err) {
         // Extract error message from Eventando Manager response if available
@@ -732,134 +730,5 @@ const Event = {
     },
   },
 };
-
-/**
- * Fetches full event info from Hub Community Manager and sends confirmation email.
- * Runs asynchronously — errors are caught by the caller.
- */
-async function sendSignupConfirmationEmail({
-  dataSources,
-  eventId,
-  userName,
-  userEmail,
-  eventandoEvent,
-  isFree,
-}) {
-  // Flatten Eventando event (Strapi v4: fields under .attributes)
-  const eventandoFlat = {
-    ...(eventandoEvent?.attributes || {}),
-    id: eventandoEvent?.id,
-  };
-
-  // Flatten Eventando products (also Strapi v4)
-  const eventandoProducts = (eventandoFlat.products?.data || []).map(p => ({
-    ...p.attributes,
-    id: p.id,
-  }));
-
-  // Fetch complete event data from Hub Community Manager (Strapi v5: flat format)
-  let managerEvent = null;
-  try {
-    const slug = eventandoFlat.slug || eventId;
-    const managerResponse = await dataSources.managerIntegration.findEventBySlug(slug);
-    managerEvent = managerResponse?.data?.[0] || null;
-  } catch (err) {
-    console.error('[Email] Could not fetch manager event:', err.message);
-  }
-
-  // Hub Community Manager has the rich event data (dates, location, images, is_online)
-  // Eventando has the products/batches
-  const event = managerEvent || eventandoFlat;
-  const title = event.title || event.name || eventandoFlat.name || 'Evento';
-
-  // Format date/time
-  const startDate = event.start_date ? new Date(event.start_date) : null;
-  const dateStr = startDate
-    ? startDate.toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        timeZone: 'America/Sao_Paulo',
-      })
-    : 'A definir';
-  const timeStr = startDate
-    ? startDate.toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'America/Sao_Paulo',
-      })
-    : 'A definir';
-
-  // Location
-  const isOnline = event.is_online || false;
-  let locationStr = 'A definir';
-  if (isOnline) {
-    locationStr = 'Online';
-  } else if (event.location) {
-    locationStr = event.location.title || event.location.city || 'Local a definir';
-  }
-
-  // Cover image — Hub Community Manager images are relative URLs
-  const managerBaseUrl = process.env.MANAGER_URL || 'https://manager.hubcommunity.io';
-  let imageUrl = null;
-  if (event.images && event.images.length > 0) {
-    const img = event.images[0];
-    const rawUrl = typeof img === 'string'
-      ? img
-      : img?.url || img?.formats?.large?.url || img?.formats?.medium?.url || null;
-    if (rawUrl) {
-      imageUrl = rawUrl.startsWith('http') ? rawUrl : `${managerBaseUrl}${rawUrl}`;
-    }
-  }
-
-  // Product name from Eventando products
-  let productName = 'Ingresso';
-  if (eventandoProducts.length > 0) {
-    productName = eventandoProducts[0].name || 'Ingresso';
-  }
-
-  // Call link (from Hub Community Manager)
-  const callLink = event.call_link || null;
-
-  // Does the registrant still need to confirm their account email?
-  // Covers two cases: (a) a brand-new account created via the inline signup
-  // flow on /events/[id]/signup, (b) a pre-existing account that was never
-  // confirmed and is now registering for an event. In both cases the user
-  // can't log in until they click the Strapi confirmation link, so remind
-  // them in the event-signup email.
-  let needsEmailConfirmation = false;
-  try {
-    const existingUser = await dataSources.managerIntegration.findUserByEmail(userEmail);
-    needsEmailConfirmation = Boolean(existingUser && existingUser.confirmed === false);
-  } catch (err) {
-    console.error('[Email] Could not check user confirmation status:', err.message);
-  }
-
-  // Build & send email
-  const baseUrl = process.env.FRONTEND_URL || 'https://hubcommunity.io';
-  const html = signupConfirmationTemplate({
-    userName: userName || userEmail.split('@')[0],
-    eventTitle: title,
-    eventDate: dateStr,
-    eventTime: timeStr,
-    eventLocation: locationStr,
-    eventDescription: typeof event.description === 'string' ? event.description : '',
-    eventImage: imageUrl,
-    eventSlug: event.slug || eventandoFlat.slug || eventId,
-    productName,
-    isFree,
-    isOnline,
-    callLink,
-    baseUrl,
-    needsEmailConfirmation,
-  });
-
-  await sendEmail({
-    to: userEmail,
-    subject: `✅ Inscrição Confirmada — ${title}`,
-    html,
-  });
-}
 
 export default Event;

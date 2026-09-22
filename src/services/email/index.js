@@ -13,7 +13,9 @@ const transporter = nodemailer.createTransport({
 const DEFAULT_FROM = process.env.EMAIL_FROM || 'Hub Community <contato@8020digital.com.br>';
 const DEFAULT_REPLY_TO = process.env.EMAIL_REPLY_TO || 'contato@8020digital.com.br';
 
-export const sendEmail = async ({ to, subject, html, from, replyTo }) => {
+// `attachments` goes to nodemailer as is — e.g. an inline image referenced
+// from the HTML as `cid:<cid>`.
+export const sendEmail = async ({ to, subject, html, from, replyTo, attachments }) => {
   try {
     const info = await transporter.sendMail({
       from: from || DEFAULT_FROM,
@@ -21,6 +23,7 @@ export const sendEmail = async ({ to, subject, html, from, replyTo }) => {
       subject,
       html,
       replyTo: replyTo || DEFAULT_REPLY_TO,
+      ...(attachments?.length ? { attachments } : {}),
     });
     console.log(`[Email] Sent to ${to}: ${info.messageId}`);
     return { success: true, messageId: info.messageId };

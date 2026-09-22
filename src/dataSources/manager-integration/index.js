@@ -11,6 +11,7 @@ import participants from './participants';
 import attendances from './attendances';
 import certificates from './certificates';
 import certificateRequestForms from './certificate-request-forms';
+import accountSetup from './account-setup';
 
 const managerIntegration = ({ headers }) => ({
   ...analyticsEvents({ headers }),
@@ -26,6 +27,7 @@ const managerIntegration = ({ headers }) => ({
   ...attendances({ headers }),
   ...certificates({ headers }),
   ...certificateRequestForms({ headers }),
+  ...accountSetup({ headers }),
 });
 
 export default managerIntegration;

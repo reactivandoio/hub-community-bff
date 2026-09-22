@@ -34,4 +34,12 @@ describe('graphql schema', () => {
     expect(mutation.deleteCertificateRequestForm).toBeTruthy();
     expect(mutation.submitCertificateRequest).toBeTruthy();
   });
+
+  it('exposes the bulk re-send of the imported signups confirmations', () => {
+    const field = schema.getMutationType().getFields().sendImportedSignupConfirmations;
+    expect(field.args.map((a) => `${a.name}: ${a.type}`)).toEqual(['eventSlug: String!']);
+    expect(String(field.type)).toBe('BulkEmailResponse');
+    expect(Object.keys(schema.getType('BulkEmailResponse').getFields()))
+      .toEqual(['success', 'message', 'queued_count']);
+  });
 });
