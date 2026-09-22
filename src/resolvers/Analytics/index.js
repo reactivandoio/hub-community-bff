@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { resolveUsers, withUserNames } from '../../utils/signup-names';
+import { checkinMetrics, eventDays, signupOrigin } from '../../utils/checkin-analytics';
 
 dotenv.config();
 
@@ -169,11 +170,21 @@ const Analytics = {
             phone_number: signup.phone_number,
             created_at: signup.createdAt || signup.created_at,
             product_name: signup.payment?.batch?.product?.name || null,
+            checked_in: Boolean(signup.checked_in),
+            checked_in_at: signup.checked_in_at || null,
+            origin: signupOrigin(signup),
           })),
           await resolveUsers(dataSources, allSignups.map((s) => s.email)),
         );
 
+        // 9. Check-in — attendance, signups made on the event day and check-ins per hour
+        const checkin = checkinMetrics(
+          allSignups,
+          eventDays(managerEvent?.start_date, managerEvent?.end_date),
+        );
+
         return {
+          ...checkin,
           event_id: eventId,
           event_title: eventTitle,
           event_slug: eventSlug,

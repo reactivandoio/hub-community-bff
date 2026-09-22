@@ -25,6 +25,35 @@ type EventAnalytics {
 
   # Full signups list
   all_signups: [SignupEntry]
+
+  # Check-in
+  checked_in_count: Int!
+  "Check-ins over signups, in percent; null without signups."
+  attendance_rate: Float
+  "Signups created on an event day (São Paulo time, start_date through end_date)."
+  day_of_signups: Int!
+  day_of_signups_by_origin: [OriginCount!]!
+  signups_by_origin: [OriginBreakdown!]!
+  "Check-ins per São Paulo hour; date is \"YYYY-MM-DDTHH:00\"."
+  checkins_timeline: [TimelineDataPoint!]!
+}
+
+"SITE: public signup (site or ticket QR). MANUAL: admin manual signup. IMPORT: spreadsheet import."
+enum SignupOrigin {
+  SITE
+  MANUAL
+  IMPORT
+}
+
+type OriginCount {
+  origin: SignupOrigin!
+  count: Int!
+}
+
+type OriginBreakdown {
+  origin: SignupOrigin!
+  total: Int!
+  checked_in: Int!
 }
 
 type ProductAnalytics {
@@ -54,6 +83,9 @@ type SignupEntry {
   phone_number: String
   created_at: String
   product_name: String
+  checked_in: Boolean
+  checked_in_at: String
+  origin: SignupOrigin
 }
 
 type Query {
