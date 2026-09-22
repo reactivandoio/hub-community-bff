@@ -86,6 +86,8 @@ type SignupEntry {
   checked_in: Boolean
   checked_in_at: String
   origin: SignupOrigin
+  "Digits only; from the account, or the Startup Weekend form."
+  cpf: String
 }
 
 type Query {

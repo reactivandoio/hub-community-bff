@@ -36,7 +36,7 @@ const findUsersByEmails = async (emails, headers) => {
       params.append(`filters[email][$in][${index}]`, email);
     });
     params.append('pagination[pageSize]', '100');
-    ['id', 'email', 'name', 'username'].forEach((f, index) => params.append(`fields[${index}]`, f));
+    ['id', 'email', 'name', 'username', 'cpf'].forEach((f, index) => params.append(`fields[${index}]`, f));
     // eslint-disable-next-line no-await-in-loop
     const response = await fetch(`/users?${params.toString()}`, 'GET', headers);
     results.push(...(response?.data || []));

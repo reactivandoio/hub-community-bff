@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import { checkinMetrics, eventDays, signupOrigin } from '../../utils/checkin-analytics';
+import { withCpf } from '../../utils/signup-cpf';
 
 dotenv.config();
 
@@ -162,8 +163,20 @@ const Analytics = {
           .map(([date, count]) => ({ date, count }));
 
         // 8. All signups list — with the HubCommunity profile name when the account has
-        //    one (older signups stored the username as name); this feeds the CSV export.
-        const allSignupsMapped = withUserNames(
+        //    one (older signups stored the username as name) and the CPF from the account
+        //    or the Startup Weekend form; this feeds the CSV export.
+        const signupEmails = allSignups.map((s) => s.email);
+        const [users, swForms] = await Promise.all([
+          resolveUsers(dataSources, signupEmails),
+          // A missing CPF source must never cost the whole dashboard.
+          Promise.resolve()
+            .then(() => dataSources.managerIntegration.findSwFormsByEmails(signupEmails))
+            .catch((err) => {
+              console.error('[Analytics] Error fetching sw-forms:', err.message);
+              return [];
+            }),
+        ]);
+        const allSignupsMapped = withCpf(withUserNames(
           allSignups.map((signup) => ({
             name: signup.name,
             email: signup.email,
@@ -174,8 +187,8 @@ const Analytics = {
             checked_in_at: signup.checked_in_at || null,
             origin: signupOrigin(signup),
           })),
-          await resolveUsers(dataSources, allSignups.map((s) => s.email)),
-        );
+          users,
+        ), users, swForms);
 
         // 9. Check-in — attendance, signups made on the event day and check-ins per hour
         const checkin = checkinMetrics(
