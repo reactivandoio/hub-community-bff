@@ -187,6 +187,18 @@ describe('manualSignup', () => {
     }));
   });
 
+  it('saves the CPF typed at the door on the account', async () => {
+    const dataSources = walkInDataSources();
+    dataSources.managerIntegration.findUserByEmail = vi.fn().mockResolvedValue({ id: 5, cpf: null });
+    dataSources.managerIntegration.updateUser = vi.fn().mockResolvedValue({});
+    await Checkin.Mutation.manualSignup(
+      null,
+      { eventSlug: 'ev', batchId: '3', input: { ...input, cpf: '123.456.789-09' } },
+      { dataSources },
+    );
+    expect(dataSources.managerIntegration.updateUser).toHaveBeenCalledWith(5, { cpf: '12345678909' });
+  });
+
   it('still succeeds when the confirmation e-mail rejects', async () => {
     sendSignupConfirmation.mockRejectedValueOnce(new Error('smtp down'));
     const out = await run(walkInDataSources());
@@ -229,9 +241,37 @@ describe('importSignups', () => {
     expect(call).toMatchObject({ dataSources, eventSlug: 'ev', isFree: true, label: 'import' });
     expect(call.eventandoEvent).toMatchObject({ id: 42 });
     expect(call.signups).toEqual([
-      { signupId: 'new1', name: 'Ana', email: 'Ana@x.io', phone: '62' },
-      { signupId: 'new3', name: 'Bia', email: 'bia@x.io', phone: null },
+      { signupId: 'new1', name: 'Ana', email: 'Ana@x.io', phone: '62', cpf: null },
+      { signupId: 'new3', name: 'Bia', email: 'bia@x.io', phone: null, cpf: null },
     ]);
+  });
+
+  it('carries the CPF of new signups and saves it for the ones already signed up', async () => {
+    const dataSources = importDataSources();
+    dataSources.managerIntegration = {
+      findUserByEmail: vi.fn().mockResolvedValue({ id: 9, email: 'dup@x.io', cpf: null }),
+      updateUser: vi.fn().mockResolvedValue({}),
+    };
+    await Checkin.Mutation.importSignups(
+      null,
+      {
+        eventSlug: 'ev',
+        batchId: 3,
+        signups: [
+          { name: 'Ana', email: 'ana@x.io', cpf: '123.456.789-09' },
+          { name: 'Dup', email: 'dup@x.io', cpf: '987.654.321-00' },
+        ],
+      },
+      { dataSources },
+    );
+
+    expect(sendSignupConfirmationBatch.mock.calls[0][0].signups).toEqual([
+      { signupId: 'new1', name: 'Ana', email: 'ana@x.io', phone: null, cpf: '123.456.789-09' },
+    ]);
+    // The duplicate is not re-imported, but its CPF reaches the account (background).
+    await vi.waitFor(() => {
+      expect(dataSources.managerIntegration.updateUser).toHaveBeenCalledWith(9, { cpf: '98765432100' });
+    });
   });
 
   it('does not wait for the e-mails to answer', async () => {

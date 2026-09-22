@@ -44,6 +44,18 @@ describe('ticketUrlFor', () => {
 });
 
 describe('sendSignupConfirmation', () => {
+  it('saves the CPF on the account once it is set up, and still e-mails when that fails', async () => {
+    const dataSources = makeDataSources();
+    dataSources.managerIntegration.findUserByEmail = vi.fn().mockResolvedValue({ id: 3, cpf: null });
+    dataSources.managerIntegration.updateUser = vi.fn().mockRejectedValue(new Error('down'));
+
+    const result = await sendSignupConfirmation(args(dataSources, { cpf: '12345678909' }));
+
+    expect(dataSources.managerIntegration.accountSetup).toHaveBeenCalled();
+    expect(dataSources.managerIntegration.updateUser).toHaveBeenCalledWith(3, { cpf: '12345678909' });
+    expect(result.success).toBe(true);
+  });
+
   it('sets up the account with the signup data', async () => {
     const dataSources = makeDataSources();
     await sendSignupConfirmation(args(dataSources));

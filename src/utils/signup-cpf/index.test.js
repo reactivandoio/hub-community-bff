@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { withCpf } from './index';
+import { describe, it, expect, vi } from 'vitest';
+import { withCpf, saveMissingCpf } from './index';
 
 describe('withCpf', () => {
   const signups = [
@@ -33,5 +33,41 @@ describe('withCpf', () => {
     const input = [{ email: 'ana@x.io' }];
     withCpf(input, [{ email: 'ana@x.io', cpf: '12345678909' }], []);
     expect(input[0]).toEqual({ email: 'ana@x.io' });
+  });
+});
+
+describe('saveMissingCpf', () => {
+  const makeDataSources = (user) => ({
+    managerIntegration: {
+      findUserByEmail: vi.fn().mockResolvedValue(user),
+      updateUser: vi.fn().mockResolvedValue({}),
+    },
+  });
+
+  it('writes the CPF, digits only, on an account that has none', async () => {
+    const ds = makeDataSources({ id: 7, email: 'ana@x.io', cpf: null });
+    await expect(saveMissingCpf(ds, ' Ana@X.io ', '123.456.789-09')).resolves.toBe('saved');
+    expect(ds.managerIntegration.findUserByEmail).toHaveBeenCalledWith('ana@x.io');
+    expect(ds.managerIntegration.updateUser).toHaveBeenCalledWith(7, { cpf: '12345678909' });
+  });
+
+  it('never overwrites a CPF the account already has', async () => {
+    const ds = makeDataSources({ id: 7, email: 'ana@x.io', cpf: '98765432100' });
+    await expect(saveMissingCpf(ds, 'ana@x.io', '12345678909')).resolves.toBe('kept');
+    expect(ds.managerIntegration.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('skips an invalid CPF, a missing e-mail and an e-mail without account', async () => {
+    const ds = makeDataSources(null);
+    await expect(saveMissingCpf(ds, 'ana@x.io', '1234')).resolves.toBe('invalid');
+    await expect(saveMissingCpf(ds, '', '12345678909')).resolves.toBe('invalid');
+    await expect(saveMissingCpf(ds, 'ana@x.io', '12345678909')).resolves.toBe('no-account');
+    expect(ds.managerIntegration.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('never throws', async () => {
+    const ds = makeDataSources(null);
+    ds.managerIntegration.findUserByEmail = vi.fn().mockRejectedValue(new Error('down'));
+    await expect(saveMissingCpf(ds, 'ana@x.io', '12345678909')).resolves.toBe('failed');
   });
 });
