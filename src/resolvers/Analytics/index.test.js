@@ -6,7 +6,7 @@ const rawSignups = [
   { id: 2, name: 'Bia Lima', email: 'bia@x.io', createdAt: '2026-09-02T10:00:00.000Z' },
 ];
 
-const makeDataSources = ({ users = [], usersError = null } = {}) => ({
+const makeDataSources = ({ users = [], usersError = null, swForms = [] } = {}) => ({
   manager: { findEvents: vi.fn().mockResolvedValue({ data: [] }) },
   eventandoIntegration: {
     findEvents: vi.fn().mockResolvedValue({ data: [{ id: 42, name: 'Ev', slug: 'ev', uuid: 'u', products: [] }] }),
@@ -17,6 +17,7 @@ const makeDataSources = ({ users = [], usersError = null } = {}) => ({
     findUsersByEmails: usersError
       ? vi.fn().mockRejectedValue(usersError)
       : vi.fn().mockResolvedValue(users),
+    findSwFormsByEmails: vi.fn().mockResolvedValue(swForms),
   },
 });
 
@@ -32,5 +33,23 @@ describe('eventAnalytics.all_signups', () => {
     const dataSources = makeDataSources({ usersError: new Error('strapi down') });
     const out = await Analytics.Query.eventAnalytics(null, { slugOrId: 'ev' }, { dataSources });
     expect(out.all_signups.map((s) => s.name)).toEqual(['ana-4f2k', 'Bia Lima']);
+  });
+
+  it('carries the CPF from the account, or from the Startup Weekend form', async () => {
+    const dataSources = makeDataSources({
+      users: [{ email: 'ana@x.io', name: 'Ana Souza', cpf: '123.456.789-09' }],
+      swForms: [{ email: 'bia@x.io', cpf: '98765432100' }],
+    });
+    const out = await Analytics.Query.eventAnalytics(null, { slugOrId: 'ev' }, { dataSources });
+    expect(out.all_signups.map((s) => s.cpf)).toEqual(['12345678909', '98765432100']);
+  });
+
+  it('still answers without CPFs when the sw-form lookup fails', async () => {
+    const dataSources = makeDataSources();
+    dataSources.managerIntegration.findSwFormsByEmails = vi.fn(() => {
+      throw new Error('boom');
+    });
+    const out = await Analytics.Query.eventAnalytics(null, { slugOrId: 'ev' }, { dataSources });
+    expect(out.all_signups.map((s) => s.cpf)).toEqual([null, null]);
   });
 });
