@@ -20,6 +20,8 @@ input SignupImportInput {
   name: String!
   email: String
   phone_number: String
+  "Saved on the HubCommunity account when it has none — also for signups that already existed."
+  cpf: String
 }
 
 type ImportSignupsResponse {

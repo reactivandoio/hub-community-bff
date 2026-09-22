@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import { sendEmail } from './index';
 import { signupConfirmationTemplate } from './templates/signup-confirmation';
+import { saveMissingCpf } from '../../utils/signup-cpf';
 
 const TICKET_QR_CID = 'ticket-qr';
 const BATCH_CONCURRENCY = 5;
@@ -127,6 +128,7 @@ export const sendSignupConfirmation = async ({
   name,
   email,
   phone,
+  cpf,
   isFree,
   account,
   eventDetails,
@@ -135,6 +137,8 @@ export const sendSignupConfirmation = async ({
 
   try {
     const { token } = account || (await setUpAccount(dataSources, { email, name, phone }));
+    // The account exists now: keep the CPF from the sheet on it (never overwrites one).
+    if (cpf) await saveMissingCpf(dataSources, email, cpf);
     const details = eventDetails
       || (await loadSignupEventDetails({ dataSources, eventSlug, eventandoEvent }));
     const baseUrl = frontendUrl();

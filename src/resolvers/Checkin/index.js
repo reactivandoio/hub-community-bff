@@ -5,6 +5,7 @@ import {
 } from '../../services/email/signup-confirmation';
 import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import { signupIdOf } from '../../utils/signup-id';
+import { saveMissingCpf } from '../../utils/signup-cpf';
 import mapSignup from './mappers';
 
 const CHECKIN_TOPIC_PREFIX = 'CHECKIN_';
@@ -36,6 +37,23 @@ const queueConfirmations = ({ dataSources, eventSlug, eventandoEvent, signups, l
     isFree: true,
     label,
   }).catch((err) => console.error(`[Email] ${label} ${eventSlug}:`, err.message));
+};
+
+// CPFs of signups that already existed (a re-imported sheet), one at a time in the
+// background; logs `[signup-cpf] import {slug}: X salvos, Y já tinham, Z sem conta`.
+const queueCpfUpdates = (dataSources, eventSlug, rows) => {
+  (async () => {
+    const counts = {};
+    for (const { email, cpf } of rows) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await saveMissingCpf(dataSources, email, cpf);
+      counts[result] = (counts[result] || 0) + 1;
+    }
+    console.log(
+      `[signup-cpf] import ${eventSlug}: ${counts.saved || 0} salvos, ${counts.kept || 0} já tinham, `
+        + `${counts['no-account'] || 0} sem conta, ${(counts.invalid || 0) + (counts.failed || 0)} inválidos/falharam`,
+    );
+  })();
 };
 
 // One signup in the EventSignup shape, with the same name resolution as eventSignups.
@@ -167,6 +185,7 @@ const Checkin = {
       let skippedCount = 0;
       // Who gets the confirmation e-mail once the loop is done.
       const toConfirm = [];
+      const cpfOnly = [];
 
       try {
         // 1. Find the event in Eventando Manager by slug
@@ -205,6 +224,8 @@ const Checkin = {
           // Skip duplicates by email (if email is provided)
           if (email && existingEmails.has(email)) {
             skippedCount++;
+            // Re-importing the sheet is how a CPF reaches people imported before it was kept.
+            if (signupInput.cpf) cpfOnly.push({ email, cpf: signupInput.cpf });
             continue;
           }
 
@@ -240,6 +261,7 @@ const Checkin = {
                 name: signupInput.name,
                 email: signupInput.email,
                 phone: signupInput.phone_number || null,
+                cpf: signupInput.cpf || null,
               });
             }
 
@@ -253,6 +275,9 @@ const Checkin = {
         }
 
         // 5. Account + confirmation e-mail for everyone imported with an e-mail
+        if (cpfOnly.length > 0) {
+          queueCpfUpdates(dataSources, eventSlug, cpfOnly);
+        }
         if (toConfirm.length > 0) {
           queueConfirmations({
             dataSources,
@@ -336,6 +361,7 @@ const Checkin = {
         } catch (err) {
           console.error('[ManualSignup] Account setup error (non-blocking):', err.message);
         }
+        if (input.cpf) await saveMissingCpf(dataSources, input.email, input.cpf);
         const accountCreated = account.created;
 
         // 2. Resolve the event in Eventando Manager
