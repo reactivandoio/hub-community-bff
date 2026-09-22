@@ -64,7 +64,49 @@ type BulkEmailResponse {
   queued_count: Int!
 }
 
+input CpfMappingInput {
+  email: String!
+  cpf: String!
+  "Used only when the e-mail has no account yet and one is created."
+  name: String
+}
+
+"""
+SAVED: CPF written on the account. CREATED: account created (no e-mail sent) and CPF written.
+UNCHANGED: the account already had this CPF. DIFFERENT: the account has another CPF — not overwritten.
+INVALID: missing e-mail or not an 11-digit CPF. CONFLICT: the same e-mail came with two CPFs.
+FAILED: the manager call failed.
+"""
+enum CpfMappingStatus {
+  SAVED
+  CREATED
+  UNCHANGED
+  DIFFERENT
+  INVALID
+  CONFLICT
+  FAILED
+}
+
+type CpfMappingItem {
+  email: String!
+  cpf: String!
+  status: CpfMappingStatus!
+}
+
+type CpfMappingResult {
+  saved: Int!
+  created: Int!
+  unchanged: Int!
+  different: Int!
+  skipped: Int!
+  failed: Int!
+  "One per row sent, in the same order."
+  items: [CpfMappingItem!]!
+}
+
 type Mutation {
+  "E-mail → CPF from a spreadsheet onto HubCommunity accounts; never overwrites a CPF an account already has."
+  updateCpfs(rows: [CpfMappingInput!]!): CpfMappingResult
   "checkedInAt: when the device did the check-in (ISO); defaults to now. Already checked-in signups are returned unchanged."
   checkinSignup(eventSlug: String!, signupId: String!, checkedInAt: String): CheckinResponse
   importSignups(eventSlug: String!, batchId: String!, signups: [SignupImportInput!]!): ImportSignupsResponse

@@ -6,6 +6,7 @@ import {
 import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import { signupIdOf } from '../../utils/signup-id';
 import { saveMissingCpf } from '../../utils/signup-cpf';
+import { updateCpfs } from '../../utils/cpf-mapping';
 import mapSignup from './mappers';
 
 const CHECKIN_TOPIC_PREFIX = 'CHECKIN_';
@@ -345,6 +346,8 @@ const Checkin = {
         return { success: false, message: `Erro ao atualizar inscrição: ${err.message}`, signup: null };
       }
     },
+
+    updateCpfs: (_, { rows }, { dataSources }) => updateCpfs(dataSources, rows),
 
     manualSignup: async (_, { eventSlug, batchId, input }, { dataSources }) => {
       try {
