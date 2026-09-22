@@ -55,6 +55,13 @@ type ManualSignupResponse {
   signup: EventSignup
 }
 
+type BulkEmailResponse {
+  success: Boolean!
+  message: String
+  "How many e-mails were queued; they are sent in the background after the response."
+  queued_count: Int!
+}
+
 type Mutation {
   "checkedInAt: when the device did the check-in (ISO); defaults to now. Already checked-in signups are returned unchanged."
   checkinSignup(eventSlug: String!, signupId: String!, checkedInAt: String): CheckinResponse
@@ -62,6 +69,8 @@ type Mutation {
   manualSignup(eventSlug: String!, batchId: String!, input: ManualSignupInput!): ManualSignupResponse
   "Corrects an existing signup — a typo in the name, e-mail or phone. Only the fields sent change; the rest, including the check-in, is left alone."
   updateSignup(eventSlug: String!, signupId: String!, input: SignupUpdateInput!): CheckinResponse
+  "Re-sends the signup confirmation (ticket QR + set-password link) to every imported signup of the event that has an e-mail. A pending account gets a new link; the previous one stops working."
+  sendImportedSignupConfirmations(eventSlug: String!): BulkEmailResponse
 }
 
 type Subscription {

@@ -1,8 +1,42 @@
 import pubsub from '../../dataSources/pubsub';
+import {
+  sendSignupConfirmation,
+  sendSignupConfirmationBatch,
+} from '../../services/email/signup-confirmation';
 import { resolveUsers, withUserNames } from '../../utils/signup-names';
+import { signupIdOf } from '../../utils/signup-id';
 import mapSignup from './mappers';
 
 const CHECKIN_TOPIC_PREFIX = 'CHECKIN_';
+
+// Payment identification of the signups created by importSignups.
+const IMPORT_PAYMENT_PREFIX = 'IMPORT_';
+
+const findEventandoEvent = async (dataSources, eventSlug) => {
+  const eventResponse = await dataSources.eventandoIntegration.findEvents({
+    filters: {
+      or: [
+        { slug: { eq: eventSlug } },
+        { uuid: { eq: eventSlug } },
+      ],
+    },
+  });
+  return eventResponse?.data?.[0] || null;
+};
+
+// Imported and manual signups get a CONFIRMED payment of value 0, so their e-mail
+// is the free one (with the ticket QR when the event is in person). Background
+// only: the caller answers without waiting.
+const queueConfirmations = ({ dataSources, eventSlug, eventandoEvent, signups, label }) => {
+  sendSignupConfirmationBatch({
+    dataSources,
+    eventSlug,
+    eventandoEvent,
+    signups,
+    isFree: true,
+    label,
+  }).catch((err) => console.error(`[Email] ${label} ${eventSlug}:`, err.message));
+};
 
 // One signup in the EventSignup shape, with the same name resolution as eventSignups.
 const toEventSignup = async (dataSources, raw) => {
@@ -131,6 +165,8 @@ const Checkin = {
       const errors = [];
       let importedCount = 0;
       let skippedCount = 0;
+      // Who gets the confirmation e-mail once the loop is done.
+      const toConfirm = [];
 
       try {
         // 1. Find the event in Eventando Manager by slug
@@ -187,7 +223,7 @@ const Checkin = {
             const paymentId = paymentResponse?.data?.id || paymentResponse?.data?.documentId;
 
             // 4b. Create the signup linked to the payment
-            await dataSources.eventandoIntegration.createSignupDirect({
+            const created = await dataSources.eventandoIntegration.createSignupDirect({
               name: signupInput.name,
               email: signupInput.email || null,
               phone_number: signupInput.phone_number || null,
@@ -198,6 +234,15 @@ const Checkin = {
 
             importedCount++;
 
+            if (email) {
+              toConfirm.push({
+                signupId: signupIdOf(created?.data),
+                name: signupInput.name,
+                email: signupInput.email,
+                phone: signupInput.phone_number || null,
+              });
+            }
+
             // Track to avoid duplicates within the same batch
             if (email) {
               existingEmails.add(email);
@@ -205,6 +250,17 @@ const Checkin = {
           } catch (err) {
             errors.push(`Erro ao importar "${signupInput.name}": ${err.message}`);
           }
+        }
+
+        // 5. Account + confirmation e-mail for everyone imported with an e-mail
+        if (toConfirm.length > 0) {
+          queueConfirmations({
+            dataSources,
+            eventSlug,
+            eventandoEvent: event,
+            signups: toConfirm,
+            label: 'import',
+          });
         }
 
         return {
@@ -267,61 +323,23 @@ const Checkin = {
 
     manualSignup: async (_, { eventSlug, batchId, input }, { dataSources }) => {
       try {
-        // 1. Try to create account in hub-community
-        let accountCreated = false;
-        const username = input.email
-          .split('@')[0]
-          .toLowerCase()
-          .replace(/[^a-z0-9-]/g, '-')
-          .replace(/-+/g, '-')
-          .replace(/^-|-$/g, '')
-          .slice(0, 20) || 'user';
-        const suffix = Math.random().toString(36).slice(2, 6);
-        const uniqueUsername = `${username}-${suffix}`;
-        const tempPassword = `Temp${Math.random().toString(36).slice(2, 10)}!1`;
-
+        // 1. Create the account when the e-mail has none (no password: the
+        //    confirmation e-mail carries the set-password link). Never blocks the signup.
+        let account = { created: false, token: null };
         try {
-          await dataSources.managerPublic.signUp({
-            username: uniqueUsername,
+          const result = await dataSources.managerIntegration.accountSetup({
             email: input.email,
-            password: tempPassword,
             name: input.name,
             phone: input.phone_number || undefined,
           });
-          accountCreated = true;
+          account = { created: Boolean(result?.created), token: result?.token || null };
         } catch (err) {
-          const msg = (err.message || '').toLowerCase();
-          // If account already exists, that's OK
-          if (msg.includes('email') && (msg.includes('taken') || msg.includes('already') || msg.includes('exists'))) {
-            accountCreated = false;
-          } else {
-            // Unexpected error — still proceed with event signup
-            console.error('[ManualSignup] Account creation error (non-blocking):', err.message);
-          }
+          console.error('[ManualSignup] Account setup error (non-blocking):', err.message);
         }
-
-        // The account has a random password: the set-password link is how the person
-        // finishes registering. E-mail confirmation is off in Strapi, so the account is
-        // already usable once the password is set. Never block the signup on SMTP.
-        if (accountCreated) {
-          try {
-            await dataSources.managerPublic.forwardPassword({ email: input.email });
-          } catch (err) {
-            console.error('[ManualSignup] Could not send set-password e-mail:', err.message);
-          }
-        }
+        const accountCreated = account.created;
 
         // 2. Resolve the event in Eventando Manager
-        const eventResponse = await dataSources.eventandoIntegration.findEvents({
-          filters: {
-            or: [
-              { slug: { eq: eventSlug } },
-              { uuid: { eq: eventSlug } },
-            ],
-          },
-        });
-
-        const event = eventResponse?.data?.[0];
+        const event = await findEventandoEvent(dataSources, eventSlug);
         if (!event) {
           return {
             success: false,
@@ -330,6 +348,20 @@ const Checkin = {
           };
         }
 
+        // The account set up above is reused, so its token is the one e-mailed.
+        const confirm = (signup) =>
+          sendSignupConfirmation({
+            dataSources,
+            eventSlug,
+            eventandoEvent: event,
+            signupId: signupIdOf(signup),
+            name: input.name,
+            email: input.email,
+            phone: input.phone_number || null,
+            isFree: true,
+            account,
+          }).catch((err) => console.error('[Email] Error sending confirmation:', err.message));
+
         // 3. Check if already signed up
         const existingSignup = await dataSources.eventandoIntegration.findSignupByEmail(
           event.id,
@@ -337,6 +369,8 @@ const Checkin = {
         );
 
         if (existingSignup?.data && existingSignup.data.length > 0) {
+          // Already registered: e-mail again only if the account still needs its password.
+          if (account.token) confirm(existingSignup.data[0]);
           return {
             success: true,
             message: accountCreated
@@ -381,6 +415,8 @@ const Checkin = {
           };
         }
 
+        if (createdSignup) confirm(createdSignup);
+
         return {
           success: true,
           message: accountCreated
@@ -395,6 +431,47 @@ const Checkin = {
           message: `Erro: ${err.message}`,
           account_created: false,
         };
+      }
+    },
+
+    // Re-sends the confirmation (ticket QR + set-password link) to everyone imported
+    // into the event. Nothing records "already sent": each run sets up the accounts
+    // again, so a pending account gets a new token and the previous link stops working.
+    sendImportedSignupConfirmations: async (_, { eventSlug }, { dataSources }) => {
+      try {
+        const event = await findEventandoEvent(dataSources, eventSlug);
+        if (!event) {
+          return { success: false, message: `Evento "${eventSlug}" não encontrado.`, queued_count: 0 };
+        }
+
+        const allSignups = await dataSources.eventandoIntegration.findSignupsByEvent(event.id);
+        const toConfirm = allSignups
+          .filter((s) => s.email
+            && String(s.payment?.payment_identification || '').startsWith(IMPORT_PAYMENT_PREFIX))
+          .map((s) => ({
+            signupId: signupIdOf(s),
+            name: s.name,
+            email: s.email,
+            phone: s.phone_number || null,
+          }));
+
+        if (toConfirm.length > 0) {
+          queueConfirmations({
+            dataSources,
+            eventSlug,
+            eventandoEvent: event,
+            signups: toConfirm,
+            label: 'reenvio',
+          });
+        }
+
+        return {
+          success: true,
+          message: `${toConfirm.length} e-mails na fila de envio.`,
+          queued_count: toConfirm.length,
+        };
+      } catch (err) {
+        return { success: false, message: `Erro ao enviar e-mails: ${err.message}`, queued_count: 0 };
       }
     },
   },

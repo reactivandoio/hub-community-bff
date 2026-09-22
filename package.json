@@ -33,6 +33,7 @@
     "multer": "^2.1.1",
     "node-fetch": "2",
     "nodemailer": "^8.0.4",
+    "qrcode": "^1.5.4",
     "ramda": "^0.28.0",
     "ws": "^8.12.0"
   },
