@@ -88,10 +88,24 @@ describe('updateCpfs', () => {
       { email: 'c@x.io', cpf: 'x' },
     ]);
     expect(out.items).toEqual([
-      { email: 'a@x.io', cpf: '11111111111', status: 'SAVED' },
-      { email: 'b@x.io', cpf: '22222222222', status: 'UNCHANGED' },
-      { email: 'c@x.io', cpf: 'x', status: 'INVALID' },
+      { email: 'a@x.io', cpf: '11111111111', status: 'SAVED', detail: null },
+      { email: 'b@x.io', cpf: '22222222222', status: 'UNCHANGED', detail: null },
+      { email: 'c@x.io', cpf: 'x', status: 'INVALID', detail: null },
     ]);
     expect(out).toMatchObject({ saved: 1, created: 0, unchanged: 1, different: 0, skipped: 1, failed: 0 });
+  });
+
+  it('tells which step failed and why', async () => {
+    const d = {
+      managerIntegration: {
+        findUserByEmail: vi.fn().mockResolvedValue(null),
+        accountSetup: vi.fn().mockRejectedValue(new Error('Forbidden')),
+        updateUser: vi.fn(),
+      },
+    };
+    const out = await updateCpfs(d, [{ email: 'a@x.io', cpf: '11111111111' }]);
+    expect(out.items[0]).toEqual({
+      email: 'a@x.io', cpf: '11111111111', status: 'FAILED', detail: 'criar conta: Forbidden',
+    });
   });
 });

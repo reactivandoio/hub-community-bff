@@ -91,6 +91,8 @@ type CpfMappingItem {
   email: String!
   cpf: String!
   status: CpfMappingStatus!
+  "Why a FAILED row failed (step and message)."
+  detail: String
 }
 
 type CpfMappingResult {
