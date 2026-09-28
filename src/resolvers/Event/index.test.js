@@ -4,6 +4,11 @@ import Event from './index';
 
 // vi.mock is hoisted above the imports by vitest.
 vi.mock('../../dataSources/pubsub', () => ({ default: { publish: vi.fn(), asyncIterator: vi.fn() } }));
+
+// These tests cover what each resolver does once allowed; who is allowed is covered
+// in utils/auth/index.test.js and in the authorization tests below.
+const ADMIN = { documentId: 'u-admin', email: 'admin@x.io', role: { type: 'admin' } };
+const ANA = { documentId: 'u-ana', email: 'ana@x.io', role: { type: 'authenticated' } };
 vi.mock('../../services/email/signup-confirmation', () => ({
   sendSignupConfirmation: vi.fn().mockResolvedValue({ success: true }),
 }));
@@ -25,13 +30,13 @@ beforeEach(() => vi.clearAllMocks());
 describe('isUserSignedUp', () => {
   it('returns the signup id (documentId) so the page can render the ticket QR', async () => {
     const dataSources = makeDataSources({ existing: [{ id: 7, documentId: 'abc123', email: 'ana@x.io' }] });
-    const out = await Event.Query.isUserSignedUp(null, { eventId: 'meetup', email: 'ana@x.io' }, { dataSources });
+    const out = await Event.Query.isUserSignedUp(null, { eventId: 'meetup', email: 'ana@x.io' }, { dataSources, user: ANA });
     expect(out).toEqual({ is_signed_up: true, call_link: null, signup_id: 'abc123' });
   });
 
   it('has no signup id when the user is not signed up', async () => {
     const dataSources = makeDataSources();
-    const out = await Event.Query.isUserSignedUp(null, { eventId: 'meetup', email: 'ana@x.io' }, { dataSources });
+    const out = await Event.Query.isUserSignedUp(null, { eventId: 'meetup', email: 'ana@x.io' }, { dataSources, user: ANA });
     expect(out).toEqual({ is_signed_up: false, call_link: null });
   });
 });
@@ -41,14 +46,14 @@ describe('signupToEvent', () => {
 
   it('returns the created signup id alongside the payment payload', async () => {
     const dataSources = makeDataSources({ signup: { id: 9, documentId: 'sig9', is_free: true, qr_code: null } });
-    const out = await Event.Mutation.signupToEvent(null, args, { dataSources });
+    const out = await Event.Mutation.signupToEvent(null, args, { dataSources, user: ADMIN });
     expect(out).toMatchObject({ success: true, is_free: true, signup_id: 'sig9' });
   });
 
   it('sends the confirmation e-mail with the signup id, without waiting for it', async () => {
     sendSignupConfirmation.mockReturnValueOnce(new Promise(() => {}));
     const dataSources = makeDataSources({ signup: { id: 9, documentId: 'sig9', is_free: true } });
-    const out = await Event.Mutation.signupToEvent(null, { ...args, phone_number: '62999' }, { dataSources });
+    const out = await Event.Mutation.signupToEvent(null, { ...args, phone_number: '62999' }, { dataSources, user: ADMIN });
     expect(out.success).toBe(true);
     expect(sendSignupConfirmation).toHaveBeenCalledWith({
       dataSources,
@@ -64,19 +69,19 @@ describe('signupToEvent', () => {
 
   it('does not e-mail on a business error', async () => {
     const dataSources = makeDataSources({ signup: { status: 'error', message: 'Lote esgotado' } });
-    await Event.Mutation.signupToEvent(null, args, { dataSources });
+    await Event.Mutation.signupToEvent(null, args, { dataSources, user: ADMIN });
     expect(sendSignupConfirmation).not.toHaveBeenCalled();
   });
 
   it('falls back to the numeric id when Eventando returns no documentId', async () => {
     const dataSources = makeDataSources({ signup: { data: { id: 9, is_free: false } } });
-    const out = await Event.Mutation.signupToEvent(null, args, { dataSources });
+    const out = await Event.Mutation.signupToEvent(null, args, { dataSources, user: ADMIN });
     expect(out.signup_id).toBe('9');
   });
 
   it('returns no signup id on a business error', async () => {
     const dataSources = makeDataSources({ signup: { status: 'error', message: 'Lote esgotado' } });
-    const out = await Event.Mutation.signupToEvent(null, args, { dataSources });
+    const out = await Event.Mutation.signupToEvent(null, args, { dataSources, user: ADMIN });
     expect(out).toEqual({ success: false, message: 'Lote esgotado', payment: null, is_free: false });
   });
 });
@@ -86,7 +91,7 @@ describe('events', () => {
 
   it('hides unlisted events by default', async () => {
     const dataSources = makeDataSources();
-    await Event.Query.events(null, {}, { dataSources });
+    await Event.Query.events(null, {}, { dataSources, user: ADMIN });
     expect(dataSources.manager.findEvents).toHaveBeenCalledWith(
       { and: [listableClause] },
       undefined,
@@ -98,7 +103,7 @@ describe('events', () => {
   it('keeps the caller filters and adds the clause under `and`, never a top-level `or`', async () => {
     const dataSources = makeDataSources();
     const filters = { title: { contains: 'meetup' }, and: [{ slug: { eq: 'x' } }] };
-    await Event.Query.events(null, { filters, search: 'meetup' }, { dataSources });
+    await Event.Query.events(null, { filters, search: 'meetup' }, { dataSources, user: ADMIN });
     expect(dataSources.manager.findEvents).toHaveBeenCalledWith(
       { title: { contains: 'meetup' }, and: [{ slug: { eq: 'x' } }, listableClause] },
       undefined,
@@ -110,7 +115,7 @@ describe('events', () => {
   it('returns the unlisted ones too when the caller asks for them', async () => {
     const dataSources = makeDataSources();
     const filters = { title: { contains: 'meetup' } };
-    await Event.Query.events(null, { filters, include_unlisted: true }, { dataSources });
+    await Event.Query.events(null, { filters, include_unlisted: true }, { dataSources, user: ADMIN });
     expect(dataSources.manager.findEvents)
       .toHaveBeenCalledWith(filters, undefined, undefined, undefined);
   });
@@ -138,20 +143,20 @@ describe('createEvent', () => {
 
   it('saves the listing visibility in the manager', async () => {
     const dataSources = makeWriteDataSources();
-    await Event.Mutation.createEvent(null, { data }, { dataSources });
+    await Event.Mutation.createEvent(null, { data }, { dataSources, user: ADMIN });
     expect(dataSources.managerIntegration.createEvent.mock.calls[0][0])
       .toMatchObject({ unlisted: true });
   });
 
   it('does not send `unlisted` to Eventando, which rejects unknown keys', async () => {
     const dataSources = makeWriteDataSources();
-    await Event.Mutation.createEvent(null, { data }, { dataSources });
+    await Event.Mutation.createEvent(null, { data }, { dataSources, user: ADMIN });
     expect(dataSources.eventandoIntegration.createEvent.mock.calls[0][0]).not.toHaveProperty('unlisted');
   });
 
   it('defaults to listed when the form omits the flag', async () => {
     const dataSources = makeWriteDataSources();
-    await Event.Mutation.createEvent(null, { data: { title: 'Meetup' } }, { dataSources });
+    await Event.Mutation.createEvent(null, { data: { title: 'Meetup' } }, { dataSources, user: ADMIN });
     expect(dataSources.managerIntegration.createEvent.mock.calls[0][0])
       .toMatchObject({ unlisted: false });
   });

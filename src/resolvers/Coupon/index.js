@@ -1,3 +1,5 @@
+import { requireAdmin } from '../../utils/auth';
+
 const Coupon = {
     Query: {
         validateCoupon: async (_, { eventSlug, code }, { dataSources }) => {
@@ -39,7 +41,9 @@ const Coupon = {
         },
     },
     Mutation: {
-        createCoupon: async (_, { data }, { dataSources }) => {
+        createCoupon: async (_, { data }, ctx) => {
+            requireAdmin(ctx);
+            const { dataSources } = ctx;
             try {
                 const response = await dataSources.eventandoIntegration.createCoupon(data);
                 return response.data;
@@ -47,7 +51,9 @@ const Coupon = {
                 throw new Error(`Error creating coupon: ${err.message}`);
             }
         },
-        updateCoupon: async (_, { id, data }, { dataSources }) => {
+        updateCoupon: async (_, { id, data }, ctx) => {
+            requireAdmin(ctx);
+            const { dataSources } = ctx;
             try {
                 const response = await dataSources.eventandoIntegration.updateCoupon(id, data);
                 return response.data;
@@ -55,7 +61,9 @@ const Coupon = {
                 throw new Error(`Error updating coupon: ${err.message}`);
             }
         },
-        deleteCoupon: async (_, { id }, { dataSources }) => {
+        deleteCoupon: async (_, { id }, ctx) => {
+            requireAdmin(ctx);
+            const { dataSources } = ctx;
             try {
                 const response = await dataSources.eventandoIntegration.deleteCoupon(id);
                 return response.data;

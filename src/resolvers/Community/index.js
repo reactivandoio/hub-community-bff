@@ -1,4 +1,8 @@
 import dotenv from 'dotenv';
+import {
+  requireAdmin,
+  requireCommunityOrganizer,
+} from '../../utils/auth';
 
 dotenv.config();
 
@@ -117,7 +121,9 @@ const Community = {
   },
 
   Mutation: {
-    createCommunity: async (_, { data }, { dataSources }) => {
+    createCommunity: async (_, { data }, ctx) => {
+      requireAdmin(ctx);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.managerIntegration.createCommunity(
           data,
@@ -128,7 +134,9 @@ const Community = {
         throw new Error(`Error creating community: ${err.message}`);
       }
     },
-    updateCommunity: async (_, { id, data }, { dataSources }) => {
+    updateCommunity: async (_, { id, data }, ctx) => {
+      await requireCommunityOrganizer(ctx, id);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.managerIntegration.updateCommunity(
           id,
@@ -140,7 +148,9 @@ const Community = {
         throw new Error(`Error updating community: ${err.message}`);
       }
     },
-    deleteCommunity: async (_, { id }, { dataSources }) => {
+    deleteCommunity: async (_, { id }, ctx) => {
+      await requireCommunityOrganizer(ctx, id);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.managerIntegration.deleteCommunity(
           id,

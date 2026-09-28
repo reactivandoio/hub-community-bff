@@ -2,6 +2,12 @@ import dotenv from 'dotenv';
 import pubsub from '../../dataSources/pubsub';
 import { sendSignupConfirmation } from '../../services/email/signup-confirmation';
 import { signupIdOf } from '../../utils/signup-id';
+import {
+  requireCommunitiesOrganizer,
+  requireEventOrganizer,
+  requireOrganizerOfNewCommunities,
+  requireUser,
+} from '../../utils/auth';
 
 dotenv.config();
 
@@ -167,7 +173,13 @@ const Event = {
       }
     },
 
-    isUserSignedUp: async (_, { eventId, email }, { dataSources }) => {
+    isUserSignedUp: async (_, { eventId, email }, ctx) => {
+      requireUser(ctx);
+      // Anyone checks their own signup; checking somebody else's is organizer data.
+      if ((email || '').trim().toLowerCase() !== (ctx.user.email || '').trim().toLowerCase()) {
+        await requireEventOrganizer(ctx, eventId);
+      }
+      const { dataSources } = ctx;
       try {
         // Look up event in Eventando Manager by slug/uuid to get internal ID
         const eventandoResponse = await dataSources.eventandoIntegration.findEventBySlug(eventId);
@@ -227,7 +239,9 @@ const Event = {
       event: { id: eventId },
     }),
 
-    createEvent: async (_, { data }, { dataSources }) => {
+    createEvent: async (_, { data }, ctx) => {
+      await requireCommunitiesOrganizer(ctx, data.communities);
+      const { dataSources } = ctx;
       let managerResponse;
 
       try {
@@ -325,7 +339,10 @@ const Event = {
       }
     },
 
-    updateEvent: async (_, { id, data }, { dataSources }) => {
+    updateEvent: async (_, { id, data }, ctx) => {
+      await requireEventOrganizer(ctx, id);
+      await requireOrganizerOfNewCommunities(ctx, id, data.communities);
+      const { dataSources } = ctx;
       try {
         const events = await dataSources.eventandoIntegration.findEvents({
           filters: {
@@ -446,7 +463,9 @@ const Event = {
       }
     },
 
-    updateEventSale: async (_, { id, data }, { dataSources }) => {
+    updateEventSale: async (_, { id, data }, ctx) => {
+      await requireEventOrganizer(ctx, id);
+      const { dataSources } = ctx;
       try {
         // 1. Find the event in Eventando Manager
         const events = await dataSources.eventandoIntegration.findEvents({
@@ -610,7 +629,9 @@ const Event = {
       }
     },
 
-    deleteEvent: async (_, { id }, { dataSources }) => {
+    deleteEvent: async (_, { id }, ctx) => {
+      await requireEventOrganizer(ctx, id);
+      const { dataSources } = ctx;
       try {
         // Find current event to get the slug for orchestration
         const currentEventResponse = await dataSources.manager.findEventById(id);

@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { requireAdmin } from '../../utils/auth';
 
 dotenv.config();
 
@@ -37,7 +38,9 @@ const Location = {
   },
 
   Mutation: {
-    createLocation: async (_, { data }, { dataSources }) => {
+    createLocation: async (_, { data }, ctx) => {
+      requireAdmin(ctx);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.managerIntegration.createLocation(
           data,
@@ -47,7 +50,9 @@ const Location = {
         throw new Error(`Error creating location: ${err.message}`);
       }
     },
-    updateLocation: async (_, { id, data }, { dataSources }) => {
+    updateLocation: async (_, { id, data }, ctx) => {
+      requireAdmin(ctx);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.managerIntegration.updateLocation(
           id,
@@ -58,7 +63,9 @@ const Location = {
         throw new Error(`Error updating location: ${err.message}`);
       }
     },
-    deleteLocation: async (_, { id }, { dataSources }) => {
+    deleteLocation: async (_, { id }, ctx) => {
+      requireAdmin(ctx);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.managerIntegration.deleteLocation(
           id,
