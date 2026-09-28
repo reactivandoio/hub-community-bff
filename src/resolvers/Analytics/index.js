@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import { checkinMetrics, eventDays, signupOrigin } from '../../utils/checkin-analytics';
 import { withCpf } from '../../utils/signup-cpf';
+import { requireEventOrganizer } from '../../utils/auth';
 
 dotenv.config();
 
@@ -11,7 +12,9 @@ dotenv.config();
  */
 const Analytics = {
   Query: {
-    eventAnalytics: async (_, { slugOrId }, { dataSources }) => {
+    eventAnalytics: async (_, { slugOrId }, ctx) => {
+      await requireEventOrganizer(ctx, slugOrId);
+      const { dataSources } = ctx;
       try {
         // 1. Resolve event from both sources
         const [managerResult, eventandoResult] = await Promise.allSettled([
