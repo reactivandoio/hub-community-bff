@@ -22,6 +22,7 @@ import {
   normalizeCategory,
 } from './categories';
 import { sendCertificateEmail } from './email';
+import { requireEventOrganizer, requireUser as requireAuthenticated } from '../../utils/auth';
 
 export const requireUser = (user) => {
   if (!user) throw new Error('Não autenticado.');
@@ -172,6 +173,14 @@ const validateRequestFormInput = (input) => {
   if (!input.category) throw new Error('Categoria é obrigatória.');
 };
 
+// A request form is managed by the organizers of its event.
+const requireFormOrganizer = async (ctx, formId) => {
+  requireAuthenticated(ctx);
+  const form = await ctx.dataSources.managerIntegration.findCertificateRequestFormWithEvent(formId)
+    .catch(() => null);
+  await requireEventOrganizer(ctx, form?.event?.documentId);
+};
+
 const loadRequestFormBySlug = async (dataSources, slug) => {
   const response = await dataSources.managerIntegration
     .findCertificateRequestFormBySlug((slug || '').trim().toLowerCase());
@@ -273,8 +282,9 @@ const Certificate = {
 
     // One list per category. Inscritos and presenças only ever belong to the default list
     // ("Participante"): an organizador or mentor gets in by filling that category's form.
-    certificateCandidates: async (_, { eventId, category }, { user, dataSources }) => {
-      requireUser(user);
+    certificateCandidates: async (_, { eventId, category }, ctx) => {
+      await requireEventOrganizer(ctx, eventId);
+      const { dataSources } = ctx;
       const wanted = normalizeCategory(category);
       const isDefault = isDefaultCategory(wanted);
       const { event } = await loadEventAndConfig(dataSources, eventId);
@@ -294,8 +304,9 @@ const Certificate = {
       }));
     },
 
-    certificateRequestForms: async (_, { eventId }, { user, dataSources }) => {
-      requireUser(user);
+    certificateRequestForms: async (_, { eventId }, ctx) => {
+      await requireEventOrganizer(ctx, eventId);
+      const { dataSources } = ctx;
       const [response, participants] = await Promise.all([
         dataSources.managerIntegration.findCertificateRequestFormsByEvent(eventId),
         dataSources.managerIntegration.findParticipantsByEvent(eventId),
@@ -317,13 +328,17 @@ const Certificate = {
   },
 
   Mutation: {
-    upsertCertificateConfig: async (_, { eventId, data }, { user, dataSources }) => {
-      requireUser(user);
+    upsertCertificateConfig: async (_, { eventId, data }, ctx) => {
+      await requireEventOrganizer(ctx, eventId);
+      const { dataSources } = ctx;
       return upsertConfig(dataSources, eventId, data);
     },
 
-    copyCertificateConfig: async (_, { fromEventId, toEventId }, { user, dataSources }) => {
-      requireUser(user);
+    // Any event's model may be copied (certificateConfigs lists them all); what is
+    // written is the destination, so that is the event the organizer must hold.
+    copyCertificateConfig: async (_, { fromEventId, toEventId }, ctx) => {
+      await requireEventOrganizer(ctx, toEventId);
+      const { dataSources } = ctx;
       const { config: source } = await loadEventAndConfig(dataSources, fromEventId);
       if (!source) throw new Error('O evento de origem não tem modelo de certificado.');
       return upsertConfig(dataSources, toEventId, configToInput(source));
@@ -361,9 +376,10 @@ const Certificate = {
     issueCertificates: async (
       _,
       { eventId, entries, actions, category },
-      { user, dataSources },
+      ctx,
     ) => {
-      requireUser(user);
+      await requireEventOrganizer(ctx, eventId);
+      const { dataSources } = ctx;
       const issueCategory = normalizeCategory(category);
       if (actions.email && !actions.register) {
         throw new Error('Enviar e-mail exige registrar o certificado.');
@@ -421,8 +437,9 @@ const Certificate = {
       return result;
     },
 
-    createCertificateRequestForm: async (_, { eventId, data }, { user, dataSources }) => {
-      requireUser(user);
+    createCertificateRequestForm: async (_, { eventId, data }, ctx) => {
+      await requireEventOrganizer(ctx, eventId);
+      const { dataSources } = ctx;
       const input = requestFormInput(data);
       validateRequestFormInput(input);
       // Fails early with "Evento não encontrado." instead of letting Strapi drop the relation.
@@ -432,8 +449,9 @@ const Certificate = {
       return mapRequestForm(response?.data, 0);
     },
 
-    updateCertificateRequestForm: async (_, { id, data }, { user, dataSources }) => {
-      requireUser(user);
+    updateCertificateRequestForm: async (_, { id, data }, ctx) => {
+      await requireFormOrganizer(ctx, id);
+      const { dataSources } = ctx;
       const input = requestFormInput(data);
       validateRequestFormInput(input);
       const response = await dataSources.managerIntegration.updateCertificateRequestForm(id, input);
@@ -444,8 +462,9 @@ const Certificate = {
       return mapRequestForm(form, filterByCategory(participants, form.category).length);
     },
 
-    deleteCertificateRequestForm: async (_, { id }, { user, dataSources }) => {
-      requireUser(user);
+    deleteCertificateRequestForm: async (_, { id }, ctx) => {
+      await requireFormOrganizer(ctx, id);
+      const { dataSources } = ctx;
       await dataSources.managerIntegration.deleteCertificateRequestForm(id);
       return true;
     },
