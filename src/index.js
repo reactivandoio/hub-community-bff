@@ -13,7 +13,7 @@ import { createServer } from 'http';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/lib/use/ws';
-import jwt from './utils/jwt';
+import { createAuthContext } from './utils/auth';
 
 import getTypes from './types';
 import getResolvers from './resolvers';
@@ -40,29 +40,16 @@ const startServer = async () => {
   const serverCleanup = useServer(
     {
       schema,
+      // The token travels in connectionParams. It is verified like on HTTP: an invalid
+      // or expired one makes an anonymous connection, and resolvers that need a user
+      // (credentialCheckedIn) refuse it.
       context: async (ctx) => {
-        const headers = {
-          Authorization:
-            ctx.connectionParams.authorization ||
-            ctx.connectionParams.Authorization,
-          'accept-language': ctx.connectionParams['accept-language'] || 'pt-br',
-        };
-
-        let user;
-
-        if (headers.authorization) {
-          try {
-            user = jwt.decode(headers.authorization);
-          } catch (_) {
-            // do anything
-          }
-        }
-
-        return {
-          user,
-          headers,
-          dataSources: dataSources(headers),
-        };
+        const params = ctx.connectionParams || {};
+        return createAuthContext({
+          authorization: params.authorization || params.Authorization,
+          acceptLanguage: params['accept-language'] || 'pt-br',
+          makeDataSources: dataSources,
+        });
       },
     },
     wsServer,
@@ -102,7 +89,22 @@ const startServer = async () => {
     },
   });
 
-  app.post('/upload', cors(), upload.single('file'), async (req, res) => {
+  // Only signed-in users upload (the file goes to Strapi with the integration token).
+  const requireAuthenticatedUser = async (req, res, next) => {
+    try {
+      const { user } = await createAuthContext({
+        authorization: req.headers.authorization,
+        acceptLanguage: req.headers['accept-language'] || 'pt-br',
+        makeDataSources: dataSources,
+      });
+      if (!user) return res.status(401).json({ error: 'Não autenticado. Faça login novamente.' });
+      return next();
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  app.post('/upload', cors(), requireAuthenticatedUser, upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
@@ -158,34 +160,11 @@ const startServer = async () => {
     expressMiddleware(apolloServer, {
       context: async ({ req }) => {
         const acceptLanguage = req.headers['accept-language'] || 'en';
-
-        const headers = {
-          Authorization: req.headers.authorization || req.headers.Authorization,
-          'accept-language': acceptLanguage,
-        };
-
-        const dataSourcesInstance = dataSources(headers);
-
-        let user;
-        let decodedToken;
-
-        if (headers.Authorization) {
-          try {
-            decodedToken = jwt.decode(headers.Authorization);
-          } catch (err) {
-            throw new Error(`Error decoding token: ${err.message}`);
-          }
-
-          try {
-            const response = await dataSourcesInstance.managerAuthenticated.me({
-              userId: decodedToken.id,
-            });
-
-            user = response.data;
-          } catch (err) {
-            throw new Error(`Error fetching user: ${err.message}`);
-          }
-        }
+        const { user, dataSources: dataSourcesInstance } = await createAuthContext({
+          authorization: req.headers.authorization,
+          acceptLanguage,
+          makeDataSources: dataSources,
+        });
 
         return {
           user,
