@@ -114,6 +114,14 @@ const PROTECTED = [
   ['Query', 'certificateCandidates', { eventId: 'ev-1' }, 'organizer'],
   ['Query', 'certificateRequestForms', { eventId: 'ev-1' }, 'organizer'],
   ['Query', 'users', {}, 'admin'],
+  ['Query', 'votingSessions', {}, 'admin'],
+  ['Query', 'votingSession', { id: 'vs-1' }, 'admin'],
+  ['Mutation', 'createVotingSession', { data: { title: 'x' } }, 'admin'],
+  ['Mutation', 'updateVotingSession', { id: 'vs-1', data: {} }, 'admin'],
+  ['Mutation', 'deleteVotingSession', { id: 'vs-1' }, 'admin'],
+  ['Mutation', 'createVotingOption', { data: { name: 'x', voting_session: 'vs-1' } }, 'admin'],
+  ['Mutation', 'updateVotingOption', { id: 'vo-1', data: {} }, 'admin'],
+  ['Mutation', 'deleteVotingOption', { id: 'vo-1' }, 'admin'],
   ['Subscription', 'credentialCheckedIn', ev, 'organizer'],
 ];
 
