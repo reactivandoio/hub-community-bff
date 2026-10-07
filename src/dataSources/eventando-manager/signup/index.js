@@ -58,10 +58,10 @@ const findSignupsByEvent = async (eventId, headers) => {
   return allSignups;
 };
 
-// One signup by documentId; resolves null when Eventando answers 404.
+// One signup by documentId, with its event; resolves null when Eventando answers 404.
 const findSignupById = async (signupId, headers) => {
   try {
-    return await fetch(`/signups/${signupId}`, 'GET', headers);
+    return await fetch(`/signups/${signupId}?${buildQuery({}, [], {}, '', ['event'])}`, 'GET', headers);
   } catch (err) {
     if (/not found/i.test(err.message)) return null;
     throw err;

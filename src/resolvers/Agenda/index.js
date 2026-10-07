@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { requireUser } from '../../utils/auth';
 
 dotenv.config();
 
@@ -12,8 +13,10 @@ const Agenda = {
     agendas: async (
       _,
       { filters, sort, pagination, search },
-      { dataSources, user },
+      ctx,
     ) => {
+      requireUser(ctx);
+      const { dataSources, user } = ctx;
       const customFilters = {
         ...filters,
         users_permissions_user: {
@@ -35,7 +38,9 @@ const Agenda = {
       }
     },
 
-    agenda: async (_, { id }, { dataSources, user }) => {
+    agenda: async (_, { id }, ctx) => {
+      requireUser(ctx);
+      const { dataSources, user } = ctx;
       try {
         const response = await dataSources.managerIntegration.findAgenda(id, {
           populate: ['event', 'talks', 'users_permissions_user'],
@@ -65,7 +70,9 @@ const Agenda = {
   },
 
   Mutation: {
-    createAgenda: async (_, { input }, { dataSources, user }) => {
+    createAgenda: async (_, { input }, ctx) => {
+      requireUser(ctx);
+      const { dataSources, user } = ctx;
       try {
         // Associate the agenda with the current user
         const agendaInput = {
@@ -82,7 +89,9 @@ const Agenda = {
       }
     },
 
-    updateAgenda: async (_, { id, input }, { dataSources, user }) => {
+    updateAgenda: async (_, { id, input }, ctx) => {
+      requireUser(ctx);
+      const { dataSources, user } = ctx;
       try {
         // First, check if the agenda belongs to the current user
         const existingAgenda = await dataSources.managerIntegration.findAgenda(
@@ -125,7 +134,9 @@ const Agenda = {
       }
     },
 
-    deleteAgenda: async (_, { id }, { dataSources, user }) => {
+    deleteAgenda: async (_, { id }, ctx) => {
+      requireUser(ctx);
+      const { dataSources, user } = ctx;
       try {
         // First, check if the agenda belongs to the current user
         const existingAgenda = await dataSources.managerIntegration.findAgenda(

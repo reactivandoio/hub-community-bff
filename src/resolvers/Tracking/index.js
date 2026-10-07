@@ -1,6 +1,31 @@
 /**
  * Tracking resolver — handles analytics event tracking and metrics aggregation.
  */
+
+// Same enum as api::analytics-event.event_type in the backend.
+export const EVENT_TYPES = new Set([
+  'page_visit',
+  'signup_click',
+  'signup_complete',
+  'share_click',
+  'coupon_applied',
+  'payment_started',
+  'certificate_click',
+]);
+
+export const MAX_METADATA_BYTES = 2 * 1024;
+
+// trackEvent is public, so it only stores what the frontend actually sends: a known
+// event type and a small metadata object.
+export const validateTrackInput = (input) => {
+  if (!EVENT_TYPES.has(input?.event_type)) return 'event_type inválido.';
+  if (input.metadata !== undefined && input.metadata !== null) {
+    const size = Buffer.byteLength(JSON.stringify(input.metadata), 'utf8');
+    if (size > MAX_METADATA_BYTES) return 'metadata acima de 2 KB.';
+  }
+  return null;
+};
+
 const Tracking = {
   Query: {
     eventTrackingMetrics: async (_, { eventDocumentId, period }, { dataSources }) => {
@@ -92,6 +117,11 @@ const Tracking = {
 
   Mutation: {
     trackEvent: async (_, { input }, { dataSources, user }) => {
+      const invalid = validateTrackInput(input);
+      if (invalid) {
+        console.warn(`[Tracking] Evento recusado: ${invalid}`);
+        return { success: false, id: null };
+      }
       try {
         const data = {
           event_type: input.event_type,

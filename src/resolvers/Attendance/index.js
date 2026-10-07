@@ -1,6 +1,10 @@
+import { requireEventOrganizer } from '../../utils/auth';
+
 const Attendance = {
   Query: {
-    eventAttendances: async (_, { eventDocumentId }, { dataSources }) => {
+    eventAttendances: async (_, { eventDocumentId }, ctx) => {
+      await requireEventOrganizer(ctx, eventDocumentId);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.managerIntegration.findAttendances(eventDocumentId);
         const attendances = response?.data || [];
