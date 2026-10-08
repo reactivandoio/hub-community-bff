@@ -3,9 +3,10 @@ import {
   sendSignupConfirmation,
   sendSignupConfirmationBatch,
 } from '../../services/email/signup-confirmation';
+import { sendCompleteRegistration } from '../../services/email/complete-registration';
 import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import { signupIdOf } from '../../utils/signup-id';
-import { saveMissingCpf } from '../../utils/signup-cpf';
+import { cpfDigits, saveMissingCpf } from '../../utils/signup-cpf';
 import { updateCpfs } from '../../utils/cpf-mapping';
 import mapSignup from './mappers';
 
@@ -55,6 +56,47 @@ const queueCpfUpdates = (dataSources, eventSlug, rows) => {
         + `${counts['no-account'] || 0} sem conta, ${(counts.invalid || 0) + (counts.failed || 0)} inválidos/falharam`,
     );
   })();
+};
+
+const normalizeEmail = (email) => (email || '').trim().toLowerCase();
+
+const eventTitleOf = (event) =>
+  event?.name || event?.title || event?.attributes?.name || event?.attributes?.title || null;
+
+// The HubCommunity account of a walk-in: by CPF first, then by e-mail. A failed
+// lookup is logged and treated as "not found", so the signup still goes through.
+const findAccount = async (dataSources, input) => {
+  const integration = dataSources.managerIntegration;
+  const cpf = cpfDigits(input.cpf);
+  if (cpf) {
+    try {
+      const user = await integration.findUserByCpf(cpf);
+      if (user?.email) return { user, matchedBy: 'cpf' };
+    } catch (err) {
+      console.error('[ManualSignup] CPF lookup failed (falling back to e-mail):', err.message);
+    }
+  }
+  const email = normalizeEmail(input.email);
+  if (email) {
+    try {
+      const user = await integration.findUserByEmail(email);
+      if (user) return { user, matchedBy: 'email' };
+    } catch (err) {
+      console.error('[ManualSignup] E-mail lookup failed:', err.message);
+    }
+  }
+  return { user: null, matchedBy: null };
+};
+
+// The event signup under any of these e-mails, or null.
+const findEventSignup = async (dataSources, eventId, emails) => {
+  const unique = [...new Set(emails.map(normalizeEmail).filter(Boolean))];
+  for (const email of unique) {
+    // eslint-disable-next-line no-await-in-loop
+    const found = await dataSources.eventandoIntegration.findSignupByEmail(eventId, email);
+    if (found?.data?.length > 0) return found.data[0];
+  }
+  return null;
 };
 
 // One signup in the EventSignup shape, with the same name resolution as eventSignups.
@@ -349,14 +391,21 @@ const Checkin = {
 
     updateCpfs: (_, { rows }, { dataSources }) => updateCpfs(dataSources, rows),
 
+    // Walk-in at the door. The person may already have an account — under another
+    // e-mail than the one typed — so it is looked up by CPF first, then by e-mail,
+    // and the signup goes to that account's e-mail. Only a brand-new account gets
+    // the second "Conclua seu cadastro" e-mail.
     manualSignup: async (_, { eventSlug, batchId, input }, { dataSources }) => {
       try {
-        // 1. Create the account when the e-mail has none (no password: the
-        //    confirmation e-mail carries the set-password link). Never blocks the signup.
+        const { user, matchedBy } = await findAccount(dataSources, input);
+        const email = normalizeEmail(user?.email) || normalizeEmail(input.email);
+
+        // 1. Set up the account (creates it when there is none; while it has no
+        //    password, returns the set-password token). Never blocks the signup.
         let account = { created: false, token: null };
         try {
           const result = await dataSources.managerIntegration.accountSetup({
-            email: input.email,
+            email,
             name: input.name,
             phone: input.phone_number || undefined,
           });
@@ -364,8 +413,8 @@ const Checkin = {
         } catch (err) {
           console.error('[ManualSignup] Account setup error (non-blocking):', err.message);
         }
-        if (input.cpf) await saveMissingCpf(dataSources, input.email, input.cpf);
-        const accountCreated = account.created;
+        if (input.cpf) await saveMissingCpf(dataSources, email, input.cpf);
+        const accountCreated = !user && account.created;
 
         // 2. Resolve the event in Eventando Manager
         const event = await findEventandoEvent(dataSources, eventSlug);
@@ -374,6 +423,7 @@ const Checkin = {
             success: false,
             message: `Evento "${eventSlug}" não encontrado.`,
             account_created: accountCreated,
+            matched_by: matchedBy,
           };
         }
 
@@ -385,29 +435,40 @@ const Checkin = {
             eventandoEvent: event,
             signupId: signupIdOf(signup),
             name: input.name,
-            email: input.email,
+            email,
             phone: input.phone_number || null,
             isFree: true,
             account,
           }).catch((err) => console.error('[Email] Error sending confirmation:', err.message));
+        const completeRegistration = () => {
+          if (!accountCreated || !account.token) return;
+          sendCompleteRegistration({
+            email,
+            name: input.name,
+            eventTitle: eventTitleOf(event),
+            token: account.token,
+          }).catch((err) => console.error('[Email] Error sending complete-registration:', err.message));
+        };
+        const respond = async (message, raw) => ({
+          success: true,
+          message,
+          account_created: accountCreated,
+          matched_by: matchedBy,
+          signup: raw ? await toEventSignup(dataSources, raw) : null,
+        });
 
-        // 3. Check if already signed up
-        const existingSignup = await dataSources.eventandoIntegration.findSignupByEmail(
-          event.id,
-          input.email,
-        );
-
-        if (existingSignup?.data && existingSignup.data.length > 0) {
-          // Already registered: e-mail again only if the account still needs its password.
-          if (account.token) confirm(existingSignup.data[0]);
-          return {
-            success: true,
-            message: accountCreated
+        // 3. Already signed up, under the account e-mail or the one typed?
+        const existingSignup = await findEventSignup(dataSources, event.id, [email, input.email]);
+        if (existingSignup) {
+          // E-mail again only if the account still needs its password.
+          if (account.token) confirm(existingSignup);
+          completeRegistration();
+          return respond(
+            accountCreated
               ? 'Conta criada! Participante já estava inscrito neste evento.'
               : 'Participante já está inscrito neste evento.',
-            account_created: accountCreated,
-            signup: await toEventSignup(dataSources, existingSignup.data[0]),
-          };
+            existingSignup,
+          );
         }
 
         // 4. Create event signup directly (same pattern as importSignups)
@@ -429,7 +490,7 @@ const Checkin = {
           // 4b. Create the signup linked to the payment
           const created = await dataSources.eventandoIntegration.createSignupDirect({
             name: input.name,
-            email: input.email,
+            email,
             phone_number: input.phone_number || null,
             event: event.id,
             payment: paymentId || null,
@@ -441,19 +502,22 @@ const Checkin = {
             success: false,
             message: `Erro ao criar inscrição: ${signupErr.message}`,
             account_created: accountCreated,
+            matched_by: matchedBy,
           };
         }
 
-        if (createdSignup) confirm(createdSignup);
+        if (createdSignup) {
+          confirm(createdSignup);
+          completeRegistration();
+        }
 
-        return {
-          success: true,
-          message: accountCreated
+        const found = matchedBy === 'cpf' ? ' (conta encontrada pelo CPF)' : '';
+        return respond(
+          accountCreated
             ? `${input.name} inscrito(a) com sucesso! Conta criada no HubCommunity.`
-            : `${input.name} inscrito(a) com sucesso!`,
-          account_created: accountCreated,
-          signup: createdSignup ? await toEventSignup(dataSources, createdSignup) : null,
-        };
+            : `${input.name} inscrito(a) com sucesso!${found}`,
+          createdSignup,
+        );
       } catch (err) {
         return {
           success: false,

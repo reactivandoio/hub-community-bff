@@ -53,6 +53,8 @@ type ManualSignupResponse {
   success: Boolean!
   message: String
   account_created: Boolean
+  "How the existing account was found: cpf (checked first) or email; null when it was created."
+  matched_by: String
   "The signup (created or pre-existing), so the caller can print a badge right away."
   signup: EventSignup
 }
