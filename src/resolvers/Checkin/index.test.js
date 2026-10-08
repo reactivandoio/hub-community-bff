@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import pubsub from '../../dataSources/pubsub';
 import { sendSignupConfirmation, sendSignupConfirmationBatch } from '../../services/email/signup-confirmation';
+import { sendCompleteRegistration } from '../../services/email/complete-registration';
 import Checkin from './index';
 
 // vi.mock is hoisted above the imports by vitest. The e-mail service is mocked whole:
@@ -9,6 +10,9 @@ vi.mock('../../dataSources/pubsub', () => ({ default: { publish: vi.fn(), asyncI
 vi.mock('../../services/email/signup-confirmation', () => ({
   sendSignupConfirmation: vi.fn().mockResolvedValue({ success: true }),
   sendSignupConfirmationBatch: vi.fn().mockResolvedValue({ sent: 0, failed: 0 }),
+}));
+vi.mock('../../services/email/complete-registration', () => ({
+  sendCompleteRegistration: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 const rawSignups = [
@@ -124,6 +128,8 @@ describe('manualSignup', () => {
         ? vi.fn().mockRejectedValue(setupError)
         : vi.fn().mockResolvedValue(account),
       findUsersByEmails: vi.fn().mockResolvedValue([]),
+      findUserByCpf: vi.fn().mockResolvedValue(null),
+      findUserByEmail: vi.fn().mockResolvedValue(null),
     },
   });
 
@@ -204,6 +210,116 @@ describe('manualSignup', () => {
     const out = await run(walkInDataSources());
     expect(out.success).toBe(true);
     expect(out.signup).toMatchObject({ id: 's9' });
+  });
+});
+
+describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
+  const input = { name: 'Ana Souza', email: 'ana.nova@x.io', phone_number: '+55 62 9', cpf: '529.982.247-25' };
+
+  const dataSourcesFor = ({ byCpf = null, byEmail = null, account = { created: false, token: null }, existing = [] } = {}) => ({
+    eventandoIntegration: {
+      findEvents: vi.fn().mockResolvedValue({ data: [{ id: 42, slug: 'veredas', name: 'Veredas da Inovação' }] }),
+      findSignupByEmail: vi.fn().mockResolvedValue({ data: existing }),
+      createPaymentDirect: vi.fn().mockResolvedValue({ data: { id: 7 } }),
+      createSignupDirect: vi.fn().mockImplementation(async (data) => ({ data: { documentId: 's9', ...data } })),
+    },
+    managerIntegration: {
+      findUserByCpf: vi.fn().mockResolvedValue(byCpf),
+      findUserByEmail: vi.fn().mockResolvedValue(byEmail),
+      accountSetup: vi.fn().mockResolvedValue(account),
+      updateUser: vi.fn().mockResolvedValue({}),
+      findUsersByEmails: vi.fn().mockResolvedValue([]),
+    },
+  });
+
+  const run = (dataSources, extra = {}) =>
+    Checkin.Mutation.manualSignup(null, { eventSlug: 'veredas', batchId: '3', input: { ...input, ...extra } }, { dataSources });
+
+  it('found by CPF: signs up under that account e-mail and sends only the confirmation', async () => {
+    const dataSources = dataSourcesFor({ byCpf: { id: 1, email: 'Ana@Antigo.io', cpf: '52998224725' } });
+    const out = await run(dataSources);
+
+    expect(out.success).toBe(true);
+    expect(out.matched_by).toBe('cpf');
+    expect(out.account_created).toBe(false);
+    expect(dataSources.managerIntegration.findUserByCpf).toHaveBeenCalledWith('52998224725');
+    // CPF wins: the e-mail typed is not even looked up.
+    expect(dataSources.managerIntegration.findUserByEmail).not.toHaveBeenCalledWith('ana.nova@x.io');
+    expect(dataSources.managerIntegration.accountSetup)
+      .toHaveBeenCalledWith({ email: 'ana@antigo.io', name: 'Ana Souza', phone: '+55 62 9' });
+    expect(dataSources.eventandoIntegration.createSignupDirect).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Ana Souza', email: 'ana@antigo.io', phone_number: '+55 62 9', event: 42, payment: 7,
+    }));
+    expect(dataSources.eventandoIntegration.createPaymentDirect)
+      .toHaveBeenCalledWith(expect.objectContaining({ batch: 3, value: 0, status: 'CONFIRMED' }));
+    expect(sendSignupConfirmation).toHaveBeenCalledTimes(1);
+    expect(sendSignupConfirmation).toHaveBeenCalledWith(expect.objectContaining({ email: 'ana@antigo.io', signupId: 's9' }));
+    expect(sendCompleteRegistration).not.toHaveBeenCalled();
+    expect(out.signup).toMatchObject({ id: 's9', email: 'ana@antigo.io' });
+  });
+
+  it('found by e-mail: signs up, keeps the CPF on the account and sends only the confirmation', async () => {
+    const dataSources = dataSourcesFor({ byEmail: { id: 2, email: 'ana.nova@x.io', cpf: null } });
+    const out = await run(dataSources);
+
+    expect(out.success).toBe(true);
+    expect(out.matched_by).toBe('email');
+    expect(out.account_created).toBe(false);
+    expect(dataSources.managerIntegration.findUserByCpf).toHaveBeenCalledWith('52998224725');
+    expect(dataSources.managerIntegration.findUserByEmail).toHaveBeenCalledWith('ana.nova@x.io');
+    expect(dataSources.managerIntegration.updateUser).toHaveBeenCalledWith(2, { cpf: '52998224725' });
+    expect(dataSources.eventandoIntegration.createSignupDirect)
+      .toHaveBeenCalledWith(expect.objectContaining({ email: 'ana.nova@x.io', phone_number: '+55 62 9' }));
+    expect(sendSignupConfirmation).toHaveBeenCalledTimes(1);
+    expect(sendCompleteRegistration).not.toHaveBeenCalled();
+  });
+
+  it('new person: creates the account with the CPF and sends the confirmation plus "Conclua seu cadastro"', async () => {
+    const dataSources = dataSourcesFor({ account: { created: true, token: 'tok' } });
+    // The account only exists once account-setup made it.
+    dataSources.managerIntegration.findUserByEmail
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 3, email: 'ana.nova@x.io', cpf: null });
+    const out = await run(dataSources);
+
+    expect(out.success).toBe(true);
+    expect(out.matched_by).toBeNull();
+    expect(out.account_created).toBe(true);
+    expect(dataSources.managerIntegration.accountSetup)
+      .toHaveBeenCalledWith({ email: 'ana.nova@x.io', name: 'Ana Souza', phone: '+55 62 9' });
+    expect(dataSources.managerIntegration.updateUser).toHaveBeenCalledWith(3, { cpf: '52998224725' });
+    expect(sendSignupConfirmation).toHaveBeenCalledWith(expect.objectContaining({
+      email: 'ana.nova@x.io', signupId: 's9', account: { created: true, token: 'tok' },
+    }));
+    expect(sendCompleteRegistration).toHaveBeenCalledWith({
+      email: 'ana.nova@x.io', name: 'Ana Souza', eventTitle: 'Veredas da Inovação', token: 'tok',
+    });
+  });
+
+  it('falls back to the e-mail when the CPF lookup fails', async () => {
+    const dataSources = dataSourcesFor({ byEmail: { id: 2, email: 'ana.nova@x.io', cpf: '52998224725' } });
+    dataSources.managerIntegration.findUserByCpf.mockRejectedValue(new Error('400'));
+    const out = await run(dataSources);
+    expect(out.success).toBe(true);
+    expect(out.matched_by).toBe('email');
+  });
+
+  it('does not sign up twice when the account e-mail is already in the event', async () => {
+    const existing = [{ documentId: 's5', name: 'Ana', email: 'ana@antigo.io', checked_in: false }];
+    const dataSources = dataSourcesFor({ byCpf: { id: 1, email: 'ana@antigo.io' }, existing });
+    const out = await run(dataSources);
+    expect(out.success).toBe(true);
+    expect(dataSources.eventandoIntegration.findSignupByEmail).toHaveBeenCalledWith(42, 'ana@antigo.io');
+    expect(dataSources.eventandoIntegration.createSignupDirect).not.toHaveBeenCalled();
+    expect(sendCompleteRegistration).not.toHaveBeenCalled();
+    expect(out.signup).toMatchObject({ id: 's5' });
+  });
+
+  it('without a CPF, looks up by e-mail only', async () => {
+    const dataSources = dataSourcesFor({ byEmail: { id: 2, email: 'ana.nova@x.io' } });
+    const out = await run(dataSources, { cpf: '' });
+    expect(dataSources.managerIntegration.findUserByCpf).not.toHaveBeenCalled();
+    expect(out.matched_by).toBe('email');
   });
 });
 

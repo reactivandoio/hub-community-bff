@@ -36,3 +36,25 @@ describe('findUsersByEmails', () => {
     expect(axios).not.toHaveBeenCalled();
   });
 });
+
+describe('findUserByCpf', () => {
+  it('asks for the digits and the formatted CPF and returns the first account', async () => {
+    axios.mockResolvedValue({ data: [{ id: 7, email: 'ana@x.io', cpf: '529.982.247-25' }] });
+    const out = await users({ headers: {} }).findUserByCpf('52998224725');
+    expect(out).toEqual({ id: 7, email: 'ana@x.io', cpf: '529.982.247-25' });
+    const url = decodeURIComponent(axios.mock.calls[0][0].url);
+    expect(url).toContain('filters[cpf][$in][0]=52998224725');
+    expect(url).toContain('filters[cpf][$in][1]=529.982.247-25');
+  });
+
+  it('returns null without hitting Strapi for something that is not 11 digits', async () => {
+    expect(await users({ headers: {} }).findUserByCpf('123')).toBeNull();
+    expect(await users({ headers: {} }).findUserByCpf(null)).toBeNull();
+    expect(axios).not.toHaveBeenCalled();
+  });
+
+  it('returns null when no account has the CPF', async () => {
+    axios.mockResolvedValue({ data: [] });
+    expect(await users({ headers: {} }).findUserByCpf('52998224725')).toBeNull();
+  });
+});
