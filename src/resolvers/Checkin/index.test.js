@@ -202,7 +202,8 @@ describe('manualSignup', () => {
       { eventSlug: 'ev', batchId: '3', input: { ...input, cpf: '123.456.789-09' } },
       { dataSources },
     );
-    expect(dataSources.managerIntegration.updateUser).toHaveBeenCalledWith(5, { cpf: '12345678909' });
+    expect(dataSources.managerIntegration.updateUser)
+      .toHaveBeenCalledWith(5, { cpf: '12345678909', phone: '+55 62 9', name: 'Ana Souza' });
   });
 
   it('still succeeds when the confirmation e-mail rejects', async () => {
@@ -214,7 +215,9 @@ describe('manualSignup', () => {
 });
 
 describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
-  const input = { name: 'Ana Souza', email: 'ana.nova@x.io', phone_number: '+55 62 9', cpf: '529.982.247-25' };
+  const input = {
+    name: 'Ana Souza', email: 'ana.nova@x.io', phone_number: '+55 62 9', cpf: '529.982.247-25', date_of_birth: '1990-04-07',
+  };
 
   const dataSourcesFor = ({ byCpf = null, byEmail = null, account = { created: false, token: null }, existing = [] } = {}) => ({
     eventandoIntegration: {
@@ -236,7 +239,9 @@ describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
     Checkin.Mutation.manualSignup(null, { eventSlug: 'veredas', batchId: '3', input: { ...input, ...extra } }, { dataSources });
 
   it('found by CPF: signs up under that account e-mail and sends only the confirmation', async () => {
-    const dataSources = dataSourcesFor({ byCpf: { id: 1, email: 'Ana@Antigo.io', cpf: '52998224725' } });
+    const account = { id: 1, email: 'Ana@Antigo.io', name: 'Ana', cpf: '52998224725', phone: '62988887777', date_of_birth: null };
+    const dataSources = dataSourcesFor({ byCpf: account });
+    dataSources.managerIntegration.findUserByEmail.mockImplementation(async (e) => (e === 'ana@antigo.io' ? account : null));
     const out = await run(dataSources);
 
     expect(out.success).toBe(true);
@@ -256,10 +261,14 @@ describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
     expect(sendSignupConfirmation).toHaveBeenCalledWith(expect.objectContaining({ email: 'ana@antigo.io', signupId: 's9' }));
     expect(sendCompleteRegistration).not.toHaveBeenCalled();
     expect(out.signup).toMatchObject({ id: 's9', email: 'ana@antigo.io' });
+    // Only the date of birth was missing: nothing the account had is overwritten.
+    expect(dataSources.managerIntegration.updateUser).toHaveBeenCalledWith(1, { date_of_birth: '1990-04-07' });
   });
 
   it('found by e-mail: signs up, keeps the CPF on the account and sends only the confirmation', async () => {
-    const dataSources = dataSourcesFor({ byEmail: { id: 2, email: 'ana.nova@x.io', cpf: null } });
+    const dataSources = dataSourcesFor({
+      byEmail: { id: 2, email: 'ana.nova@x.io', name: 'Ana', cpf: null, phone: null, date_of_birth: '1985-01-02' },
+    });
     const out = await run(dataSources);
 
     expect(out.success).toBe(true);
@@ -267,7 +276,8 @@ describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
     expect(out.account_created).toBe(false);
     expect(dataSources.managerIntegration.findUserByCpf).toHaveBeenCalledWith('52998224725');
     expect(dataSources.managerIntegration.findUserByEmail).toHaveBeenCalledWith('ana.nova@x.io');
-    expect(dataSources.managerIntegration.updateUser).toHaveBeenCalledWith(2, { cpf: '52998224725' });
+    // The date the account already had is kept.
+    expect(dataSources.managerIntegration.updateUser).toHaveBeenCalledWith(2, { cpf: '52998224725', phone: '+55 62 9' });
     expect(dataSources.eventandoIntegration.createSignupDirect)
       .toHaveBeenCalledWith(expect.objectContaining({ email: 'ana.nova@x.io', phone_number: '+55 62 9' }));
     expect(sendSignupConfirmation).toHaveBeenCalledTimes(1);
@@ -287,7 +297,9 @@ describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
     expect(out.account_created).toBe(true);
     expect(dataSources.managerIntegration.accountSetup)
       .toHaveBeenCalledWith({ email: 'ana.nova@x.io', name: 'Ana Souza', phone: '+55 62 9' });
-    expect(dataSources.managerIntegration.updateUser).toHaveBeenCalledWith(3, { cpf: '52998224725' });
+    expect(dataSources.managerIntegration.updateUser).toHaveBeenCalledWith(3, {
+      cpf: '52998224725', date_of_birth: '1990-04-07', phone: '+55 62 9', name: 'Ana Souza',
+    });
     expect(sendSignupConfirmation).toHaveBeenCalledWith(expect.objectContaining({
       email: 'ana.nova@x.io', signupId: 's9', account: { created: true, token: 'tok' },
     }));
@@ -313,6 +325,15 @@ describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
     expect(dataSources.eventandoIntegration.createSignupDirect).not.toHaveBeenCalled();
     expect(sendCompleteRegistration).not.toHaveBeenCalled();
     expect(out.signup).toMatchObject({ id: 's5' });
+  });
+
+  it('refuses an invalid date of birth before touching anything', async () => {
+    const dataSources = dataSourcesFor();
+    const out = await run(dataSources, { date_of_birth: '2026-02-31' });
+    expect(out.success).toBe(false);
+    expect(out.message).toBe('Data de nascimento inválida.');
+    expect(dataSources.managerIntegration.accountSetup).not.toHaveBeenCalled();
+    expect(dataSources.eventandoIntegration.createSignupDirect).not.toHaveBeenCalled();
   });
 
   it('without a CPF, looks up by e-mail only', async () => {

@@ -6,7 +6,8 @@ import {
 import { sendCompleteRegistration } from '../../services/email/complete-registration';
 import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import { signupIdOf } from '../../utils/signup-id';
-import { cpfDigits, saveMissingCpf } from '../../utils/signup-cpf';
+import { cpfDigits, saveMissingCpf, saveMissingProfile } from '../../utils/signup-cpf';
+import { normalizeDateOfBirth } from '../Certificate/birthdate';
 import { updateCpfs } from '../../utils/cpf-mapping';
 import mapSignup from './mappers';
 
@@ -397,6 +398,13 @@ const Checkin = {
     // the second "Conclua seu cadastro" e-mail.
     manualSignup: async (_, { eventSlug, batchId, input }, { dataSources }) => {
       try {
+        if (input.date_of_birth && !normalizeDateOfBirth(input.date_of_birth)) {
+          return {
+            success: false,
+            message: 'Data de nascimento inválida.',
+            account_created: false,
+          };
+        }
         const { user, matchedBy } = await findAccount(dataSources, input);
         const email = normalizeEmail(user?.email) || normalizeEmail(input.email);
 
@@ -413,7 +421,13 @@ const Checkin = {
         } catch (err) {
           console.error('[ManualSignup] Account setup error (non-blocking):', err.message);
         }
-        if (input.cpf) await saveMissingCpf(dataSources, email, input.cpf);
+        // What was typed at the door fills the account, never overwriting a field it has.
+        await saveMissingProfile(dataSources, email, {
+          cpf: input.cpf,
+          date_of_birth: input.date_of_birth,
+          phone: input.phone_number,
+          name: input.name,
+        });
         const accountCreated = !user && account.created;
 
         // 2. Resolve the event in Eventando Manager
