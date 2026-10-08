@@ -47,6 +47,8 @@ input ManualSignupInput {
   email: String!
   cpf: String
   phone_number: String
+  "YYYY-MM-DD. Saved on the account when it has none; an invalid date fails the signup."
+  date_of_birth: String
 }
 
 type ManualSignupResponse {
