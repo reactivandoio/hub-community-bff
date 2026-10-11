@@ -1,0 +1,39 @@
+name: CI
+
+# Roda em runner do GitHub (nunca no thor): instala, lint (não bloqueia), testes e build.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Instalar dependências
+        run: yarn install --frozen-lockfile --network-timeout 600000
+
+      # Dívida antiga de lint; fica visível sem bloquear.
+      - name: Lint (não bloqueia)
+        continue-on-error: true
+        run: yarn eslint src
+
+      - name: Testes
+        run: yarn test
+
+      - name: Testes dos scripts de deploy
+        run: bash .github/scripts/env-scripts.test.sh
+
+      - name: Build
+        run: yarn build
