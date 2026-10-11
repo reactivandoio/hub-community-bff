@@ -94,6 +94,12 @@ describe('sendSignupConfirmation', () => {
     expect(sentMail().html).toContain('criar-senha?code=tok');
   });
 
+  it('attaches the ticket QR for a paid signup already confirmed (isPaid)', async () => {
+    await sendSignupConfirmation(args(makeDataSources(), { isFree: false, isPaid: true }));
+    expect(QRCode.toBuffer).toHaveBeenCalled();
+    expect(sentMail().html).toContain('cid:ticket-qr');
+  });
+
   it('has no QR without a signup id', async () => {
     await sendSignupConfirmation(args(makeDataSources(), { signupId: null }));
     expect(QRCode.toBuffer).not.toHaveBeenCalled();
