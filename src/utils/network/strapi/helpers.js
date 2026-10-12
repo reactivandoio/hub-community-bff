@@ -193,15 +193,19 @@ export const createStrapiFetch =
         data: body,
       });
     } catch (error) {
+      // Strapi errors carry { error: { message } }; the business errors of the
+      // Eventando custom routes (signup, coupon) carry { status: 'error', message }.
+      const data = error.response?.data;
+      const message = data?.error?.message
+        || (typeof data?.message === 'string' ? data.message : null)
+        || error.message;
+
       if (process.env.NODE_ENV === 'development') {
         // eslint-disable-next-line no-console
-        console.log(
-          `Error on try ${method} in ${url}`,
-          error.response?.data?.error?.message || error.message,
-        );
+        console.log(`Error on try ${method} in ${url}`, message);
       }
 
-      throw new Error(error.response?.data?.error?.message || error.message);
+      throw new Error(message);
     }
 
     if (process.env.NODE_ENV === 'production') {
