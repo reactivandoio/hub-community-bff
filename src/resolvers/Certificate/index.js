@@ -22,6 +22,7 @@ import {
   normalizeCategory,
 } from './categories';
 import { sendCertificateEmail } from './email';
+import { adminIncompleteReason, assertRegistrationComplete, registrationGap, remindPassword } from '../../utils/registration';
 import { requireEventOrganizer, requireUser as requireAuthenticated } from '../../utils/auth';
 
 export const requireUser = (user) => {
@@ -219,7 +220,7 @@ const Certificate = {
       return maskPublicCertificate(mapCertificate(response?.data?.[0] || null));
     },
 
-    lookupCertificate: async (_, { eventId, identifier }, { dataSources }) => {
+    lookupCertificate: async (_, { eventId, identifier }, { dataSources, user: viewer }) => {
       const cpf = normalizeIdentifier(identifier);
       if (!isValidCpf(cpf)) throw new Error('CPF inválido.');
 
@@ -259,6 +260,8 @@ const Certificate = {
       let certificate = null;
       if (eligible && config?.enabled && eventEnded) {
         const user = attendance.users_permissions_user;
+        // REA-22: no certificate while the registration is not finished.
+        await assertRegistrationComplete(dataSources, { cpf, email: user.email, viewer, eventTitle: event.title });
         const created = await dataSources.managerIntegration.createCertificate({
           event: eventId,
           name: user.name || user.username,
@@ -344,7 +347,7 @@ const Certificate = {
       return upsertConfig(dataSources, toEventId, configToInput(source));
     },
 
-    requestCertificate: async (_, { eventId, name, identifier, email }, { dataSources }) => {
+    requestCertificate: async (_, { eventId, name, identifier, email }, { dataSources, user: viewer }) => {
       const cpf = normalizeIdentifier(identifier);
       if (!isValidCpf(cpf)) throw new Error('CPF inválido.');
       if (!name?.trim()) throw new Error('Nome é obrigatório.');
@@ -361,6 +364,9 @@ const Certificate = {
         if (existingCertificate.revoked_at) throw new Error(REVOKED_MESSAGE);
         return mapCertificate(existingCertificate);
       }
+
+      // REA-22: no certificate while the registration is not finished.
+      await assertRegistrationComplete(dataSources, { cpf, email, viewer, eventTitle: event.title });
 
       const created = await dataSources.managerIntegration.createCertificate({
         event: eventId,
@@ -397,6 +403,12 @@ const Certificate = {
         if (!identifier) throw new Error(`${label}: CPF ou e-mail válido é obrigatório`);
         if (!entry.email?.trim()) throw new Error(`${label}: e-mail obrigatório`);
         if (!(entry.name || '').trim()) throw new Error(`${label}: nome obrigatório`);
+        // REA-22: no certificate while the registration is not finished (the link goes again).
+        const gap = await registrationGap(dataSources, { cpf: identifier, email: entry.email });
+        if (gap) {
+          if (gap.passwordPending) await remindPassword(dataSources, gap.account, event?.title);
+          throw new Error(`${label}: ${adminIncompleteReason(gap)}`);
+        }
 
         const created = await dataSources.managerIntegration.createCertificate({
           event: eventId,

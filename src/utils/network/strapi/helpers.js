@@ -170,6 +170,9 @@ export const buildQuery = (
  * @param {Object} body - Request body
  * @returns {Object} Response data
  */
+// The CPF of a lookup (filters[cpf][...]=...) never goes to the log (REA-22).
+export const redactCpf = (text) => String(text).replace(/(\[cpf\](?:\[[^\]]*\])*=)[^&]*/gi, '$1***');
+
 export const createStrapiFetch =
   (baseUrl) =>
   async (route, method, customHeaders = {}, body = null) => {
@@ -183,7 +186,7 @@ export const createStrapiFetch =
     const url = `${baseUrl}/api${route}`;
 
     // eslint-disable-next-line no-console
-    console.log(`[${method}] - ${decodeURIComponent(url)}`);
+    console.log(`[${method}] - ${redactCpf(decodeURIComponent(url))}`);
 
     try {
       response = await axios({
@@ -205,7 +208,10 @@ export const createStrapiFetch =
         console.log(`Error on try ${method} in ${url}`, message);
       }
 
-      throw new Error(message);
+      // The Eventando business errors may carry a code (REA-22: ALREADY_SIGNED_UP).
+      const failure = new Error(message);
+      if (typeof data?.code === 'string') failure.code = data.code;
+      throw failure;
     }
 
     if (process.env.NODE_ENV === 'production') {
