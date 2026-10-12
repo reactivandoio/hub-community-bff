@@ -19,6 +19,7 @@ import getTypes from './types';
 import getResolvers from './resolvers';
 
 import dataSources from './dataSources';
+import { mountOpaPingouWebhook, startOpaPingouSweep } from './routes/opapingou-webhook';
 
 const startServer = async () => {
   const typeDefs = await getTypes();
@@ -75,6 +76,10 @@ const startServer = async () => {
   });
 
   await apolloServer.start();
+
+  // Opa Pingou webhook: raw body, so it comes before any JSON parser (404 with the flag off).
+  const opaPingou = mountOpaPingouWebhook(app, { makeDataSources: dataSources });
+  startOpaPingouSweep(opaPingou);
 
   // File upload endpoint - proxies to Strapi upload API
   const upload = multer({

@@ -110,8 +110,9 @@ const ticketQrAttachment = async (ticketUrl) => {
 };
 
 /**
- * The single "Inscrição confirmada" e-mail: event info, the ticket QR (in-person
- * and free only — a paid signup still has its PIX pending) and, while the account
+ * The single "Inscrição confirmada" e-mail: event info, the ticket QR (in-person,
+ * when free or when the payment is already confirmed — `isPaid`, sent by the Opa
+ * Pingou webhook; a PixAI signup still has its PIX pending) and, while the account
  * has no password of its own, the "Crie sua senha" link.
  *
  * `account` skips the account-setup call when the caller already made it;
@@ -130,6 +131,7 @@ export const sendSignupConfirmation = async ({
   phone,
   cpf,
   isFree,
+  isPaid = false,
   account,
   eventDetails,
 }) => {
@@ -143,7 +145,7 @@ export const sendSignupConfirmation = async ({
       || (await loadSignupEventDetails({ dataSources, eventSlug, eventandoEvent }));
     const baseUrl = frontendUrl();
 
-    const hasTicket = !details.isOnline && Boolean(isFree) && Boolean(signupId);
+    const hasTicket = !details.isOnline && (Boolean(isFree) || Boolean(isPaid)) && Boolean(signupId);
     const ticketUrl = hasTicket ? ticketUrlFor(baseUrl, details.slug, signupId) : null;
     const qr = ticketUrl ? await ticketQrAttachment(ticketUrl) : null;
 

@@ -86,6 +86,8 @@ input ProductSaleInput {
 input EventSaleInput {
   max_slots: Int
   products: [ProductSaleInput]
+  "pixai | opapingou — who charges the paid batches of the event."
+  payment_provider: String
 }
 
 type Mutation {
@@ -103,6 +105,10 @@ type Mutation {
     is_student: Boolean
     phone_number: String
     t_shirt_size: String
+    "Required by the Eventando for every new signup; validated there, never returned."
+    cpf: String
+    "PIX_QR | PAYMENT_LINK (Opa Pingou). Calling again with the other kind on a pending signup is a new attempt."
+    kind: String
   ): SignupResponse
 }
 

@@ -9,6 +9,7 @@ import { signupIdOf } from '../../utils/signup-id';
 import { cpfDigits, saveMissingCpf, saveMissingProfile } from '../../utils/signup-cpf';
 import { normalizeDateOfBirth } from '../Certificate/birthdate';
 import { updateCpfs } from '../../utils/cpf-mapping';
+import { holdsPlace } from '../../utils/payment-status';
 import mapSignup from './mappers';
 import {
   forbiddenError,
@@ -147,8 +148,10 @@ const Checkin = {
           throw new Error(`Evento "${eventSlug}" não encontrado.`);
         }
 
-        // 2. Fetch all signups for this event
-        const allSignups = await dataSources.eventandoIntegration.findSignupsByEvent(event.id);
+        // 2. Fetch all signups for this event; a paid one counts only with a valid
+        //    payment (an expired or canceled Pix is not a signup).
+        const allSignups = (await dataSources.eventandoIntegration.findSignupsByEvent(event.id))
+          .filter(holdsPlace);
 
         // 3. Map signups to the EventSignup type, using the HubCommunity profile name
         //    when the account has one (older signups stored the username as name).
@@ -538,6 +541,8 @@ const Checkin = {
             name: input.name,
             email,
             phone_number: input.phone_number || null,
+            // Signup.cpf (REA-6): the CPF typed at the door, digits only.
+            ...(cpfDigits(input.cpf) ? { cpf: cpfDigits(input.cpf) } : {}),
             event: event.id,
             payment: paymentId || null,
             checked_in: false,
