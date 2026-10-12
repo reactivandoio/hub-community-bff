@@ -1,24 +1,57 @@
 type Coupon {
   id: String
   code: String
+  "percentage | fixed"
+  discount_type: String
   discount_percentage: Int
+  "Fixed discount, in cents."
+  discount_value_cents: Int
   max_uses: Int
+  "Confirmed uses plus pending ones still within their deadline."
+  uses: Int
   event: Event
   enabled: Boolean
+  "Empty = from the start of the batch."
+  starts_at: String
+  "Empty = until the end of the batch."
   expires_at: String
+  "Empty = every batch of the event."
+  batches: [Batch]
 }
 
 input CouponInput {
   code: String!
-  discount_percentage: Int!
+  "percentage (default) | fixed"
+  discount_type: String
+  discount_percentage: Int
+  discount_value_cents: Int
   max_uses: Int
+  "The Hub id (uuid) or the slug of the event."
   event: String!
   enabled: Boolean
+  starts_at: String
   expires_at: String
+  "Batch ids; empty = every batch."
+  batches: [String]
+}
+
+"Price computed by the Eventando; values in cents."
+type CouponPreview {
+  valid: Boolean!
+  message: String
+  "coupon | student | null"
+  discount_kind: String
+  final_value: Float
+  original_value: Float
+  min_charge_applied: Boolean
 }
 
 extend type Query {
-  validateCoupon(eventSlug: String!, code: String!): ValidateCouponResponse
+  "Kept for compatibility; with batchId it answers like previewCoupon."
+  validateCoupon(eventSlug: String!, code: String!, batchId: ID, isStudent: Boolean): ValidateCouponResponse
+  previewCoupon(eventSlug: String!, batchId: ID!, code: String!, isStudent: Boolean): CouponPreview
+  "Admin only. eventId: the Hub id (uuid) or the slug."
+  eventCoupons(eventId: ID!): [Coupon!]!
 }
 
 type ValidateCouponResponse {
@@ -28,7 +61,10 @@ type ValidateCouponResponse {
 }
 
 extend type Mutation {
+  "Admin only."
   createCoupon(data: CouponInput!): Coupon
+  "Admin only. Type and value cannot change once the coupon was used."
   updateCoupon(id: String!, data: CouponInput!): Coupon
+  "Admin only."
   deleteCoupon(id: String!): Coupon
 }

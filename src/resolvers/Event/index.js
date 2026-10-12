@@ -2,6 +2,20 @@ import dotenv from 'dotenv';
 import pubsub from '../../dataSources/pubsub';
 import { sendSignupConfirmation } from '../../services/email/signup-confirmation';
 import { signupIdOf } from '../../utils/signup-id';
+import { holdsPlace, OPAPINGOU } from '../../utils/payment-status';
+
+const PAYMENT_PROVIDERS = ['pixai', 'opapingou'];
+
+// The CPF never goes back to the browser, even if the Eventando sends it.
+const withoutCpf = (payload) => {
+  if (!payload || typeof payload !== 'object') return payload;
+  const { cpf, ...rest } = payload;
+  if (rest.signup && typeof rest.signup === 'object') {
+    const { cpf: signupCpf, ...signup } = rest.signup;
+    rest.signup = signup;
+  }
+  return rest;
+};
 
 dotenv.config();
 
@@ -186,7 +200,8 @@ const Event = {
           email,
         );
 
-        const existingSignup = signupResponse?.data?.[0];
+        // A paid signup holds its place only with a valid payment (an expired Pix does not).
+        const existingSignup = (signupResponse?.data || []).find(holdsPlace);
 
         if (!existingSignup) {
           return {
@@ -535,11 +550,17 @@ const Event = {
           }
         }
 
-        // 3. Update event max_slots if provided
-        if (data.max_slots !== undefined) {
-          await dataSources.eventandoIntegration.updateEvent(eventandoEventId, {
-            max_slots: data.max_slots,
-          });
+        // 3. Update event max_slots and payment provider if provided
+        const eventChanges = {};
+        if (data.max_slots !== undefined) eventChanges.max_slots = data.max_slots;
+        if (data.payment_provider !== undefined && data.payment_provider !== null) {
+          if (!PAYMENT_PROVIDERS.includes(data.payment_provider)) {
+            throw new Error(`payment_provider inválido: use ${PAYMENT_PROVIDERS.join(' ou ')}.`);
+          }
+          eventChanges.payment_provider = data.payment_provider;
+        }
+        if (Object.keys(eventChanges).length > 0) {
+          await dataSources.eventandoIntegration.updateEvent(eventandoEventId, eventChanges);
         }
 
         // 4. Create or update products and their batches
@@ -643,6 +664,8 @@ const Event = {
         is_student,
         phone_number,
         t_shirt_size,
+        cpf,
+        kind,
       },
       { dataSources },
     ) => {
@@ -668,6 +691,8 @@ const Event = {
           is_student,
           phone_number,
           t_shirt_size,
+          cpf,
+          kind,
         };
 
         const response = await dataSources.eventandoIntegration.signup(
@@ -687,24 +712,28 @@ const Event = {
 
         const isFree = response.data?.is_free || response.is_free || false;
         const signupId = signupIdOf(response.data || response);
+        const provider = response.data?.payment_provider || response.payment_provider;
 
         // Confirmation e-mail (ticket QR + set-password link) in the background:
-        // it never blocks nor fails the signup.
-        sendSignupConfirmation({
-          dataSources,
-          eventSlug: eventId,
-          eventandoEvent,
-          signupId,
-          name,
-          email,
-          phone: phone_number,
-          isFree,
-        }).catch((err) => console.error('[Email] Error sending confirmation:', err.message));
+        // it never blocks nor fails the signup. A paid Opa Pingou signup gets it
+        // from the webhook, once the payment is confirmed.
+        if (isFree || provider !== OPAPINGOU) {
+          sendSignupConfirmation({
+            dataSources,
+            eventSlug: eventId,
+            eventandoEvent,
+            signupId,
+            name,
+            email,
+            phone: phone_number,
+            isFree,
+          }).catch((err) => console.error('[Email] Error sending confirmation:', err.message));
+        }
 
         return {
           success: true,
           message: 'Inscrição realizada com sucesso!',
-          payment: response.data || response,
+          payment: withoutCpf(response.data || response),
           is_free: isFree,
           signup_id: signupId,
         };

@@ -57,12 +57,11 @@ export const createOpaProcessor = ({
       log.error(`[opapingou] varredura: ${err.message}`);
       return { processed: 0 };
     }
-    let processed = 0;
-    for (const item of pending) {
-      // eslint-disable-next-line no-await-in-loop
+    const processed = await pending.reduce(async (countSoFar, item) => {
+      const count = await countSoFar;
       const out = await processEvent(item);
-      if (!out?.skipped && !out?.error) processed += 1;
-    }
+      return !out?.skipped && !out?.error ? count + 1 : count;
+    }, Promise.resolve(0));
     return { processed };
   };
 

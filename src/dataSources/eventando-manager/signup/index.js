@@ -10,7 +10,8 @@ const findSignupByEmail = (eventId, email, headers) => {
     email: { eq: email },
     event: { id: { eq: eventId } },
   };
-  const query = buildQuery(filters);
+  // The payment tells whether the signup holds its place (utils/payment-status).
+  const query = buildQuery(filters, [], {}, '', ['payment']);
   const route = `/signups${query ? `?${query}` : ''}`;
   return fetch(route, 'GET', headers);
 };
@@ -68,6 +69,18 @@ const findSignupById = async (signupId, headers) => {
   }
 };
 
+// The signup with its payment and event, or null (404 or not a number).
+const findSignupWithPayment = async (signupId, headers) => {
+  if (!/^[1-9]\d*$/.test(String(signupId || ''))) return null;
+  try {
+    const query = buildQuery({}, [], {}, '', ['payment', 'event']);
+    return (await fetch(`/signups/${signupId}?${query}`, 'GET', headers))?.data || null;
+  } catch (err) {
+    if (/not found/i.test(err.message)) return null;
+    throw err;
+  }
+};
+
 const updateSignup = (signupId, data, headers) =>
   fetch(`/signups/${signupId}`, 'PUT', headers, { data });
 
@@ -80,6 +93,7 @@ const signupDataSource = ({ headers }) => ({
     findSignupByEmail(eventId, email, headers),
   findSignupsByEvent: (eventId) => findSignupsByEvent(eventId, headers),
   findSignupById: (signupId) => findSignupById(signupId, headers),
+  findSignupWithPayment: (signupId) => findSignupWithPayment(signupId, headers),
   updateSignup: (signupId, data) => updateSignup(signupId, data, headers),
   createSignupDirect: (data) => createSignupDirect(data, headers),
 });

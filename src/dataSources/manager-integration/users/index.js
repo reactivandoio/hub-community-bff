@@ -56,7 +56,12 @@ const findUserByCpf = async (digits, headers) => {
   return response?.data?.[0] ?? null;
 };
 
+// The user with its users-permissions role (utils/auth decides who is admin).
+const findUserWithRole = async (id, headers) =>
+  fetch(`/users/${encodeURIComponent(id)}?${buildQuery({}, [], {}, '', ['role'])}`, 'GET', headers);
+
 const users = ({ headers }) => ({
+  findUserWithRole: (id) => findUserWithRole(id, headers),
   updateUser: (id, data) => updateUser(id, data, headers),
   findUserByIdIntegration: (id) => findUserById(id, headers),
   findUserByEmail: (email) => findUserByEmail(email, headers),

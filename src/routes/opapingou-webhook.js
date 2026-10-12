@@ -67,7 +67,10 @@ export const mountOpaPingouWebhook = (app, {
 };
 
 // Every minute, the events the Eventando still has pending. Off with the flag.
-export const startOpaPingouSweep = (processor, { env = process.env, intervalMs = SWEEP_INTERVAL_MS } = {}) => {
+export const startOpaPingouSweep = (
+  processor,
+  { env = process.env, intervalMs = SWEEP_INTERVAL_MS } = {},
+) => {
   if (!isEnabled(env)) return null;
   const timer = setInterval(() => {
     processor.sweep().catch((err) => console.error(`[opapingou] varredura: ${err.message}`));
