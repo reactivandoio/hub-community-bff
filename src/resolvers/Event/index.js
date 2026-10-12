@@ -9,6 +9,9 @@ import {
   requireUser,
 } from '../../utils/auth';
 import { holdsPlace, OPAPINGOU } from '../../utils/payment-status';
+import { GraphQLError } from 'graphql';
+import { requirePaymentAccount } from '../../services/opapingou/account-guard';
+import { createOpaPingouEventando } from '../../dataSources/eventando-manager/opapingou';
 
 // Hub-only or retired fields of EventInput the Eventando must not receive (it rejects
 // unknown keys). pixai_*: the Pix Aí no longer exists (REA-15); still accepted from
@@ -518,6 +521,13 @@ const Event = {
 
         const eventandoEventId = event.id;
 
+        // REA-12: a paid lot needs the event's Opa Pingou account. Before any write.
+        await requirePaymentAccount({
+          eventando: ctx.opaPingouEventando || createOpaPingouEventando(),
+          eventUuid: event.uuid || id,
+          products: data.products,
+        });
+
         // 2. Identify existing products and batches to potentially delete
         const existingProducts = event.products || [];
         const inputProductIds = (data.products || [])
@@ -642,6 +652,8 @@ const Event = {
           products: processedProducts.filter(p => !p.deleted),
         };
       } catch (err) {
+        // Errors meant for the person (e.g. OPAPINGOU_ACCOUNT_REQUIRED) go out as they are.
+        if (err instanceof GraphQLError) throw err;
         console.error(`[updateEventSale] Error full trace:`, err);
         throw new Error(`Error updating event sale: ${err.message}`);
       }

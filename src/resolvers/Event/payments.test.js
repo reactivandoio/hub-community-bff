@@ -112,6 +112,43 @@ describe('updateEventSale e o provedor (REA-15)', () => {
   });
 });
 
+describe('updateEventSale: lote pago exige conta Opa Pingou (REA-12)', () => {
+  const sale = (state) => {
+    const dataSources = {
+      eventandoIntegration: {
+        findEvents: vi.fn().mockResolvedValue({ data: [{ id: 42, uuid: 'u1', products: [] }] }),
+        updateEvent: vi.fn().mockResolvedValue({ data: {} }),
+        createProduct: vi.fn().mockResolvedValue({ data: { id: 5 } }),
+        createBatch: vi.fn().mockResolvedValue({ data: { id: 6 } }),
+      },
+    };
+    const opaPingouEventando = { eventConnection: vi.fn().mockResolvedValue(state) };
+    return { dataSources, opaPingouEventando, user: ADMIN };
+  };
+  const products = (value) => [{ name: 'Ingresso', batches: [{ batch_number: 1, value }] }];
+
+  it('lote pago sem conta: recusa com OPAPINGOU_ACCOUNT_REQUIRED antes de gravar', async () => {
+    const ctx = sale({ connection: null, legacy: false });
+    const err = await Event.Mutation.updateEventSale(null, { id: 'u1', data: { products: products(2500) } }, ctx).catch((e) => e);
+    expect(err.extensions.code).toBe('OPAPINGOU_ACCOUNT_REQUIRED');
+    expect(ctx.opaPingouEventando.eventConnection).toHaveBeenCalledWith('u1');
+    expect(ctx.dataSources.eventandoIntegration.createProduct).not.toHaveBeenCalled();
+  });
+
+  it('lote pago com conta: grava', async () => {
+    const ctx = sale({ connection: { id: 'opc_1' }, legacy: false });
+    await Event.Mutation.updateEventSale(null, { id: 'u1', data: { products: products(2500) } }, ctx);
+    expect(ctx.dataSources.eventandoIntegration.createBatch).toHaveBeenCalled();
+  });
+
+  it('lote gratuito sem conta: grava', async () => {
+    const ctx = sale({ connection: null, legacy: false });
+    await Event.Mutation.updateEventSale(null, { id: 'u1', data: { products: products(0) } }, ctx);
+    expect(ctx.dataSources.eventandoIntegration.createBatch).toHaveBeenCalled();
+    expect(ctx.opaPingouEventando.eventConnection).not.toHaveBeenCalled();
+  });
+});
+
 describe('createEvent/updateEvent não repassam campos do Pix Aí', () => {
   it('pixai_token_integration(_id) ficam fora do corpo do Eventando', async () => {
     const dataSources = {
