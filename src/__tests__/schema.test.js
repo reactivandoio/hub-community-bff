@@ -42,4 +42,23 @@ describe('graphql schema', () => {
     expect(Object.keys(schema.getType('BulkEmailResponse').getFields()))
       .toEqual(['success', 'message', 'queued_count']);
   });
+  it('exposes the REA-6 payment and coupon contract the frontend uses', () => {
+    const query = schema.getQueryType().getFields();
+    const mutation = schema.getMutationType().getFields();
+    const argsOf = (field) => field.args.map((a) => `${a.name}: ${a.type}`);
+    expect(argsOf(query.signupPaymentStatus)).toEqual(['signupId: ID!']);
+    expect(argsOf(query.eventPaymentSettings)).toEqual(['eventId: ID!']);
+    expect(argsOf(query.eventPayments)).toEqual(['slugOrId: String!']);
+    expect(argsOf(query.eventCoupons)).toEqual(['eventId: ID!']);
+    expect(argsOf(query.previewCoupon)).toEqual(['eventSlug: String!', 'batchId: ID!', 'code: String!', 'isStudent: Boolean']);
+    expect(argsOf(mutation.signupToEvent)).toEqual(expect.arrayContaining(['cpf: String', 'kind: String']));
+    const status = schema.getType('SignupPaymentStatus').getFields();
+    ['signup_id', 'status', 'provider', 'kind', 'expires_at', 'confirmed_at', 'pix_br_code', 'payment_link', 'value', 'refund_support']
+      .forEach((f) => expect(status[f]).toBeTruthy());
+    const coupon = schema.getType('Coupon').getFields();
+    ['discount_type', 'discount_value_cents', 'starts_at', 'batches', 'uses'].forEach((f) => expect(coupon[f]).toBeTruthy());
+    expect(Object.keys(schema.getType('EventSaleInput').getFields())).toContain('payment_provider');
+    expect(Object.keys(schema.getType('CouponInput').getFields())).toEqual(expect.arrayContaining(['discount_type', 'discount_value_cents', 'starts_at', 'batches']));
+    expect(Object.values(schema.getType('SignupPaymentStatus').getFields()).some((f) => /cpf/i.test(f.name))).toBe(false);
+  });
 });

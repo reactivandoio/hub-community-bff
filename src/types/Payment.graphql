@@ -1,0 +1,46 @@
+"Status of the payment of a signup, for the Pix / payment link step. Public: no personal data."
+type SignupPaymentStatus {
+  signup_id: ID!
+  "PEDING_PAYMENT | CONFIRMED | EXPIRED | CANCELED | REFUND (an Opa Pingou charge past expires_at shows as EXPIRED)."
+  status: String!
+  "pixai | opapingou"
+  provider: String
+  "PIX_QR | PAYMENT_LINK"
+  kind: String
+  expires_at: String
+  confirmed_at: String
+  pix_br_code: String
+  payment_link: String
+  "Cents."
+  value: Float
+  refund_support: RefundSupport
+}
+
+"Refund is manual, through support on WhatsApp. Without a number configured, whatsapp is null."
+type RefundSupport {
+  text: String
+  whatsapp: String
+}
+
+type EventPaymentSettings {
+  "pixai | opapingou"
+  payment_provider: String
+}
+
+type EventPayment {
+  email: String!
+  name: String
+  status: String!
+  "Cents."
+  value: Float
+  expires_at: String
+}
+
+extend type Query {
+  "Null when the signup does not exist or has no payment."
+  signupPaymentStatus(signupId: ID!): SignupPaymentStatus
+  "Admin only. eventId: the Hub id (uuid) or the slug."
+  eventPaymentSettings(eventId: ID!): EventPaymentSettings
+  "Admin only."
+  eventPayments(slugOrId: String!): [EventPayment!]!
+}
