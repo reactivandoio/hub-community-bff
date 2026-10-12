@@ -116,3 +116,59 @@ describe('confirmationSender', () => {
     await expect(confirmationSender(() => ({}))({ signup: { id: 1, email: 'a@b.c' }, event: {} })).rejects.toThrow('smtp');
   });
 });
+
+describe('POST /webhooks/opapingou/:connectionId (REA-12)', () => {
+  const CONN = 'opc_abcdefghij123';
+  const postTo = (id, body, headers = {}) =>
+    fetch(`${base}/webhooks/opapingou/${id}`, { method: 'POST', body, headers: { 'content-type': 'application/json', ...headers } });
+
+  it('o Eventando confere com o segredo da conexão, sobre o corpo cru; grava com a conexão', async () => {
+    eventando.saveEvent.mockClear();
+    eventando.verifyWebhook = vi.fn().mockResolvedValue({ found: true, valid: true, test_mode: false });
+    const sig = `t=${Math.floor(Date.now() / 1000)},v1=${'b'.repeat(64)}`;
+    const res = await postTo(CONN, RAW, { 'opa-signature': sig, 'opa-event-id': 'evt_conn' });
+    expect(res.status).toBe(200);
+    const [id, raw, header] = eventando.verifyWebhook.mock.calls[0];
+    expect(id).toBe(CONN);
+    expect(Buffer.from(raw).toString('utf8')).toBe(RAW);
+    expect(header).toBe(sig);
+    expect(eventando.saveEvent).toHaveBeenCalledWith(expect.objectContaining({ event_id: 'evt_conn', connection: CONN }));
+  });
+
+  it('assinatura que não confere com a conexão: 401 sem gravar', async () => {
+    eventando.saveEvent.mockClear();
+    eventando.verifyWebhook = vi.fn().mockResolvedValue({ found: true, valid: false, reason: 'mismatch' });
+    const res = await postTo(CONN, RAW, { 'opa-signature': signature(RAW) });
+    expect(res.status).toBe(401);
+    expect(eventando.saveEvent).not.toHaveBeenCalled();
+  });
+
+  it('a assinatura do segredo global não vale na URL de uma conexão', async () => {
+    eventando.verifyWebhook = vi.fn().mockResolvedValue({ found: true, valid: false, reason: 'mismatch' });
+    const res = await postTo(CONN, RAW, { 'opa-signature': signature(RAW) });
+    expect(res.status).toBe(401);
+  });
+
+  it('conexão desconhecida: 404', async () => {
+    eventando.verifyWebhook = vi.fn().mockResolvedValue({ found: false, valid: false });
+    const res = await postTo(CONN, RAW, { 'opa-signature': signature(RAW) });
+    expect(res.status).toBe(404);
+  });
+
+  it('id fora do formato: 404 sem perguntar ao Eventando', async () => {
+    eventando.verifyWebhook = vi.fn();
+    for (const id of ['x', 'opc_curto', `opc_${'a'.repeat(80)}`, 'opc_abc%2F..%2Fdef123']) {
+      const res = await postTo(id, RAW, { 'opa-signature': signature(RAW) });
+      expect(res.status).toBe(404);
+    }
+    expect(eventando.verifyWebhook).not.toHaveBeenCalled();
+  });
+
+  it('Eventando fora do ar ao conferir: 500 (o Opa Pingou reenvia) sem gravar', async () => {
+    eventando.saveEvent.mockClear();
+    eventando.verifyWebhook = vi.fn().mockRejectedValue(new Error('Eventando POST falhou (sem resposta)'));
+    const res = await postTo(CONN, RAW, { 'opa-signature': signature(RAW) });
+    expect(res.status).toBe(500);
+    expect(eventando.saveEvent).not.toHaveBeenCalled();
+  });
+});
