@@ -14,6 +14,21 @@ export class EventandoRequestError extends Error {
   }
 }
 
+// A 4xx of the connection routes (REA-12): code and a message meant for the person. Never the key.
+export class OpaPingouConnectionError extends Error {
+  constructor({ code = 'UNKNOWN', message, status = null, missing = null, count = null } = {}) {
+    super(message || 'Não foi possível concluir a operação com o Opa Pingou.');
+    this.name = 'OpaPingouConnectionError';
+    this.code = code;
+    this.status = status;
+    this.missing = Array.isArray(missing) ? missing.map(String) : null;
+    this.count = Number.isInteger(count) ? count : null;
+  }
+}
+
+// Saving a key calls the Opa Pingou up to six times from the Eventando (each with its own deadline).
+const CONNECT_TIMEOUT_MS = 60000;
+
 const unwrap = (body) => (body && body.data !== undefined && !Array.isArray(body) ? body.data : body);
 
 export const createOpaPingouEventando = ({
@@ -22,20 +37,37 @@ export const createOpaPingouEventando = ({
   http = axios,
   timeoutMs = 8000,
 } = {}) => {
-  const request = async (method, route, data) => {
-    let response;
+  const send = async (method, route, data, timeout = timeoutMs) => {
     try {
-      response = await http.request({
+      return await http.request({
         method,
         url: `${baseUrl}/api${route}`,
         data,
-        timeout: timeoutMs,
+        timeout,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         validateStatus: () => true,
       });
     } catch (err) {
       throw new EventandoRequestError(method, route, null);
     }
+  };
+
+  // Connection routes: 4xx with { error: { code, message } } becomes OpaPingouConnectionError.
+  const connectionRequest = async (method, route, data, timeout) => {
+    const response = await send(method, route, data, timeout);
+    if (response.status >= 200 && response.status < 300) return response.data;
+    const error = response.data?.error;
+    if (response.status >= 400 && response.status < 500 && error?.code) {
+      throw new OpaPingouConnectionError({ ...error, status: response.status });
+    }
+    if (response.status === 503 && error?.code) {
+      throw new OpaPingouConnectionError({ ...error, status: response.status });
+    }
+    throw new EventandoRequestError(method, route.replace(/\?.*$/, ''), response.status);
+  };
+
+  const request = async (method, route, data) => {
+    const response = await send(method, route, data);
     if (response.status < 200 || response.status >= 300) {
       throw new EventandoRequestError(method, route, response.status);
     }
@@ -58,6 +90,48 @@ export const createOpaPingouEventando = ({
         throw err;
       }
     },
+
+    // REA-12: is `signature` (Opa-Signature) valid for this raw body with the secret of the
+    // connection `publicId`? The secret stays in the Eventando. → { found, valid, reason?, test_mode? }
+    verifyWebhook: async (publicId, rawBody, signature) => {
+      const body = await request('POST', `/opapingou/connections/${encodeURIComponent(publicId)}/verify`, {
+        raw_body: Buffer.from(rawBody).toString('base64'),
+        signature: signature || '',
+      });
+      return unwrap(body) || {};
+    },
+
+    // → { connection: summary | null, legacy }
+    eventConnection: async (eventUuid) =>
+      connectionRequest('GET', `/opapingou/connections/event/${encodeURIComponent(eventUuid)}`),
+
+    // → [summary + event_uuids + created_by] of every active connection
+    listConnections: async () => {
+      const body = await connectionRequest('GET', '/opapingou/connections');
+      return Array.isArray(body?.data) ? body.data : [];
+    },
+
+    // The key goes only in this body: never in a log line or an error message.
+    connect: async ({ eventUuid, apiKey, createdBy, createdByName }) => {
+      const body = await connectionRequest('POST', '/opapingou/connections', {
+        event_uuid: eventUuid,
+        api_key: apiKey,
+        created_by: createdBy,
+        created_by_name: createdByName,
+      }, CONNECT_TIMEOUT_MS);
+      return body?.connection || null;
+    },
+
+    attach: async (eventUuid, publicId) => {
+      const body = await connectionRequest(
+        'PUT',
+        `/opapingou/connections/${encodeURIComponent(publicId)}/events/${encodeURIComponent(eventUuid)}`,
+      );
+      return body?.connection || null;
+    },
+
+    detach: async (eventUuid) =>
+      connectionRequest('DELETE', `/opapingou/connections/event/${encodeURIComponent(eventUuid)}`),
 
     // → [{ eventId, type }] of events saved but not processed yet.
     pendingEvents: async (olderThanSeconds = 60) => {

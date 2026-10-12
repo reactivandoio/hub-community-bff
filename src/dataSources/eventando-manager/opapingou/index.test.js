@@ -53,3 +53,65 @@ describe('Eventando: rotas do Opa Pingou', () => {
     ]);
   });
 });
+
+describe('Eventando: conexões Opa Pingou (REA-12)', () => {
+  const KEY = `opk_live_${'k'.repeat(43)}`;
+
+  it('connect manda a chave só no corpo e devolve o resumo', async () => {
+    const summary = { id: 'opc_1', company_name: 'Empresa', key_last4: 'kkkk' };
+    const { http, client } = make([{ status: 200, data: { connection: summary } }]);
+    expect(await client.connect({ eventUuid: 'ev-1', apiKey: KEY, createdBy: 'u-1', createdByName: 'Ana' })).toEqual(summary);
+    const call = http.request.mock.calls[0][0];
+    expect(call).toMatchObject({ method: 'POST', url: 'https://ev.test/api/opapingou/connections' });
+    expect(call.data).toEqual({ event_uuid: 'ev-1', api_key: KEY, created_by: 'u-1', created_by_name: 'Ana' });
+    expect(call.url).not.toContain(KEY);
+    expect(call.timeout).toBeGreaterThanOrEqual(45000);
+  });
+
+  it('4xx com código vira OpaPingouConnectionError com a mensagem para a pessoa', async () => {
+    const { client } = make([{ status: 400, data: { error: { code: 'MISSING_SCOPES', message: 'Faltam permissões', missing: ['charges:write'] } } }]);
+    const err = await client.connect({ eventUuid: 'ev-1', apiKey: KEY }).catch((e) => e);
+    expect(err.name).toBe('OpaPingouConnectionError');
+    expect(err.code).toBe('MISSING_SCOPES');
+    expect(err.message).toBe('Faltam permissões');
+    expect(err.missing).toEqual(['charges:write']);
+    expect(JSON.stringify(err)).not.toContain(KEY);
+  });
+
+  it('500 ou rede: EventandoRequestError sem a chave', async () => {
+    const { client } = make([{ status: 500, data: {} }, new Error(`boom ${KEY}`)]);
+    const e1 = await client.connect({ eventUuid: 'ev-1', apiKey: KEY }).catch((e) => e);
+    expect(e1.name).toBe('EventandoRequestError');
+    const e2 = await client.connect({ eventUuid: 'ev-1', apiKey: KEY }).catch((e) => e);
+    expect(e2.message).not.toContain(KEY);
+  });
+
+  it('verifyWebhook manda o corpo cru em base64 e a assinatura', async () => {
+    const { http, client } = make([{ status: 200, data: { found: true, valid: true, test_mode: false } }]);
+    const raw = Buffer.from('{ "id": "evt" }');
+    expect(await client.verifyWebhook('opc_1', raw, 't=1,v1=ab')).toEqual({ found: true, valid: true, test_mode: false });
+    const call = http.request.mock.calls[0][0];
+    expect(call.url).toBe('https://ev.test/api/opapingou/connections/opc_1/verify');
+    expect(Buffer.from(call.data.raw_body, 'base64').toString()).toBe('{ "id": "evt" }');
+    expect(call.data.signature).toBe('t=1,v1=ab');
+  });
+
+  it('eventConnection, listConnections, attach e detach usam as rotas certas', async () => {
+    const { http, client } = make([
+      { status: 200, data: { connection: null, legacy: true } },
+      { status: 200, data: { data: [{ id: 'opc_1', event_uuids: ['ev-1'] }] } },
+      { status: 200, data: { connection: { id: 'opc_1' } } },
+      { status: 200, data: { connection: null, legacy: false } },
+    ]);
+    expect(await client.eventConnection('ev-1')).toEqual({ connection: null, legacy: true });
+    expect(await client.listConnections()).toEqual([{ id: 'opc_1', event_uuids: ['ev-1'] }]);
+    expect(await client.attach('ev-1', 'opc_1')).toEqual({ id: 'opc_1' });
+    expect(await client.detach('ev-1')).toEqual({ connection: null, legacy: false });
+    expect(http.request.mock.calls.map(([c]) => `${c.method} ${c.url.replace('https://ev.test/api', '')}`)).toEqual([
+      'GET /opapingou/connections/event/ev-1',
+      'GET /opapingou/connections',
+      'PUT /opapingou/connections/opc_1/events/ev-1',
+      'DELETE /opapingou/connections/event/ev-1',
+    ]);
+  });
+});

@@ -1,0 +1,40 @@
+"An Opa Pingou account connected by a community (REA-12). Never the key nor the webhook secret: only what identifies the account."
+type OpaPingouConnection {
+  id: ID!
+  "Company legal name in the Opa Pingou."
+  companyName: String
+  "Masked CNPJ: **.***.***/0001-90"
+  companyDocument: String
+  "true for an opk_test_ key (only accepted outside production)."
+  testMode: Boolean!
+  "Last 4 characters of the key."
+  keyLast4: String
+  createdByName: String
+  createdAt: String
+}
+
+"Which Opa Pingou account charges the paid lots of an event."
+type EventOpaPingouAccount {
+  "The account of the event; null when it has none."
+  connection: OpaPingouConnection
+  "Event created before REA-12, still charging through the Hub account until it connects its own."
+  legacy: Boolean!
+  "false when the event has no Eventando record yet (save it first)."
+  available: Boolean!
+  "Accounts this person may reuse on this event: admin sees all; a community-manager, the ones they connected or that are on events they organize."
+  reusable: [OpaPingouConnection!]!
+}
+
+extend type Query {
+  "Admin, or community-manager organizing the event. eventId: Hub id or slug."
+  eventOpaPingouAccount(eventId: ID!): EventOpaPingouAccount!
+}
+
+extend type Mutation {
+  "Validates the opk_ key with the Opa Pingou, registers the Hub webhook in that account and links it to the event. The key is never returned."
+  connectEventOpaPingou(eventId: ID!, apiKey: String!): EventOpaPingouAccount!
+  "Links an account already connected (one of `reusable`) to the event."
+  useOpaPingouConnection(eventId: ID!, connectionId: ID!): EventOpaPingouAccount!
+  "Unlinks the account from the event; refused while a Pix of the event is open."
+  disconnectEventOpaPingou(eventId: ID!): EventOpaPingouAccount!
+}
