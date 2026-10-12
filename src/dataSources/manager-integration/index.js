@@ -14,6 +14,7 @@ import certificateRequestForms from './certificate-request-forms';
 import accountSetup from './account-setup';
 import authz from './authz';
 import voting from './voting';
+import adminUsers from './admin-users';
 
 const managerIntegration = ({ headers }) => ({
   ...analyticsEvents({ headers }),
@@ -32,6 +33,7 @@ const managerIntegration = ({ headers }) => ({
   ...accountSetup({ headers }),
   ...authz({ headers }),
   ...voting({ headers }),
+  ...adminUsers({ headers }),
 });
 
 export default managerIntegration;

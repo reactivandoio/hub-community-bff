@@ -19,13 +19,16 @@ modules.forEach(({ default: resolver }) => {
   ['Query', 'Mutation', 'Subscription'].forEach((type) => Object.assign(resolvers[type], resolver[type]));
 });
 
-const ANA = { id: 1, documentId: 'u-ana', email: 'ana@x.io', role: { type: 'authenticated' } };
+// Ana organizes c-1 with the community-manager role; Caio is listed as organizer of c-1
+// too but has no role, which alone grants nothing.
+const ANA = { id: 1, documentId: 'u-ana', email: 'ana@x.io', role: { type: 'community-manager' } };
+const CAIO = { id: 3, documentId: 'u-caio', email: 'caio@x.io', role: { type: 'authenticated' } };
 const BIA = { id: 2, documentId: 'u-bia', email: 'bia@x.io', role: { type: 'authenticated' } };
 
 const EVENT = {
   documentId: 'ev-1',
   slug: 'meetup',
-  communities: [{ documentId: 'c-1', organizers: [{ documentId: 'u-ana' }] }],
+  communities: [{ documentId: 'c-1', organizers: [{ documentId: 'u-ana' }, { documentId: 'u-caio' }] }],
 };
 
 // A data source whose every call fails loudly: a refused request must never reach it.
@@ -37,7 +40,7 @@ const untouchable = () => new Proxy({}, {
 const authzDataSources = () => ({
   managerIntegration: new Proxy({
     findEventWithOrganizers: vi.fn().mockResolvedValue(EVENT),
-    findCommunityWithOrganizers: vi.fn().mockResolvedValue({ documentId: 'c-1', organizers: [{ documentId: 'u-ana' }] }),
+    findCommunityWithOrganizers: vi.fn().mockResolvedValue({ documentId: 'c-1', organizers: [{ documentId: 'u-ana' }, { documentId: 'u-caio' }] }),
     findTalkWithEvent: vi.fn().mockResolvedValue({ documentId: 't-1', event: { documentId: 'ev-1' } }),
     findCertificateRequestFormWithEvent: vi.fn().mockResolvedValue({ documentId: 'f-1', event: { documentId: 'ev-1' } }),
     findCommentWithAuthor: vi.fn().mockResolvedValue({ documentId: 'cm-1', user_creator: { documentId: 'u-ana' } }),
@@ -123,11 +126,11 @@ const PROTECTED = [
   ['Mutation', 'updateVotingOption', { id: 'vo-1', data: {} }, 'admin'],
   ['Mutation', 'deleteVotingOption', { id: 'vo-1' }, 'admin'],
   ['Subscription', 'credentialCheckedIn', ev, 'organizer'],
+  ['Query', 'adminUsers', {}, 'admin'],
+  ['Query', 'adminRoles', {}, 'admin'],
+  ['Query', 'roleChanges', {}, 'admin'],
+  ['Mutation', 'setUserRole', { userId: '2', roleType: 'admin' }, 'admin'],
 ];
-
-beforeEach(() => {
-  delete process.env.ADMIN_EMAILS;
-});
 
 describe('protected operations', () => {
   it.each(PROTECTED)('%s.%s refuses an anonymous request before any data source', async (type, name, args) => {
@@ -138,6 +141,14 @@ describe('protected operations', () => {
     expect(await codeOf(() => call(type, name, args, { user: BIA, dataSources: authzDataSources() })))
       .toBe('FORBIDDEN');
   });
+
+  it.each(PROTECTED.filter(([, , , who]) => who === 'organizer'))(
+    '%s.%s refuses an organizer without the community-manager role',
+    async (type, name, args) => {
+      expect(await codeOf(() => call(type, name, args, { user: CAIO, dataSources: authzDataSources() })))
+        .toBe('FORBIDDEN');
+    },
+  );
 
   it.each(PROTECTED.filter(([, , , who]) => who === 'admin'))(
     '%s.%s refuses an event organizer too (admin only)',
