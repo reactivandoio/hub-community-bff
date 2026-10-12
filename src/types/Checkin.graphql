@@ -47,12 +47,16 @@ input ManualSignupInput {
   email: String!
   cpf: String
   phone_number: String
+  "YYYY-MM-DD. Saved on the account when it has none; an invalid date fails the signup."
+  date_of_birth: String
 }
 
 type ManualSignupResponse {
   success: Boolean!
   message: String
   account_created: Boolean
+  "How the existing account was found: cpf (checked first) or email; null when it was created."
+  matched_by: String
   "The signup (created or pre-existing), so the caller can print a badge right away."
   signup: EventSignup
 }

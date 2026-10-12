@@ -60,4 +60,20 @@ describe('signupConfirmationTemplate', () => {
     const html = signupConfirmationTemplate({ ...base, needsEmailConfirmation: true });
     expect(html).not.toContain('Confirme sua conta');
   });
+
+  it('invites to the share-art page of the event, by slug', () => {
+    const html = signupConfirmationTemplate(base);
+    expect(html).toContain('Criar minha arte');
+    expect(html).toContain('href="https://hub.test/events/meetup/arte"');
+    expect(html).toContain('É só entrar no Hub Community com este email.');
+  });
+
+  it('tells a new account to create the password before the art', () => {
+    const html = signupConfirmationTemplate({
+      ...base,
+      setPasswordUrl: 'https://hub.test/criar-senha?code=tok',
+    });
+    expect(html).toContain('Primeiro crie sua senha no botão acima');
+    expect(html.indexOf('criar-senha?code=tok')).toBeLessThan(html.indexOf('/events/meetup/arte'));
+  });
 });

@@ -21,6 +21,8 @@
  *        shows the image only when it is set
  * @param {string} [params.setPasswordUrl] - Link for an account without a password
  *        yet; renders the "Crie sua senha" block
+ *
+ * Every confirmation also invites the attendee to the share-art page of the event.
  */
 export const signupConfirmationTemplate = ({
   userName,
@@ -41,6 +43,9 @@ export const signupConfirmationTemplate = ({
   setPasswordUrl = null,
 }) => {
   const eventUrl = `${baseUrl}/events/${eventSlug}`;
+  // hub-community-frontend /events/[id]/arte: the "me inscrevi" art generator. It
+  // takes the slug and needs a logged-in, signed-up user, hence the login hint.
+  const artUrl = `${baseUrl}/events/${encodeURIComponent(eventSlug)}/arte`;
   const truncatedDescription = eventDescription
     ? eventDescription.length > 200
       ? eventDescription.substring(0, 200) + '...'
@@ -195,6 +200,23 @@ export const signupConfirmationTemplate = ({
                       </p>
                     </div>
                     ` : ''}
+
+                    <!-- Share art -->
+                    <div style="margin-top:20px;padding:20px;background-color:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.3);border-radius:12px;">
+                      <div style="margin-bottom:8px;">
+                        <span style="font-size:18px;">📸</span>
+                        <span style="font-size:14px;font-weight:600;color:#c084fc;">Crie sua arte de inscrito</span>
+                      </div>
+                      <p style="margin:0;font-size:14px;line-height:1.6;color:#d1d5db;">
+                        Monte uma imagem com sua foto dizendo que você vai ao <strong style="color:#ffffff;">${eventTitle}</strong> e compartilhe nos Stories ou no Feed.
+                        ${setPasswordUrl ? 'Primeiro crie sua senha no botão acima; depois é só entrar com este email.' : 'É só entrar no Hub Community com este email.'}
+                      </p>
+                      <p style="margin:16px 0 0;text-align:center;">
+                        <a href="${artUrl}" style="display:inline-block;padding:12px 28px;background-color:#a855f7;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;border-radius:50px;">
+                          Criar minha arte
+                        </a>
+                      </p>
+                    </div>
 
                     <!-- CTA Button -->
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:24px;">

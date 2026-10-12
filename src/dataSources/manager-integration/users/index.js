@@ -44,11 +44,24 @@ const findUsersByEmails = async (emails, headers) => {
   return results;
 };
 
+// The CPF is kept as 11 digits by the BFF, but accounts created in the app may
+// have it formatted (000.000.000-00), so both spellings are asked for.
+const findUserByCpf = async (digits, headers) => {
+  if (!/^\d{11}$/.test(digits || '')) return null;
+  const formatted = digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  const params = new URLSearchParams();
+  [digits, formatted].forEach((cpf, index) => params.append(`filters[cpf][$in][${index}]`, cpf));
+  params.append('pagination[pageSize]', '1');
+  const response = await fetch(`/users?${params.toString()}`, 'GET', headers);
+  return response?.data?.[0] ?? null;
+};
+
 const users = ({ headers }) => ({
   updateUser: (id, data) => updateUser(id, data, headers),
   findUserByIdIntegration: (id) => findUserById(id, headers),
   findUserByEmail: (email) => findUserByEmail(email, headers),
   findUsersByEmails: (emails) => findUsersByEmails(emails, headers),
+  findUserByCpf: (digits) => findUserByCpf(digits, headers),
 });
 
 export default users;
