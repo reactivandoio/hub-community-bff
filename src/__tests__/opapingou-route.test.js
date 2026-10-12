@@ -172,3 +172,13 @@ describe('POST /webhooks/opapingou/:connectionId (REA-12)', () => {
     expect(eventando.saveEvent).not.toHaveBeenCalled();
   });
 });
+
+describe('limite de corpo da rota por conexão', () => {
+  it('corpo acima de 512 KB: 413 sem perguntar ao Eventando', async () => {
+    eventando.verifyWebhook = vi.fn();
+    const big = JSON.stringify({ id: 'evt_big', pad: 'x'.repeat(600 * 1024) });
+    const res = await fetch(`${base}/webhooks/opapingou/opc_abcdefghij123`, { method: 'POST', body: big, headers: { 'content-type': 'application/json', 'opa-signature': 't=1,v1=ab' } });
+    expect(res.status).toBe(413);
+    expect(eventando.verifyWebhook).not.toHaveBeenCalled();
+  });
+});

@@ -67,9 +67,9 @@ export const mountOpaPingouWebhook = (app, {
     }
   };
 
-  const raw = express.raw({ type: '*/*', limit: '1mb' });
-  app.post(OPAPINGOU_WEBHOOK_PATH, raw, handle(null));
-  app.post(`${OPAPINGOU_WEBHOOK_PATH}/:connectionId`, raw, (req, res) => {
+  app.post(OPAPINGOU_WEBHOOK_PATH, express.raw({ type: '*/*', limit: '1mb' }), handle(null));
+  // 512 KB: goes on to the Eventando in base64 (+33%), under Strapi's 1 MB JSON limit.
+  app.post(`${OPAPINGOU_WEBHOOK_PATH}/:connectionId`, express.raw({ type: '*/*', limit: '512kb' }), (req, res) => {
     const { connectionId } = req.params;
     // Not an id we hand out: answer like an unknown route, without asking the Eventando.
     if (!CONNECTION_ID_PATTERN.test(connectionId || '')) return res.status(404).json({ error: 'not found' });

@@ -93,6 +93,17 @@ describe('eventOpaPingouAccount', () => {
   });
 });
 
+describe('reutilização: checagem estrita do evento', () => {
+  it('slug igual ao documentId de outro evento não conta como organizar esse evento', async () => {
+    // A busca casa slug OU documentId: "ev-x" aqui devolve um evento de Ana cujo slug é "ev-x".
+    const ctx = ctxFor(ANA, fakeEventando({ listConnections: vi.fn().mockResolvedValue([summary('opc_victim', { event_uuids: ['ev-x'] })]) }));
+    ctx.dataSources.managerIntegration.findEventWithOrganizers = vi.fn(async (id) =>
+      id === 'ev-x' ? { documentId: 'ev-ana-3', slug: 'ev-x', communities: [{ organizers: [{ documentId: 'u-ana' }] }] } : EVENTS[id] || null);
+    const out = await Query.eventOpaPingouAccount(null, { eventId: 'ev-1' }, ctx);
+    expect(out.reusable).toEqual([]);
+  });
+});
+
 describe('connectEventOpaPingou', () => {
   it('manda a chave ao Eventando com quem conectou e nunca a devolve', async () => {
     const eventando = fakeEventando();

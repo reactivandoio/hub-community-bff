@@ -1,6 +1,6 @@
 import { GraphQLError } from 'graphql';
 import {
-  requireEventOrganizer, requireUser, isAdmin, isEventOrganizer,
+  requireEventOrganizer, requireUser, isAdmin, isCommunityManager, organizerIdsOfEvent,
 } from '../../utils/auth';
 import {
   createOpaPingouEventando, OpaPingouConnectionError,
@@ -49,9 +49,17 @@ const eventUuidOf = async (ctx, eventId) => {
   return event.documentId;
 };
 
+// Strict: the lookup also matches slugs, so a slug equal to another event's documentId must not
+// count as organizing that event.
+const organizesEvent = async (ctx, user, uuid) => {
+  const event = await ctx.dataSources.managerIntegration.findEventWithOrganizers(String(uuid));
+  return event?.documentId === uuid && organizerIdsOfEvent(event).has(user.documentId);
+};
+
 const reusableFor = async (ctx, all) => {
   const user = requireUser(ctx);
   if (isAdmin(user)) return all;
+  if (!isCommunityManager(user)) return [];
   let checks = 0;
   const allowed = [];
   for (const connection of all) {
@@ -62,7 +70,7 @@ const reusableFor = async (ctx, all) => {
         if (checks >= MAX_ORGANIZER_CHECKS) break;
         checks += 1;
         // eslint-disable-next-line no-await-in-loop
-        if (await isEventOrganizer(ctx, uuid)) {
+        if (await organizesEvent(ctx, user, uuid)) {
           allowed.push(connection);
           break;
         }
