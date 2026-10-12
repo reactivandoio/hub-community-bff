@@ -14,6 +14,7 @@ import { makeExecutableSchema } from '@graphql-tools/schema';
 import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/lib/use/ws';
 import { createAuthContext } from './utils/auth';
+import { clientIpOf } from './utils/client-ip';
 
 import getTypes from './types';
 import getResolvers from './resolvers';
@@ -175,6 +176,8 @@ const startServer = async () => {
           user,
           dataSources: dataSourcesInstance,
           acceptLanguage,
+          // REA-22: attempt limits of the signup without login.
+          clientIp: clientIpOf(req),
         };
       },
     }),

@@ -121,6 +121,10 @@ type SignupResponse {
   is_free: Boolean
   "Id of the created signup (EventSignup.id) — the kiosk reads it from the ticket QR."
   signup_id: String
+  "REA-22, signup without login: NEW_ACCOUNT | EXISTING_ACCOUNT | CPF_OWNER | ALREADY_SIGNED_UP. Null when signed in."
+  outcome: String
+  "REA-22: where the confirmation went — the e-mail typed, or another account's masked (glad****@***ail.com)."
+  confirmation_sent_to: String
 }
 
 type Subscription {

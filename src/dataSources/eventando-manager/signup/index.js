@@ -84,6 +84,14 @@ const findSignupWithPayment = async (signupId, headers) => {
 const updateSignup = (signupId, data, headers) =>
   fetch(`/signups/${signupId}`, 'PUT', headers, { data });
 
+// REA-22: who already holds the event's signup, by CPF or by one of the e-mails
+// (integration token only). Resolves { signup_id, email, name, payment_status, kind,
+// value } or null. The CPF never comes back.
+const findSignupHolder = async (eventId, { cpf, emails }, headers) => {
+  const response = await fetch(`/signup-holder/${eventId}`, 'POST', headers, { cpf, emails });
+  return response?.data?.holder || null;
+};
+
 const createSignupDirect = (data, headers) =>
   fetch('/signups', 'POST', headers, { data });
 
@@ -96,6 +104,7 @@ const signupDataSource = ({ headers }) => ({
   findSignupWithPayment: (signupId) => findSignupWithPayment(signupId, headers),
   updateSignup: (signupId, data) => updateSignup(signupId, data, headers),
   createSignupDirect: (data) => createSignupDirect(data, headers),
+  findSignupHolder: (eventId, query) => findSignupHolder(eventId, query, headers),
 });
 
 export default signupDataSource;

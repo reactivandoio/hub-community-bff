@@ -10,8 +10,16 @@ const accountSetup = async ({ email, name, phone }, headers) => {
   return response?.data;
 };
 
+// REA-22: [{ email, pending }] for the e-mails that have an account; pending = no
+// password of its own yet (registration not finished).
+const accountStatus = async (emails, headers) => {
+  const response = await fetch('/account-status', 'POST', headers, { emails });
+  return response?.data?.accounts || [];
+};
+
 const accountSetupDataSource = ({ headers }) => ({
   accountSetup: (data) => accountSetup(data, headers),
+  accountStatus: (emails) => accountStatus(emails, headers),
 });
 
 export default accountSetupDataSource;

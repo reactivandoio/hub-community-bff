@@ -25,10 +25,11 @@ const ADMIN = { id: 1, email: 'admin@x.io', role: { type: 'admin' } };
 
 const args = { eventId: 'meetup', name: 'Ana', email: 'ana@x.io', batch_id: '3', cpf: '529.982.247-25', kind: 'PIX_QR' };
 
+// Signed in (the signup without login is services/guest-signup).
 describe('signupToEvent com Opa Pingou', () => {
   it('repassa cpf e kind ao Eventando', async () => {
     const dataSources = makeDataSources({ signup: { data: { id: 9, is_free: true } } });
-    await Event.Mutation.signupToEvent(null, args, { dataSources });
+    await Event.Mutation.signupToEvent(null, args, { dataSources, user: ANA });
     expect(dataSources.eventandoIntegration.signup).toHaveBeenCalledWith(42, expect.objectContaining({
       cpf: '529.982.247-25', kind: 'PIX_QR', batch_id: 3,
     }));
@@ -36,7 +37,7 @@ describe('signupToEvent com Opa Pingou', () => {
 
   it('pago no Opa Pingou: não manda o e-mail agora (vai na confirmação do webhook)', async () => {
     const dataSources = makeDataSources({ signup: { data: { id: 9, is_free: false, payment_provider: 'opapingou', pix_br_code: '0002' } } });
-    const out = await Event.Mutation.signupToEvent(null, args, { dataSources });
+    const out = await Event.Mutation.signupToEvent(null, args, { dataSources, user: ANA });
     expect(out.success).toBe(true);
     expect(out.payment.pix_br_code).toBe('0002');
     expect(sendSignupConfirmation).not.toHaveBeenCalled();
@@ -44,26 +45,26 @@ describe('signupToEvent com Opa Pingou', () => {
 
   it('gratuito (inclusive cupom de 100%) no Opa Pingou: e-mail na hora', async () => {
     const dataSources = makeDataSources({ signup: { data: { id: 9, is_free: true, payment_provider: 'opapingou' } } });
-    await Event.Mutation.signupToEvent(null, args, { dataSources });
+    await Event.Mutation.signupToEvent(null, args, { dataSources, user: ANA });
     expect(sendSignupConfirmation).toHaveBeenCalledTimes(1);
   });
 
   it('pago sem provedor na resposta também espera o webhook', async () => {
     const dataSources = makeDataSources({ signup: { data: { id: 9, is_free: false } } });
-    await Event.Mutation.signupToEvent(null, args, { dataSources });
+    await Event.Mutation.signupToEvent(null, args, { dataSources, user: ANA });
     expect(sendSignupConfirmation).not.toHaveBeenCalled();
   });
 
   it('o CPF nunca volta na resposta', async () => {
     const dataSources = makeDataSources({ signup: { data: { id: 9, is_free: true, cpf: '52998224725', signup: { cpf: '52998224725', name: 'Ana' } } } });
-    const out = await Event.Mutation.signupToEvent(null, args, { dataSources });
+    const out = await Event.Mutation.signupToEvent(null, args, { dataSources, user: ANA });
     expect(JSON.stringify(out)).not.toContain('52998224725');
   });
 
   it('erro de CPF do Eventando chega como mensagem', async () => {
     const dataSources = makeDataSources();
     dataSources.eventandoIntegration.signup.mockRejectedValue(new Error('Informe um CPF válido.'));
-    const out = await Event.Mutation.signupToEvent(null, { ...args, cpf: '1' }, { dataSources });
+    const out = await Event.Mutation.signupToEvent(null, { ...args, cpf: '1' }, { dataSources, user: ANA });
     expect(out).toMatchObject({ success: false, message: 'Informe um CPF válido.' });
   });
 });
@@ -126,5 +127,14 @@ describe('createEvent/updateEvent não repassam campos do Pix Aí', () => {
     expect(sent).not.toHaveProperty('pixai_token_integration');
     expect(sent).not.toHaveProperty('pixai_token_integration_id');
     expect(sent).toMatchObject({ name: 'Meetup', uuid: 'ev1' });
+  });
+});
+
+describe('signupToEvent sem sessão (REA-22)', () => {
+  it('vai para a inscrição sem login: CPF inválido é recusado antes do Eventando', async () => {
+    const dataSources = makeDataSources({ signup: { data: { id: 9, is_free: true } } });
+    const out = await Event.Mutation.signupToEvent(null, { ...args, cpf: '529.982.247-24' }, { dataSources, clientIp: '1.2.3.4' });
+    expect(out).toMatchObject({ success: false, message: 'Informe um CPF válido.' });
+    expect(dataSources.eventandoIntegration.signup).not.toHaveBeenCalled();
   });
 });

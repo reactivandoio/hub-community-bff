@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import pubsub from '../../dataSources/pubsub';
 import { sendSignupConfirmation } from '../../services/email/signup-confirmation';
+import { guestSignupToEvent } from '../../services/guest-signup';
 import { signupIdOf } from '../../utils/signup-id';
 import {
   requireCommunitiesOrganizer,
@@ -685,8 +686,17 @@ const Event = {
         cpf,
         kind,
       },
-      { dataSources },
+      { dataSources, user, clientIp },
     ) => {
+      // REA-22: without a session it is the signup without login (CPF and e-mail rules,
+      // attempt limits, no session afterwards).
+      if (!user) {
+        return guestSignupToEvent({
+          dataSources,
+          clientIp,
+          args: { eventId, name, email, batch_id, coupon_code, is_student, phone_number, cpf, kind },
+        });
+      }
       try {
         // Resolve the Eventando Manager internal ID from slug/uuid
         const eventandoResponse = await dataSources.eventandoIntegration.findEventBySlug(eventId);

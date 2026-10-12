@@ -22,6 +22,7 @@ import {
   normalizeCategory,
 } from './categories';
 import { sendCertificateEmail } from './email';
+import { pendingAccount, remindRegistration, PENDING_ADMIN_SUFFIX } from '../../utils/registration';
 import { requireEventOrganizer, requireUser as requireAuthenticated } from '../../utils/auth';
 
 export const requireUser = (user) => {
@@ -259,6 +260,9 @@ const Certificate = {
       let certificate = null;
       if (eligible && config?.enabled && eventEnded) {
         const user = attendance.users_permissions_user;
+        // REA-22: no certificate while the registration is not finished.
+        const pending = await pendingAccount(dataSources, { cpf, email: user.email });
+        if (pending) throw new Error(await remindRegistration(dataSources, pending, event.title));
         const created = await dataSources.managerIntegration.createCertificate({
           event: eventId,
           name: user.name || user.username,
@@ -362,6 +366,10 @@ const Certificate = {
         return mapCertificate(existingCertificate);
       }
 
+      // REA-22: no certificate while the registration is not finished.
+      const pending = await pendingAccount(dataSources, { cpf, email });
+      if (pending) throw new Error(await remindRegistration(dataSources, pending, event.title));
+
       const created = await dataSources.managerIntegration.createCertificate({
         event: eventId,
         name: name.trim(),
@@ -397,6 +405,12 @@ const Certificate = {
         if (!identifier) throw new Error(`${label}: CPF ou e-mail válido é obrigatório`);
         if (!entry.email?.trim()) throw new Error(`${label}: e-mail obrigatório`);
         if (!(entry.name || '').trim()) throw new Error(`${label}: nome obrigatório`);
+        // REA-22: no certificate while the registration is not finished (the link goes again).
+        const pending = await pendingAccount(dataSources, { cpf: identifier, email: entry.email });
+        if (pending) {
+          await remindRegistration(dataSources, pending, event?.title);
+          throw new Error(`${label}: ${PENDING_ADMIN_SUFFIX}`);
+        }
 
         const created = await dataSources.managerIntegration.createCertificate({
           event: eventId,
