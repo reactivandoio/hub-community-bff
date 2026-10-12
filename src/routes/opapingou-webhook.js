@@ -53,7 +53,9 @@ export const mountOpaPingouWebhook = (app, {
           headers: req.headers,
           env,
           store: { save: (event) => eventando.saveEvent(event) },
-          schedule: (item) => defer(() => proc.processEvent(item)),
+          schedule: (item) => defer(() => proc.processEvent(item).catch((err) => {
+            console.error(`[opapingou] processamento do evento ${item.eventId}: ${err.message}`);
+          })),
         });
         res.status(status).json(body);
       } catch (err) {
