@@ -66,9 +66,12 @@ type ProductAnalytics {
 type BatchAnalytics {
   batch_id: String
   batch_number: Int
+  "Batch price, in cents."
   value: Float
   max_quantity: Int
+  "Signups whose payment is CONFIRMED (free ones included); pending, expired, canceled and refunded are left out."
   sold_quantity: Int!
+  "Sum of what those signups actually paid, in cents (coupon and half price applied)."
   revenue: Float!
 }
 

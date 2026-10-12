@@ -3,8 +3,17 @@ import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import { checkinMetrics, eventDays, signupOrigin } from '../../utils/checkin-analytics';
 import { withCpf } from '../../utils/signup-cpf';
 import { requireEventOrganizer } from '../../utils/auth';
+import { CONFIRMED } from '../../utils/payment-status';
 
 dotenv.config();
+
+// A sale is a confirmed payment (free ones are CONFIRMED with value 0). Pending,
+// expired, canceled and refunded signups hold no place and brought no money.
+const isSold = (signup) => signup.payment?.status === CONFIRMED;
+
+// What was actually paid, in cents (coupon and half price already applied; old
+// Pix Aí payments were stored in cents too).
+const paidCents = (signup) => Number(signup.payment?.value) || 0;
 
 /**
  * Analytics resolver — aggregates data from Hub Community Manager + Eventando Manager
@@ -114,8 +123,9 @@ const Analytics = {
         const products = eventandoEvent?.products || [];
         const productsBreakdown = products
           .map(product => {
-            // Count signups per product/batch
+            // Count sales (confirmed payments) per product/batch
             const productSignups = allSignups.filter(s => {
+              if (!isSold(s)) return false;
               const paymentProductId = s.payment?.batch?.product?.documentId || s.payment?.batch?.product?.id || s.payment?.batch?.product;
               return paymentProductId === product.documentId || paymentProductId === product.id;
             });
@@ -123,6 +133,7 @@ const Analytics = {
             const batches = (product.batches || [])
               .map(batch => {
                 const batchSignups = allSignups.filter(s => {
+                  if (!isSold(s)) return false;
                   const paymentBatchId = s.payment?.batch?.documentId || s.payment?.batch?.id || s.payment?.batch;
                   return paymentBatchId === batch.documentId || paymentBatchId === batch.id;
                 });
@@ -134,7 +145,7 @@ const Analytics = {
                   value: batchValue,
                   max_quantity: batch.max_quantity,
                   sold_quantity: batchSignups.length,
-                  revenue: batchSignups.length * batchValue,
+                  revenue: batchSignups.reduce((sum, s) => sum + paidCents(s), 0),
                   deleted: batch.deleted || false,
                 };
               })
