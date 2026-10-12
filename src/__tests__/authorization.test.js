@@ -130,6 +130,10 @@ const PROTECTED = [
   ['Query', 'adminRoles', {}, 'admin'],
   ['Query', 'roleChanges', {}, 'admin'],
   ['Mutation', 'setUserRole', { userId: '2', roleType: 'admin' }, 'admin'],
+  ['Query', 'eventOpaPingouAccount', { eventId: 'ev-1' }, 'organizer'],
+  ['Mutation', 'connectEventOpaPingou', { eventId: 'ev-1', apiKey: 'opk_live_x' }, 'organizer'],
+  ['Mutation', 'useOpaPingouConnection', { eventId: 'ev-1', connectionId: 'opc_1' }, 'organizer'],
+  ['Mutation', 'disconnectEventOpaPingou', { eventId: 'ev-1' }, 'organizer'],
 ];
 
 describe('protected operations', () => {

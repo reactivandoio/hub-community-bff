@@ -1,6 +1,8 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import express from 'express';
-import { handleOpaWebhook, isEnabled } from '../services/opapingou/webhook';
+import {
+  handleOpaWebhook, isEnabled, connectionVerifier, CONNECTION_ID_PATTERN,
+} from '../services/opapingou/webhook';
 import { createOpaProcessor } from '../services/opapingou/process';
 import { createOpaPingouEventando } from '../dataSources/eventando-manager/opapingou';
 import { sendSignupConfirmation } from '../services/email/signup-confirmation';
@@ -28,8 +30,10 @@ export const confirmationSender = (makeDataSources) => async (payment) => {
 };
 
 /**
- * Registers POST /webhooks/opapingou with the raw body. Must run before any JSON body
- * parser: the signature is over the exact bytes received.
+ * Registers POST /webhooks/opapingou (global key, env secret) and, REA-12,
+ * POST /webhooks/opapingou/:connectionId (the URL registered in each community's account;
+ * the Eventando checks the signature with that account's secret). Raw body on both: must run
+ * before any JSON body parser, the signature is over the exact bytes received.
  */
 export const mountOpaPingouWebhook = (app, {
   env = process.env,
@@ -43,27 +47,34 @@ export const mountOpaPingouWebhook = (app, {
     sendConfirmation: confirmationSender(makeDataSources),
   });
 
-  app.post(
-    OPAPINGOU_WEBHOOK_PATH,
-    express.raw({ type: '*/*', limit: '1mb' }),
-    async (req, res) => {
-      try {
-        const { status, body } = await handleOpaWebhook({
-          rawBody: req.body,
-          headers: req.headers,
-          env,
-          store: { save: (event) => eventando.saveEvent(event) },
-          schedule: (item) => defer(() => proc.processEvent(item).catch((err) => {
-            console.error(`[opapingou] processamento do evento ${item.eventId}: ${err.message}`);
-          })),
-        });
-        res.status(status).json(body);
-      } catch (err) {
-        console.error(`[opapingou] erro no webhook: ${err.message}`);
-        res.status(500).json({ error: 'internal error' });
-      }
-    },
-  );
+  const handle = (connection) => async (req, res) => {
+    try {
+      const { status, body } = await handleOpaWebhook({
+        rawBody: req.body,
+        headers: req.headers,
+        env,
+        connection,
+        ...(connection ? { verify: connectionVerifier(eventando, connection) } : {}),
+        store: { save: (event) => eventando.saveEvent(event) },
+        schedule: (item) => defer(() => proc.processEvent(item).catch((err) => {
+          console.error(`[opapingou] processamento do evento ${item.eventId}: ${err.message}`);
+        })),
+      });
+      res.status(status).json(body);
+    } catch (err) {
+      console.error(`[opapingou] erro no webhook: ${err.message}`);
+      res.status(500).json({ error: 'internal error' });
+    }
+  };
+
+  app.post(OPAPINGOU_WEBHOOK_PATH, express.raw({ type: '*/*', limit: '1mb' }), handle(null));
+  // 512 KB: goes on to the Eventando in base64 (+33%), under Strapi's 1 MB JSON limit.
+  app.post(`${OPAPINGOU_WEBHOOK_PATH}/:connectionId`, express.raw({ type: '*/*', limit: '512kb' }), (req, res) => {
+    const { connectionId } = req.params;
+    // Not an id we hand out: answer like an unknown route, without asking the Eventando.
+    if (!CONNECTION_ID_PATTERN.test(connectionId || '')) return res.status(404).json({ error: 'not found' });
+    return handle(connectionId)(req, res);
+  });
 
   return proc;
 };
