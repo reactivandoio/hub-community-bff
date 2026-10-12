@@ -1,0 +1,81 @@
+"Roles (REA-10): authenticated (every user), community-manager and admin."
+type AdminAccess {
+  "users-permissions role type: authenticated | community-manager | admin"
+  role: String
+  isAdmin: Boolean!
+  isCommunityManager: Boolean!
+  "admin or community-manager: may enter the Hub admin"
+  canAccessAdmin: Boolean!
+  "Communities the user organizes — what a community-manager manages."
+  communities: [AdminCommunity!]!
+}
+
+type AdminCommunity {
+  "documentId"
+  id: ID!
+  title: String
+  slug: String
+}
+
+type AdminRole {
+  "authenticated | community-manager | admin"
+  type: String!
+  name: String!
+}
+
+type AdminUser {
+  "Numeric users-permissions id (what setUserRole takes)."
+  id: ID!
+  documentId: String
+  username: String
+  email: String
+  name: String
+  blocked: Boolean
+  role: AdminRole
+  "Communities the user is listed as organizer of."
+  communities: [AdminCommunity!]!
+}
+
+type AdminUserPage {
+  items: [AdminUser!]!
+  total: Int!
+  page: Int!
+  pageSize: Int!
+}
+
+type RoleChange {
+  id: ID!
+  actorId: ID
+  actorEmail: String
+  targetId: ID
+  targetEmail: String
+  fromRole: String
+  toRole: String!
+  createdAt: String
+}
+
+type RoleChangePage {
+  items: [RoleChange!]!
+  total: Int!
+  page: Int!
+  pageSize: Int!
+}
+
+extend type Query {
+  "The signed-in user's access to the Hub admin. Null when nobody is signed in."
+  adminAccess: AdminAccess
+  "Admin only. search: username, e-mail or name. role: a role type. pageSize: 1–50 (default 20)."
+  adminUsers(search: String, role: String, page: Int, pageSize: Int): AdminUserPage!
+  "Admin only. The roles that can be assigned."
+  adminRoles: [AdminRole!]!
+  "Admin only. Newest first; userId (numeric) narrows to one user."
+  roleChanges(userId: ID, page: Int, pageSize: Int): RoleChangePage!
+}
+
+extend type Mutation {
+  """
+  Admin only. Sets the role of a user (numeric id). Refuses taking the admin role away from
+  yourself and leaving the system without an active admin; every change is recorded.
+  """
+  setUserRole(userId: ID!, roleType: String!): AdminUser!
+}

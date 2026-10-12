@@ -5,9 +5,11 @@ import jwt from '../jwt';
 // Authentication and authorization for resolvers that act with the integration token.
 //
 // The request user comes only from a token whose signature was verified (utils/jwt).
-// Admin: the "admin" role of users-permissions in Strapi; ADMIN_EMAILS is a migration
-// fallback while the role is not assigned to everyone who needs it.
-// Event organizer: a user listed in `organizers` of one of the event's communities, or admin.
+// Roles (users-permissions `role.type`, created by hub-community-backend src/roles):
+// - admin: sees and does everything and assigns roles.
+// - community-manager: manages only the communities it organizes (`community.organizers`)
+//   and their events. Being listed as organizer without this role grants nothing.
+// - authenticated (every other user): no admin operation.
 
 const USER_TTL_MS = 60 * 1000;
 const MAX_CACHED_USERS = 1000;
@@ -85,18 +87,20 @@ export const createAuthContext = async ({ authorization, acceptLanguage, makeDat
   return { user, headers, dataSources };
 };
 
-const adminEmails = () =>
-  (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
+export const ROLES = Object.freeze({
+  ADMIN: 'admin',
+  COMMUNITY_MANAGER: 'community-manager',
+  AUTHENTICATED: 'authenticated',
+});
 
-export const isAdmin = (user) => {
-  if (!user) return false;
-  if (user.role?.type === 'admin') return true;
-  const email = (user.email || '').trim().toLowerCase();
-  return Boolean(email) && adminEmails().includes(email);
-};
+export const roleOf = (user) => user?.role?.type || null;
+
+export const isAdmin = (user) => roleOf(user) === ROLES.ADMIN;
+
+export const isCommunityManager = (user) => roleOf(user) === ROLES.COMMUNITY_MANAGER;
+
+/** Who may enter the Hub admin at all (what each one sees is decided per operation). */
+export const canAccessAdmin = (user) => isAdmin(user) || isCommunityManager(user);
 
 export const unauthenticatedError = () =>
   new GraphQLError('Não autenticado. Faça login novamente.', {
@@ -142,12 +146,12 @@ const loadCommunity = (ctx, communityId) =>
   memo(ctx, `community:${communityId}`, () =>
     ctx.dataSources.managerIntegration.findCommunityWithOrganizers(String(communityId)));
 
-/** Non-throwing check: admin, or organizer of one of the event's communities. */
+/** Non-throwing check: admin, or a community-manager organizing one of the event's communities. */
 export const isEventOrganizer = async (ctx, eventIdOrSlug) => {
   const user = ctx?.user;
   if (!user) return false;
   if (isAdmin(user)) return true;
-  if (!eventIdOrSlug) return false;
+  if (!isCommunityManager(user) || !eventIdOrSlug) return false;
   const event = await loadEvent(ctx, eventIdOrSlug);
   return Boolean(event) && organizerIdsOfEvent(event).has(user.documentId);
 };
@@ -162,6 +166,9 @@ export const requireEventOrganizer = async (ctx, eventIdOrSlug) => {
 export const requireCommunityOrganizer = async (ctx, communityId) => {
   const user = requireUser(ctx);
   if (isAdmin(user)) return;
+  if (!isCommunityManager(user)) {
+    throw forbiddenError('Apenas organizadores da comunidade podem fazer esta operação.');
+  }
   const community = communityId ? await loadCommunity(ctx, communityId) : null;
   if (!community || !idsOf(community.organizers).includes(user.documentId)) {
     throw forbiddenError('Apenas organizadores da comunidade podem fazer esta operação.');

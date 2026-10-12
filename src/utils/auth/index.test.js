@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import jsonwebtoken from 'jsonwebtoken';
 import {
   authenticate,
+  canAccessAdmin,
   clearUserCache,
   createAuthContext,
   isAdmin,
+  isCommunityManager,
   isEventOrganizer,
   requireAdmin,
   requireAuthorOrAdmin,
@@ -18,14 +20,17 @@ import {
 const SECRET = 'test-secret';
 const sign = (payload, secret = SECRET) => `Bearer ${jsonwebtoken.sign(payload, secret, { expiresIn: '1h' })}`;
 
-const ANA = { id: 1, documentId: 'u-ana', email: 'ana@x.io', role: { type: 'authenticated' } };
+// Ana organizes community c-1 and has the community-manager role.
+const ANA = { id: 1, documentId: 'u-ana', email: 'ana@x.io', role: { type: 'community-manager' } };
+// Listed as organizer of c-1 too, but without the role: that alone grants nothing.
+const CAIO = { id: 4, documentId: 'u-caio', email: 'caio@x.io', role: { type: 'authenticated' } };
 const BIA = { id: 2, documentId: 'u-bia', email: 'bia@x.io', role: { type: 'authenticated' } };
 const ADMIN = { id: 3, documentId: 'u-admin', email: 'root@x.io', role: { type: 'admin' } };
 
 const EVENT = {
   documentId: 'ev-1',
   slug: 'meetup',
-  communities: [{ documentId: 'c-1', organizers: [{ documentId: 'u-ana' }] }],
+  communities: [{ documentId: 'c-1', organizers: [{ documentId: 'u-ana' }, { documentId: 'u-caio' }] }],
 };
 
 const makeDataSources = ({ user = ANA, event = EVENT, community = null, talk = null } = {}) => ({
@@ -52,17 +57,13 @@ const expectCode = async (promiseOrFn, code) => {
 };
 
 let previousSecret;
-let previousAdmins;
 beforeEach(() => {
   previousSecret = process.env.JWT_SECRET;
-  previousAdmins = process.env.ADMIN_EMAILS;
   process.env.JWT_SECRET = SECRET;
-  delete process.env.ADMIN_EMAILS;
   clearUserCache();
 });
 afterEach(() => {
   process.env.JWT_SECRET = previousSecret;
-  process.env.ADMIN_EMAILS = previousAdmins;
   vi.useRealTimers();
 });
 
@@ -140,17 +141,29 @@ describe('createAuthContext', () => {
   });
 });
 
-describe('isAdmin', () => {
-  it('reads the Strapi role', () => {
+describe('roles', () => {
+  it('reads the Strapi role type', () => {
     expect(isAdmin(ADMIN)).toBe(true);
     expect(isAdmin(ANA)).toBe(false);
     expect(isAdmin(undefined)).toBe(false);
+    expect(isCommunityManager(ANA)).toBe(true);
+    expect(isCommunityManager(ADMIN)).toBe(false);
   });
 
-  it('falls back to ADMIN_EMAILS (case and spaces ignored)', () => {
-    process.env.ADMIN_EMAILS = ' Ana@X.io , other@x.io';
-    expect(isAdmin(ANA)).toBe(true);
-    expect(isAdmin(BIA)).toBe(false);
+  it('never treats an e-mail as admin (the ADMIN_EMAILS fallback is gone)', () => {
+    process.env.ADMIN_EMAILS = 'bia@x.io';
+    try {
+      expect(isAdmin(BIA)).toBe(false);
+    } finally {
+      delete process.env.ADMIN_EMAILS;
+    }
+  });
+
+  it('lets only admin and community-manager into the Hub admin', () => {
+    expect(canAccessAdmin(ADMIN)).toBe(true);
+    expect(canAccessAdmin(ANA)).toBe(true);
+    expect(canAccessAdmin(BIA)).toBe(false);
+    expect(canAccessAdmin(undefined)).toBe(false);
   });
 });
 
@@ -171,6 +184,12 @@ describe('requireEventOrganizer', () => {
   it('lets an admin in without looking the event up', async () => {
     const dataSources = makeDataSources();
     await requireEventOrganizer(ctxOf(ADMIN, dataSources), 'meetup');
+    expect(dataSources.managerIntegration.findEventWithOrganizers).not.toHaveBeenCalled();
+  });
+
+  it('refuses an organizer without the community-manager role, without looking the event up', async () => {
+    const dataSources = makeDataSources();
+    await expectCode(requireEventOrganizer(ctxOf(CAIO, dataSources), 'meetup'), 'FORBIDDEN');
     expect(dataSources.managerIntegration.findEventWithOrganizers).not.toHaveBeenCalled();
   });
 
@@ -195,6 +214,11 @@ describe('requireCommunitiesOrganizer', () => {
   it('needs at least one community for a non-admin', async () => {
     await expectCode(requireCommunitiesOrganizer(ctxOf(ANA), []), 'FORBIDDEN');
     await expect(requireCommunitiesOrganizer(ctxOf(ADMIN), [])).resolves.toBeUndefined();
+  });
+
+  it('refuses an organizer without the community-manager role', async () => {
+    const withCaio = { documentId: 'c-1', organizers: [{ documentId: 'u-caio' }] };
+    await expectCode(requireCommunitiesOrganizer(ctxOf(CAIO, makeDataSources({ community: withCaio })), ['c-1']), 'FORBIDDEN');
   });
 
   it('needs every listed community', async () => {
