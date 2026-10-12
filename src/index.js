@@ -20,6 +20,7 @@ import getTypes from './types';
 import getResolvers from './resolvers';
 
 import dataSources from './dataSources';
+import { includeStacktrace } from './utils/graphql-errors';
 import { mountOpaPingouWebhook, startOpaPingouSweep } from './routes/opapingou-webhook';
 
 const startServer = async () => {
@@ -59,6 +60,7 @@ const startServer = async () => {
 
   const apolloServer = new ApolloServer({
     schema,
+    includeStacktraceInErrorResponses: includeStacktrace(),
     plugins: [
       // Proper shutdown for the HTTP server.
       ApolloServerPluginDrainHttpServer({ httpServer }),
