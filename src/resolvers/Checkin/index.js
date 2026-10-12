@@ -10,7 +10,7 @@ import { cpfDigits, saveMissingCpf, saveMissingProfile } from '../../utils/signu
 import { normalizeDateOfBirth } from '../Certificate/birthdate';
 import { updateCpfs } from '../../utils/cpf-mapping';
 import { holdsPlace } from '../../utils/payment-status';
-import mapSignup from './mappers';
+import mapSignup, { halfPriceOf } from './mappers';
 import {
   forbiddenError,
   requireAdmin,
@@ -117,6 +117,17 @@ const findEventSignup = async (dataSources, eventId, emails) => {
   return null;
 };
 
+// findSignupById / updateSignup do not bring the payment: half_price comes from a
+// read with it. A failed read only leaves half_price false.
+const halfPriceById = async (dataSources, signupId) => {
+  try {
+    return halfPriceOf(await dataSources.eventandoIntegration.findSignupWithPayment(signupId));
+  } catch (err) {
+    console.error('[Checkin] half_price lookup failed:', err.message);
+    return false;
+  }
+};
+
 // One signup in the EventSignup shape, with the same name resolution as eventSignups.
 const toEventSignup = async (dataSources, raw) => {
   const [signup] = withUserNames(
@@ -188,9 +199,10 @@ const Checkin = {
           return { success: false, message: 'Inscrição não encontrada.', signup: null };
         }
         await assertSignupInEvent(dataSources, eventSlug, existing);
+        const halfPrice = halfPriceById(dataSources, signupId);
         if (existing.checked_in) {
           const [signupData] = withUserNames(
-            [mapSignup(existing)],
+            [{ ...mapSignup(existing), half_price: await halfPrice }],
             await resolveUsers(dataSources, [existing.email]),
           );
           return { success: true, message: 'Check-in já realizado.', signup: signupData };
@@ -221,6 +233,7 @@ const Checkin = {
         const [signupData] = withUserNames(
           [{
             ...mapSignup(updatedSignup),
+            half_price: await halfPrice,
             checked_in: true,
             checked_in_at: updatedSignup.checked_in_at || new Date().toISOString(),
           }],
@@ -395,9 +408,10 @@ const Checkin = {
           return value === undefined || value === null ? acc : { ...acc, [field]: value.trim() };
         }, {});
 
+        const halfPrice = halfPriceById(dataSources, signupId);
         if (Object.keys(patch).length === 0) {
           const [unchanged] = withUserNames(
-            [mapSignup(existing)],
+            [{ ...mapSignup(existing), half_price: await halfPrice }],
             await resolveUsers(dataSources, [existing.email]),
           );
           return { success: true, message: 'Nada para alterar.', signup: unchanged };
@@ -410,7 +424,7 @@ const Checkin = {
         }
 
         const [signup] = withUserNames(
-          [mapSignup(updated)],
+          [{ ...mapSignup(updated), half_price: await halfPrice }],
           await resolveUsers(dataSources, [updated.email]),
         );
         return { success: true, message: 'Inscrição atualizada.', signup };

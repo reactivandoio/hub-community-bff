@@ -29,6 +29,7 @@ const makeDataSources = ({ users = [], usersError = null } = {}) => ({
     findEvents: vi.fn().mockResolvedValue({ data: [{ id: 42 }] }),
     findSignupsByEvent: vi.fn().mockResolvedValue(rawSignups),
     findSignupById: vi.fn().mockResolvedValue({ data: rawSignups[0] }),
+    findSignupWithPayment: vi.fn().mockResolvedValue({ ...rawSignups[0], payment: null }),
     updateSignup: vi.fn().mockResolvedValue({ data: { ...rawSignups[0], checked_in_at: '2026-09-12T10:00:00.000Z' } }),
   },
   managerIntegration: {
@@ -526,5 +527,50 @@ describe('updateSignup', () => {
 
     expect(dataSources.eventandoIntegration.updateSignup).not.toHaveBeenCalled();
     expect(out).toMatchObject({ success: true, message: 'Nada para alterar.' });
+  });
+});
+
+describe('half_price (REA-16, meia-entrada)', () => {
+  const student = { status: 'CONFIRMED', discount_kind: 'student', original_value: 5000, value: 2500 };
+
+  it('eventSignups marks who paid half price', async () => {
+    const dataSources = makeDataSources();
+    dataSources.eventandoIntegration.findSignupsByEvent.mockResolvedValue([
+      { ...rawSignups[0], payment: student },
+      { ...rawSignups[1], payment: { status: 'CONFIRMED', discount_kind: 'coupon' } },
+    ]);
+    const out = await Checkin.Query.eventSignups(null, { eventSlug: 'ev' }, { dataSources, user: ADMIN });
+    expect(out.map((s) => [s.id, s.half_price])).toEqual([['s1', true], ['s2', false]]);
+  });
+
+  it('checkinSignup returns and publishes half_price, read with the payment', async () => {
+    const dataSources = makeDataSources();
+    dataSources.eventandoIntegration.findSignupWithPayment.mockResolvedValue({ ...rawSignups[0], payment: student });
+    const out = await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 's1' }, { dataSources, user: ADMIN });
+    expect(out.signup.half_price).toBe(true);
+    expect(pubsub.publish.mock.calls[0][1]).toMatchObject({ credentialCheckedIn: expect.objectContaining({ half_price: true }) });
+  });
+
+  it('already checked in: still says half_price', async () => {
+    const dataSources = makeDataSources();
+    dataSources.eventandoIntegration.findSignupById.mockResolvedValue({ data: { ...rawSignups[0], checked_in: true } });
+    dataSources.eventandoIntegration.findSignupWithPayment.mockResolvedValue({ ...rawSignups[0], payment: student });
+    const out = await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 's1' }, { dataSources, user: ADMIN });
+    expect(out).toMatchObject({ message: 'Check-in já realizado.', signup: { half_price: true } });
+  });
+
+  it('a failed payment read leaves half_price false and the check-in goes through', async () => {
+    const dataSources = makeDataSources();
+    dataSources.eventandoIntegration.findSignupWithPayment.mockRejectedValue(new Error('HTTP 500'));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const out = await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 's1' }, { dataSources, user: ADMIN });
+    spy.mockRestore();
+    expect(out).toMatchObject({ success: true, signup: { half_price: false } });
+  });
+
+  it('only organizers see it: eventSignups refuses anonymous', async () => {
+    const dataSources = makeDataSources();
+    await expect(Checkin.Query.eventSignups(null, { eventSlug: 'ev' }, { dataSources }))
+      .rejects.toMatchObject({ extensions: { code: 'UNAUTHENTICATED' } });
   });
 });

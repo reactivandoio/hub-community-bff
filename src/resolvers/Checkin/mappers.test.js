@@ -23,6 +23,7 @@ describe('mapSignup', () => {
       checked_in: true,
       checked_in_at: '2026-09-01T10:00:00.000Z',
       product_name: 'Lote 1',
+      half_price: false,
     });
   });
 
@@ -35,7 +36,18 @@ describe('mapSignup', () => {
       checked_in: false,
       checked_in_at: null,
       product_name: null,
+      half_price: false,
     });
+  });
+
+  it('half_price only when the payment got the student discount', () => {
+    expect(mapSignup({ id: 1, payment: { status: 'CONFIRMED', discount_kind: 'student', original_value: '5000', value: '2500' } }).half_price).toBe(true);
+    // Free batch with the box ticked: half of zero is not half price.
+    expect(mapSignup({ id: 1, payment: { status: 'CONFIRMED', discount_kind: 'student', original_value: 0, value: 0 } }).half_price).toBe(false);
+    // Marked half price, but the coupon gave more discount.
+    expect(mapSignup({ id: 1, payment: { status: 'CONFIRMED', discount_kind: 'coupon' } }).half_price).toBe(false);
+    expect(mapSignup({ id: 1, payment: { status: 'CONFIRMED', discount_kind: null } }).half_price).toBe(false);
+    expect(mapSignup({ id: 1 }).half_price).toBe(false);
   });
 });
 

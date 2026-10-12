@@ -68,4 +68,9 @@ describe('graphql schema', () => {
     expect(schema.getType('EventSaleInput').getFields().payment_provider.deprecationReason).toBeTruthy();
     expect(schema.getQueryType().getFields().eventPaymentSettings.deprecationReason).toBeTruthy();
   });
+  it('exposes half price at signup, in the price preview and on the signups lists (REA-16)', () => {
+    expect(schema.getType('EventSignup').getFields().half_price.type.toString()).toBe('Boolean');
+    expect(schema.getMutationType().getFields().signupToEvent.args.map((a) => a.name)).toContain('is_student');
+    expect(schema.getQueryType().getFields().previewCoupon.args.map((a) => a.name)).toContain('isStudent');
+  });
 });
