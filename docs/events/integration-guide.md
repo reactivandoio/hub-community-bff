@@ -60,9 +60,7 @@ mutation CreateEvent($data: EventInput!) {
     "uuid": "optional-uuid-here",
     "start_date": "2026-04-10T10:00:00Z",
     "end_date": "2026-04-10T18:00:00Z",
-    "max_slots": 50,
-    "pixai_token_integration": "your_token",
-    "pixai_token_integration_id": "your_id"
+    "max_slots": 50
   }
 }
 ```

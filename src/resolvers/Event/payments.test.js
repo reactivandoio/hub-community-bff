@@ -48,10 +48,10 @@ describe('signupToEvent com Opa Pingou', () => {
     expect(sendSignupConfirmation).toHaveBeenCalledTimes(1);
   });
 
-  it('PixAI segue como hoje', async () => {
-    const dataSources = makeDataSources({ signup: { data: { id: 9, is_free: false, payment_provider: 'pixai' } } });
+  it('pago sem provedor na resposta também espera o webhook', async () => {
+    const dataSources = makeDataSources({ signup: { data: { id: 9, is_free: false } } });
     await Event.Mutation.signupToEvent(null, args, { dataSources });
-    expect(sendSignupConfirmation).toHaveBeenCalledTimes(1);
+    expect(sendSignupConfirmation).not.toHaveBeenCalled();
   });
 
   it('o CPF nunca volta na resposta', async () => {
@@ -85,25 +85,46 @@ describe('isUserSignedUp com pagamento', () => {
   });
 });
 
-describe('updateEventSale grava o provedor de pagamento', () => {
-  const saleDataSources = () => ({
+describe('updateEventSale e o provedor (REA-15)', () => {
+  const saleDataSources = (event) => ({
     eventandoIntegration: {
-      findEvents: vi.fn().mockResolvedValue({ data: [{ id: 42, uuid: 'u1', products: [] }] }),
+      findEvents: vi.fn().mockResolvedValue({ data: [{ id: 42, uuid: 'u1', products: [], ...event }] }),
       updateEvent: vi.fn().mockResolvedValue({ data: {} }),
     },
   });
 
-  it('opapingou vai para o Event do Eventando', async () => {
-    const dataSources = saleDataSources();
-    await Event.Mutation.updateEventSale(null, { id: 'u1', data: { payment_provider: 'opapingou', products: [] } }, { dataSources, user: ADMIN });
+  it('ignora o payment_provider enviado e põe opapingou no evento que ainda tem o campo', async () => {
+    const dataSources = saleDataSources({ payment_provider: 'pixai' });
+    await Event.Mutation.updateEventSale(null, { id: 'u1', data: { payment_provider: 'pixai', products: [] } }, { dataSources, user: ADMIN });
     expect(dataSources.eventandoIntegration.updateEvent).toHaveBeenCalledWith(42, { payment_provider: 'opapingou' });
   });
 
-  it('valor desconhecido é recusado', async () => {
-    const dataSources = saleDataSources();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    await expect(Event.Mutation.updateEventSale(null, { id: 'u1', data: { payment_provider: 'stripe' } }, { dataSources, user: ADMIN }))
-      .rejects.toThrow('payment_provider inválido');
+  it('evento já no Opa Pingou: não regrava', async () => {
+    const dataSources = saleDataSources({ payment_provider: 'opapingou' });
+    await Event.Mutation.updateEventSale(null, { id: 'u1', data: { payment_provider: 'pixai', products: [] } }, { dataSources, user: ADMIN });
     expect(dataSources.eventandoIntegration.updateEvent).not.toHaveBeenCalled();
+  });
+
+  it('Eventando sem o campo: nada de payment_provider vai para lá', async () => {
+    const dataSources = saleDataSources({});
+    await Event.Mutation.updateEventSale(null, { id: 'u1', data: { payment_provider: 'opapingou', max_slots: 10, products: [] } }, { dataSources, user: ADMIN });
+    expect(dataSources.eventandoIntegration.updateEvent).toHaveBeenCalledWith(42, { max_slots: 10 });
+  });
+});
+
+describe('createEvent/updateEvent não repassam campos do Pix Aí', () => {
+  it('pixai_token_integration(_id) ficam fora do corpo do Eventando', async () => {
+    const dataSources = {
+      managerIntegration: { createEvent: vi.fn().mockResolvedValue({ data: { documentId: 'ev1' } }) },
+      eventandoIntegration: { createEvent: vi.fn().mockResolvedValue({ data: { id: 1, uuid: 'ev1' } }) },
+    };
+    await Event.Mutation.createEvent(null, { data: {
+      title: 'Meetup', start_date: '2026-10-01', end_date: '2026-10-01',
+      pixai_token_integration: 'antigo', pixai_token_integration_id: 'antigo',
+    } }, { dataSources, user: ADMIN });
+    const sent = dataSources.eventandoIntegration.createEvent.mock.calls[0][0];
+    expect(sent).not.toHaveProperty('pixai_token_integration');
+    expect(sent).not.toHaveProperty('pixai_token_integration_id');
+    expect(sent).toMatchObject({ name: 'Meetup', uuid: 'ev1' });
   });
 });

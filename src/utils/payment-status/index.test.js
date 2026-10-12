@@ -6,7 +6,8 @@ const past = '2026-10-11T11:59:00Z';
 const future = '2026-10-11T12:10:00Z';
 
 describe('effectiveStatus', () => {
-  it('Opa Pingou pendente vencido aparece como EXPIRED', () => {
+  it('pendente vencido aparece como EXPIRED', () => {
+    expect(effectiveStatus({ status: 'PEDING_PAYMENT', expires_at: past }, now)).toBe('EXPIRED');
     expect(effectiveStatus({ status: 'PEDING_PAYMENT', provider: 'opapingou', expires_at: past }, now)).toBe('EXPIRED');
     expect(effectiveStatus({ status: 'PEDING_PAYMENT', provider: 'opapingou', expires_at: future }, now)).toBe('PEDING_PAYMENT');
   });
@@ -26,8 +27,9 @@ describe('holdsPlace', () => {
     expect(holdsPlace({ payment: { status: 'CANCELED' } })).toBe(false);
     expect(holdsPlace({ payment: { status: 'REFUND' } })).toBe(false);
   });
-  it('PixAI pendente segue contando como antes', () => {
-    expect(holdsPlace({ payment: { status: 'PEDING_PAYMENT' } })).toBe(true);
+  it('pagamento antigo do Pix Aí: confirmado conta, pendente não', () => {
+    expect(holdsPlace({ payment: { status: 'CONFIRMED', provider: null } })).toBe(true);
+    expect(holdsPlace({ payment: { status: 'PEDING_PAYMENT', provider: null } })).toBe(false);
   });
 });
 
@@ -38,5 +40,6 @@ describe('countsAsCouponUse', () => {
     expect(countsAsCouponUse({ status: 'PEDING_PAYMENT', expires_at: past }, now)).toBe(false);
     expect(countsAsCouponUse({ status: 'CANCELED' }, now)).toBe(false);
     expect(countsAsCouponUse({ status: 'EXPIRED' }, now)).toBe(false);
+    expect(countsAsCouponUse({ status: 'PEDING_PAYMENT', expires_at: null }, now)).toBe(false);
   });
 });
