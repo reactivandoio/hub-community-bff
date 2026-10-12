@@ -1,12 +1,19 @@
-FROM node:18-alpine
+# check=skip=InvalidDefaultArgInFrom
+# Ambiente de desenvolvimento (REA-21). Só o Node e as ferramentas: o código entra por volume
+# e o node_modules fica num volume do compose. Use pelo Makefile (make dev, make test...).
+# A versão do Node vem do .nvmrc (o Makefile passa NODE_VERSION); a mesma que o CI usa.
+ARG NODE_VERSION
+FROM node:${NODE_VERSION}-bookworm-slim
+
+# git: dependências por git; python3/make/g++: módulos nativos; jq/ruby: testes dos scripts de deploy.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates git python3 make g++ jq ruby \
+  && rm -rf /var/lib/apt/lists/*
+
+# O container roda com o UID de quem chama (arquivos gerados no volume do código ficam seus);
+# por isso HOME, cache e node_modules são graváveis por qualquer usuário.
+ENV HOME=/home/dev YARN_CACHE_FOLDER=/cache/yarn
+RUN mkdir -p /home/dev /cache/yarn /opt/app/node_modules \
+  && chmod 1777 /home/dev /cache /cache/yarn /opt/app/node_modules
 
 WORKDIR /opt/app
-
-COPY package.json yarn.lock ./
-RUN yarn install
-
-COPY . .
-
-EXPOSE 4001
-
-CMD ["yarn", "dev"]
