@@ -12,3 +12,6 @@ package-lock.json
 .env.temp
 .env.next
 .env.bak-*
+
+# Desenvolvimento em Docker (REA-21): cópia local do .env.dev.example
+.env.dev

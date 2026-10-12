@@ -1,0 +1,38 @@
+# Ambiente de desenvolvimento do BFF (REA-21). Use pelo Makefile: make dev, make test, make build.
+# Para onde o BFF aponta (Strapi do Hub, Eventando) vem do .env.dev; veja .env.dev.example.
+name: hub-bff-dev
+
+services:
+  bff:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        NODE_VERSION: ${BFF_NODE_VERSION:?use o Makefile (make dev), que lê o .nvmrc}
+    image: hub-bff-dev
+    user: '${DEV_UID:-1000}:${DEV_GID:-1000}'
+    command: sh -c "yarn install --frozen-lockfile --network-timeout 600000 && yarn dev"
+    env_file: .env.dev
+    environment:
+      PORT: 4001
+    ports:
+      - '${BFF_PORT:-4001}:4001'
+    # Serviços rodando nas portas da sua máquina (make dev do backend e do Eventando).
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - .:/opt/app
+      # O .env real da máquina nunca entra no container: lá dentro o .env é o .env.dev.
+      - ./.env.dev:/opt/app/.env:ro
+      # Diretório git no mesmo caminho do host: num git worktree o .git é um arquivo que aponta
+      # para lá, e sem isso todo git dentro do container falha (o yarn usa git).
+      - ${BFF_GIT_DIR:-./.git}:${BFF_GIT_DIR:-/opt/app/.git}:ro
+      - bff-node-modules:/opt/app/node_modules
+      - bff-yarn-cache:/cache/yarn
+
+# Nomes fixos: make dev aqui e make hub no frontend usam os mesmos volumes (banco, node_modules).
+volumes:
+  bff-node-modules:
+    name: hub-bff-dev-bff-node-modules
+  bff-yarn-cache:
+    name: hub-bff-dev-bff-yarn-cache
