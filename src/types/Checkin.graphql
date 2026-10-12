@@ -8,6 +8,8 @@ type EventSignup {
   checked_in: Boolean
   checked_in_at: String
   product_name: String
+  "Signed up with half price (meia-entrada) and paid it: the payment has the student discount."
+  half_price: Boolean
 }
 
 type CheckinResponse {
