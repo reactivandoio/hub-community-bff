@@ -59,11 +59,10 @@ describe('eventPaymentSettings / eventPayments', () => {
       .rejects.toMatchObject({ extensions: { code: 'FORBIDDEN' } });
   });
 
-  it('provedor do evento (pixai quando vazio)', async () => {
-    expect(await Payment.Query.eventPaymentSettings(null, { eventId: 'u1' }, ctx(eventando()))).toEqual({ payment_provider: 'opapingou' });
+  it('provedor do evento é sempre opapingou (REA-15)', async () => {
     const ev = eventando();
-    ev.findEvents.mockResolvedValue({ data: [{ id: 3 }] });
-    expect(await Payment.Query.eventPaymentSettings(null, { eventId: 'u1' }, ctx(ev))).toEqual({ payment_provider: 'pixai' });
+    ev.findEvents.mockResolvedValue({ data: [{ id: 3, payment_provider: 'pixai' }] });
+    expect(await Payment.Query.eventPaymentSettings(null, { eventId: 'u1' }, ctx(ev))).toEqual({ payment_provider: 'opapingou' });
   });
 
   it('lista pagamentos sem CPF, com o pendente vencido como EXPIRED', async () => {

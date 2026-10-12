@@ -1,6 +1,6 @@
 import { requireAdmin } from '../../utils/auth';
 import { findEventandoEvent } from '../../utils/eventando-event';
-import { effectiveStatus } from '../../utils/payment-status';
+import { effectiveStatus, OPAPINGOU } from '../../utils/payment-status';
 
 const numberOrNull = (value) => (value === null || value === undefined || value === '' ? null : Number(value));
 
@@ -20,7 +20,7 @@ const Payment = {
       return {
         signup_id: String(signup.id),
         status: effectiveStatus(payment),
-        provider: payment.provider || 'pixai',
+        provider: payment.provider || null,
         kind: payment.kind || null,
         expires_at: payment.expires_at || null,
         confirmed_at: payment.confirmed_at || null,
@@ -34,8 +34,7 @@ const Payment = {
     eventPaymentSettings: async (_, { eventId }, ctx) => {
       await requireAdmin(ctx);
       const event = await findEventandoEvent(ctx.dataSources, eventId);
-      if (!event) return { payment_provider: null };
-      return { payment_provider: event.payment_provider || 'pixai' };
+      return { payment_provider: event ? OPAPINGOU : null };
     },
 
     eventPayments: async (_, { slugOrId }, ctx) => {

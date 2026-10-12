@@ -10,7 +10,23 @@ import {
 } from '../../utils/auth';
 import { holdsPlace, OPAPINGOU } from '../../utils/payment-status';
 
-const PAYMENT_PROVIDERS = ['pixai', 'opapingou'];
+// Hub-only or retired fields of EventInput the Eventando must not receive (it rejects
+// unknown keys). pixai_*: the Pix Aí no longer exists (REA-15); still accepted from
+// the frontend in production, never forwarded.
+const NOT_FOR_EVENTANDO = [
+  'title',
+  'is_online',
+  'call_link',
+  'unlisted',
+  'pixai_token_integration',
+  'pixai_token_integration_id',
+];
+
+const eventandoEventData = (data, uuid) => {
+  const eventandoData = { ...data, uuid, name: data.title };
+  NOT_FOR_EVENTANDO.forEach((key) => delete eventandoData[key]);
+  return eventandoData;
+};
 
 // The CPF never goes back to the browser, even if the Eventando sends it.
 const withoutCpf = (payload) => {
@@ -335,16 +351,7 @@ const Event = {
         }
 
         // Create in Eventando Manager (mapping title to name)
-        const eventandoData = {
-          ...data,
-          uuid: eventId,
-          name: data.title,
-        };
-        delete eventandoData.title;
-        delete eventandoData.is_online;
-        delete eventandoData.call_link;
-        // Listing visibility is a Hub concern; Eventando rejects unknown keys.
-        delete eventandoData.unlisted;
+        const eventandoData = eventandoEventData(data, eventId);
 
         const response = await dataSources.eventandoIntegration.createEvent(eventandoData);
 
@@ -411,16 +418,7 @@ const Event = {
           );
 
         // Update in Eventando Manager (mapping title to name)
-        const eventandoData = {
-          ...data,
-          uuid: managerResponse.data.documentId,
-          name: data.title,
-        };
-        delete eventandoData.title;
-        delete eventandoData.is_online;
-        delete eventandoData.call_link;
-        // Listing visibility is a Hub concern; Eventando rejects unknown keys.
-        delete eventandoData.unlisted;
+        const eventandoData = eventandoEventData(data, managerResponse.data.documentId);
 
         const eventandoResponse =
           await dataSources.eventandoIntegration.updateEvent(event.id, eventandoData);
@@ -569,14 +567,13 @@ const Event = {
           }
         }
 
-        // 3. Update event max_slots and payment provider if provided
+        // 3. Update event max_slots. data.payment_provider is ignored (REA-15): the
+        //    Opa Pingou is the only provider, so while the Eventando still has the
+        //    field, an event left on the old default is moved to it.
         const eventChanges = {};
         if (data.max_slots !== undefined) eventChanges.max_slots = data.max_slots;
-        if (data.payment_provider !== undefined && data.payment_provider !== null) {
-          if (!PAYMENT_PROVIDERS.includes(data.payment_provider)) {
-            throw new Error(`payment_provider inválido: use ${PAYMENT_PROVIDERS.join(' ou ')}.`);
-          }
-          eventChanges.payment_provider = data.payment_provider;
+        if ('payment_provider' in event && event.payment_provider !== OPAPINGOU) {
+          eventChanges.payment_provider = OPAPINGOU;
         }
         if (Object.keys(eventChanges).length > 0) {
           await dataSources.eventandoIntegration.updateEvent(eventandoEventId, eventChanges);
@@ -733,12 +730,11 @@ const Event = {
 
         const isFree = response.data?.is_free || response.is_free || false;
         const signupId = signupIdOf(response.data || response);
-        const provider = response.data?.payment_provider || response.payment_provider;
 
         // Confirmation e-mail (ticket QR + set-password link) in the background:
-        // it never blocks nor fails the signup. A paid Opa Pingou signup gets it
-        // from the webhook, once the payment is confirmed.
-        if (isFree || provider !== OPAPINGOU) {
+        // it never blocks nor fails the signup. A paid signup gets it from the Opa
+        // Pingou webhook, once the payment is confirmed.
+        if (isFree) {
           sendSignupConfirmation({
             dataSources,
             eventSlug: eventId,

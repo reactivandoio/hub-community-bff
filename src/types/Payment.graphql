@@ -3,7 +3,7 @@ type SignupPaymentStatus {
   signup_id: ID!
   "PEDING_PAYMENT | CONFIRMED | EXPIRED | CANCELED | REFUND (an Opa Pingou charge past expires_at shows as EXPIRED)."
   status: String!
-  "pixai | opapingou"
+  "opapingou; null on old Pix Aí payments."
   provider: String
   "PIX_QR | PAYMENT_LINK"
   kind: String
@@ -23,7 +23,7 @@ type RefundSupport {
 }
 
 type EventPaymentSettings {
-  "pixai | opapingou"
+  "Always opapingou, the only provider (REA-15)."
   payment_provider: String
 }
 
@@ -39,8 +39,8 @@ type EventPayment {
 extend type Query {
   "Null when the signup does not exist or has no payment."
   signupPaymentStatus(signupId: ID!): SignupPaymentStatus
-  "Admin only. eventId: the Hub id (uuid) or the slug."
-  eventPaymentSettings(eventId: ID!): EventPaymentSettings
+  "Admin only. eventId: the Hub id (uuid) or the slug. Always opapingou now; kept for the frontend in production."
+  eventPaymentSettings(eventId: ID!): EventPaymentSettings @deprecated(reason: "Opa Pingou is the only provider.")
   "Admin only."
   eventPayments(slugOrId: String!): [EventPayment!]!
 }

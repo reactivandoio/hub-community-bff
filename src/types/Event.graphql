@@ -54,8 +54,10 @@ input EventInput {
   max_slots: Int
   slug: String
   uuid: String
-  pixai_token_integration: String
-  pixai_token_integration_id: String
+  "Ignored: the Pix Aí no longer exists (REA-15). Accepted until the frontend stops sending it."
+  pixai_token_integration: String @deprecated(reason: "Pix Aí removed; ignored.")
+  "Ignored: the Pix Aí no longer exists (REA-15). Accepted until the frontend stops sending it."
+  pixai_token_integration_id: String @deprecated(reason: "Pix Aí removed; ignored.")
   is_online: Boolean
   call_link: String
   unlisted: Boolean
@@ -86,8 +88,8 @@ input ProductSaleInput {
 input EventSaleInput {
   max_slots: Int
   products: [ProductSaleInput]
-  "pixai | opapingou — who charges the paid batches of the event."
-  payment_provider: String
+  "Ignored: the Opa Pingou charges every paid batch (REA-15). Accepted until the frontend stops sending it."
+  payment_provider: String @deprecated(reason: "Opa Pingou is the only provider; ignored.")
 }
 
 type Mutation {

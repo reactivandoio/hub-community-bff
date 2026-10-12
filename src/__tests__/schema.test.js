@@ -61,4 +61,11 @@ describe('graphql schema', () => {
     expect(Object.keys(schema.getType('CouponInput').getFields())).toEqual(expect.arrayContaining(['discount_type', 'discount_value_cents', 'starts_at', 'batches']));
     expect(Object.values(schema.getType('SignupPaymentStatus').getFields()).some((f) => /cpf/i.test(f.name))).toBe(false);
   });
+  it('keeps the retired Pix Aí inputs accepted but deprecated, for the frontend in production (REA-15)', () => {
+    const eventInput = schema.getType('EventInput').getFields();
+    expect(eventInput.pixai_token_integration.deprecationReason).toBeTruthy();
+    expect(eventInput.pixai_token_integration_id.deprecationReason).toBeTruthy();
+    expect(schema.getType('EventSaleInput').getFields().payment_provider.deprecationReason).toBeTruthy();
+    expect(schema.getQueryType().getFields().eventPaymentSettings.deprecationReason).toBeTruthy();
+  });
 });

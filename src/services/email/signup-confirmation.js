@@ -112,7 +112,7 @@ const ticketQrAttachment = async (ticketUrl) => {
 /**
  * The single "Inscrição confirmada" e-mail: event info, the ticket QR (in-person,
  * when free or when the payment is already confirmed — `isPaid`, sent by the Opa
- * Pingou webhook; a PixAI signup still has its PIX pending) and, while the account
+ * Pingou webhook) and, while the account
  * has no password of its own, the "Crie sua senha" link.
  *
  * `account` skips the account-setup call when the caller already made it;
