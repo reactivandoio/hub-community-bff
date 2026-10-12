@@ -11,6 +11,11 @@ import { normalizeDateOfBirth } from '../Certificate/birthdate';
 import { updateCpfs } from '../../utils/cpf-mapping';
 import { holdsPlace } from '../../utils/payment-status';
 import mapSignup from './mappers';
+import {
+  forbiddenError,
+  requireAdmin,
+  requireEventOrganizer,
+} from '../../utils/auth';
 
 const CHECKIN_TOPIC_PREFIX = 'CHECKIN_';
 
@@ -58,6 +63,17 @@ const queueCpfUpdates = (dataSources, eventSlug, rows) => {
         + `${counts['no-account'] || 0} sem conta, ${(counts.invalid || 0) + (counts.failed || 0)} inválidos/falharam`,
     );
   })();
+};
+
+// The organizer check runs on eventSlug, so the signup must belong to that same event:
+// otherwise an organizer of one event could check in or edit a signup of another.
+const assertSignupInEvent = async (dataSources, eventSlug, signup) => {
+  const event = await findEventandoEvent(dataSources, eventSlug);
+  const signupEventId = signup?.event?.id ?? signup?.event;
+  if (!event || signupEventId === undefined || signupEventId === null
+    || String(signupEventId) !== String(event.id)) {
+    throw forbiddenError('Esta inscrição não pertence a este evento.');
+  }
 };
 
 const normalizeEmail = (email) => (email || '').trim().toLowerCase();
@@ -112,7 +128,9 @@ const toEventSignup = async (dataSources, raw) => {
 
 const Checkin = {
   Query: {
-    eventSignups: async (_, { eventSlug, search }, { dataSources }) => {
+    eventSignups: async (_, { eventSlug, search }, ctx) => {
+      await requireEventOrganizer(ctx, eventSlug);
+      const { dataSources } = ctx;
       try {
         // 1. Find the event in Eventando Manager by slug
         const eventResponse = await dataSources.eventandoIntegration.findEvents({
@@ -159,7 +177,9 @@ const Checkin = {
   },
 
   Mutation: {
-    checkinSignup: async (_, { eventSlug, signupId, checkedInAt }, { dataSources }) => {
+    checkinSignup: async (_, { eventSlug, signupId, checkedInAt }, ctx) => {
+      await requireEventOrganizer(ctx, eventSlug);
+      const { dataSources } = ctx;
       try {
         // 0. Idempotent: a signup that is already checked in keeps its original time
         //    (several devices may sync the same person; the first one wins).
@@ -167,6 +187,7 @@ const Checkin = {
         if (!existing) {
           return { success: false, message: 'Inscrição não encontrada.', signup: null };
         }
+        await assertSignupInEvent(dataSources, eventSlug, existing);
         if (existing.checked_in) {
           const [signupData] = withUserNames(
             [mapSignup(existing)],
@@ -226,7 +247,9 @@ const Checkin = {
       }
     },
 
-    importSignups: async (_, { eventSlug, batchId, signups }, { dataSources }) => {
+    importSignups: async (_, { eventSlug, batchId, signups }, ctx) => {
+      await requireEventOrganizer(ctx, eventSlug);
+      const { dataSources } = ctx;
       const errors = [];
       let importedCount = 0;
       let skippedCount = 0;
@@ -357,12 +380,15 @@ const Checkin = {
     // check them in, so a wrong phone or a misspelt name had to be corrected in
     // Eventando by hand. Only the fields sent change — the check-in is not one
     // of them, so correcting a name cannot silently un-credential anyone.
-    updateSignup: async (_, { signupId, input }, { dataSources }) => {
+    updateSignup: async (_, { eventSlug, signupId, input }, ctx) => {
+      await requireEventOrganizer(ctx, eventSlug);
+      const { dataSources } = ctx;
       try {
         const existing = (await dataSources.eventandoIntegration.findSignupById(signupId))?.data;
         if (!existing) {
           return { success: false, message: 'Inscrição não encontrada.', signup: null };
         }
+        await assertSignupInEvent(dataSources, eventSlug, existing);
 
         const patch = ['name', 'email', 'phone_number'].reduce((acc, field) => {
           const value = input[field];
@@ -393,13 +419,19 @@ const Checkin = {
       }
     },
 
-    updateCpfs: (_, { rows }, { dataSources }) => updateCpfs(dataSources, rows),
+    // Writes CPFs onto any account (and creates missing ones): not scoped to an event.
+    updateCpfs: (_, { rows }, ctx) => {
+      requireAdmin(ctx);
+      return updateCpfs(ctx.dataSources, rows);
+    },
 
     // Walk-in at the door. The person may already have an account — under another
     // e-mail than the one typed — so it is looked up by CPF first, then by e-mail,
     // and the signup goes to that account's e-mail. Only a brand-new account gets
     // the second "Conclua seu cadastro" e-mail.
-    manualSignup: async (_, { eventSlug, batchId, input }, { dataSources }) => {
+    manualSignup: async (_, { eventSlug, batchId, input }, ctx) => {
+      await requireEventOrganizer(ctx, eventSlug);
+      const { dataSources } = ctx;
       try {
         if (input.date_of_birth && !normalizeDateOfBirth(input.date_of_birth)) {
           return {
@@ -549,7 +581,9 @@ const Checkin = {
     // Re-sends the confirmation (ticket QR + set-password link) to everyone imported
     // into the event. Nothing records "already sent": each run sets up the accounts
     // again, so a pending account gets a new token and the previous link stops working.
-    sendImportedSignupConfirmations: async (_, { eventSlug }, { dataSources }) => {
+    sendImportedSignupConfirmations: async (_, { eventSlug }, ctx) => {
+      await requireEventOrganizer(ctx, eventSlug);
+      const { dataSources } = ctx;
       try {
         const event = await findEventandoEvent(dataSources, eventSlug);
         if (!event) {
@@ -590,7 +624,10 @@ const Checkin = {
 
   Subscription: {
     credentialCheckedIn: {
-      subscribe: (_, { eventSlug }) => {
+      // The live list carries names and e-mails: the connection must carry an
+      // organizer token (connectionParams.authorization).
+      subscribe: async (_, { eventSlug }, ctx) => {
+        await requireEventOrganizer(ctx, eventSlug);
         const topic = `${CHECKIN_TOPIC_PREFIX}${eventSlug}`;
         return pubsub.asyncIterator([topic]);
       },

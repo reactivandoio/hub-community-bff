@@ -1,0 +1,52 @@
+# Voting sessions (pitch battles) and their options, managed by admins.
+# The public voting pages read and vote on Strapi directly.
+type VotingOption {
+  id: String
+  documentId: String
+  name: String
+  description: String
+  pitch_order: Int
+}
+
+type VotingSession {
+  id: String
+  documentId: String
+  title: String
+  description: String
+  event_id: String
+  status: String
+  max_votes_per_user: Int
+  voting_options: [VotingOption]
+  createdAt: String
+  updatedAt: String
+}
+
+input VotingSessionInput {
+  title: String
+  description: String
+  event_id: String
+  status: String
+  max_votes_per_user: Int
+}
+
+input VotingOptionInput {
+  name: String
+  description: String
+  pitch_order: Int
+  "documentId of the voting session (required on create)."
+  voting_session: String
+}
+
+extend type Query {
+  votingSessions: [VotingSession]
+  votingSession(id: String!): VotingSession
+}
+
+extend type Mutation {
+  createVotingSession(data: VotingSessionInput!): VotingSession
+  updateVotingSession(id: String!, data: VotingSessionInput!): VotingSession
+  deleteVotingSession(id: String!): Boolean
+  createVotingOption(data: VotingOptionInput!): VotingOption
+  updateVotingOption(id: String!, data: VotingOptionInput!): VotingOption
+  deleteVotingOption(id: String!): Boolean
+}

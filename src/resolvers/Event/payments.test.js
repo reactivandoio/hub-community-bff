@@ -19,6 +19,10 @@ const makeDataSources = ({ signup, existing = [] } = {}) => ({
   managerIntegration: {},
 });
 
+// With utils/auth (PR #33): isUserSignedUp is for the person themself, updateEventSale for admins.
+const ANA = { id: 7, email: 'ana@x.io' };
+const ADMIN = { id: 1, email: 'admin@x.io', role: { type: 'admin' } };
+
 const args = { eventId: 'meetup', name: 'Ana', email: 'ana@x.io', batch_id: '3', cpf: '529.982.247-25', kind: 'PIX_QR' };
 
 describe('signupToEvent com Opa Pingou', () => {
@@ -69,14 +73,14 @@ describe('isUserSignedUp com pagamento', () => {
     for (const payment of [{ status: 'PEDING_PAYMENT', provider: 'opapingou' }, { status: 'EXPIRED', provider: 'opapingou' }]) {
       const dataSources = makeDataSources({ existing: [{ id: 7, email: 'ana@x.io', payment }] });
       // eslint-disable-next-line no-await-in-loop
-      const out = await Event.Query.isUserSignedUp(null, { eventId: 'meetup', email: 'ana@x.io' }, { dataSources });
+      const out = await Event.Query.isUserSignedUp(null, { eventId: 'meetup', email: 'ana@x.io' }, { dataSources, user: ANA });
       expect(out.is_signed_up).toBe(false);
     }
   });
 
   it('confirmado é inscrito', async () => {
     const dataSources = makeDataSources({ existing: [{ id: 7, email: 'ana@x.io', payment: { status: 'CONFIRMED', provider: 'opapingou' } }] });
-    const out = await Event.Query.isUserSignedUp(null, { eventId: 'meetup', email: 'ana@x.io' }, { dataSources });
+    const out = await Event.Query.isUserSignedUp(null, { eventId: 'meetup', email: 'ana@x.io' }, { dataSources, user: ANA });
     expect(out).toMatchObject({ is_signed_up: true, signup_id: '7' });
   });
 });
@@ -91,14 +95,14 @@ describe('updateEventSale grava o provedor de pagamento', () => {
 
   it('opapingou vai para o Event do Eventando', async () => {
     const dataSources = saleDataSources();
-    await Event.Mutation.updateEventSale(null, { id: 'u1', data: { payment_provider: 'opapingou', products: [] } }, { dataSources });
+    await Event.Mutation.updateEventSale(null, { id: 'u1', data: { payment_provider: 'opapingou', products: [] } }, { dataSources, user: ADMIN });
     expect(dataSources.eventandoIntegration.updateEvent).toHaveBeenCalledWith(42, { payment_provider: 'opapingou' });
   });
 
   it('valor desconhecido é recusado', async () => {
     const dataSources = saleDataSources();
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    await expect(Event.Mutation.updateEventSale(null, { id: 'u1', data: { payment_provider: 'stripe' } }, { dataSources }))
+    await expect(Event.Mutation.updateEventSale(null, { id: 'u1', data: { payment_provider: 'stripe' } }, { dataSources, user: ADMIN }))
       .rejects.toThrow('payment_provider inválido');
     expect(dataSources.eventandoIntegration.updateEvent).not.toHaveBeenCalled();
   });

@@ -1,6 +1,14 @@
 import dotenv from 'dotenv';
+import { requireAuthorOrAdmin, requireUser } from '../../utils/auth';
 
 dotenv.config();
+
+const requireRateAuthor = async (ctx, id) => {
+  requireUser(ctx);
+  const rate = await ctx.dataSources.managerIntegration.findRateWithAuthor(id).catch(() => null);
+  if (!rate) throw new Error('Avaliação não encontrada.');
+  requireAuthorOrAdmin(ctx, rate.users_permissions_user?.documentId);
+};
 
 const Rate = {
   Rate: {
@@ -37,27 +45,37 @@ const Rate = {
   },
 
   Mutation: {
-    createRate: async (_, { input }, { dataSources }) => {
+    // The rate belongs to the signed-in user, whatever `user` the input carries.
+    createRate: async (_, { input }, ctx) => {
+      const user = requireUser(ctx);
+      const { user: _ignored, ...data } = input;
       try {
-        const response = await dataSources.manager.createRate(input);
+        const response = await ctx.dataSources.managerIntegration.createRateAsIntegration({
+          ...data,
+          users_permissions_user: user.documentId,
+        });
         return response.data;
       } catch (err) {
         throw new Error(`Error creating rate: ${err.message}`);
       }
     },
 
-    updateRate: async (_, { id, input }, { dataSources }) => {
+    updateRate: async (_, { id, input }, ctx) => {
+      await requireRateAuthor(ctx, id);
+      // The author of a rate never changes.
+      const { user: _ignored, ...data } = input;
       try {
-        const response = await dataSources.manager.updateRate(id, input);
+        const response = await ctx.dataSources.managerIntegration.updateRateAsIntegration(id, data);
         return response.data;
       } catch (err) {
         throw new Error(`Error updating rate: ${err.message}`);
       }
     },
 
-    deleteRate: async (_, { id }, { dataSources }) => {
+    deleteRate: async (_, { id }, ctx) => {
+      await requireRateAuthor(ctx, id);
       try {
-        const response = await dataSources.manager.deleteRate(id);
+        const response = await ctx.dataSources.managerIntegration.deleteRateAsIntegration(id);
         return response.data;
       } catch (err) {
         throw new Error(`Error deleting rate: ${err.message}`);

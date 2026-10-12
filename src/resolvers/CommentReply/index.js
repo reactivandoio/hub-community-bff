@@ -1,6 +1,14 @@
 import dotenv from 'dotenv';
+import { requireAuthorOrAdmin, requireUser } from '../../utils/auth';
 
 dotenv.config();
+
+const requireReplyAuthor = async (ctx, id) => {
+  requireUser(ctx);
+  const reply = await ctx.dataSources.managerIntegration.findCommentReplyWithAuthor(id).catch(() => null);
+  if (!reply) throw new Error('Resposta não encontrada.');
+  requireAuthorOrAdmin(ctx, reply.user_creator?.documentId);
+};
 
 const CommentReply = {
   CommentReply: {
@@ -37,20 +45,28 @@ const CommentReply = {
   },
 
   Mutation: {
-    createCommentReply: async (_, { input }, { dataSources }) => {
+    // The author is always the signed-in user, whatever `user_creator` the input carries.
+    createCommentReply: async (_, { input }, ctx) => {
+      const user = requireUser(ctx);
       try {
-        const response = await dataSources.manager.createCommentReply(input);
+        const response = await ctx.dataSources.managerIntegration.createCommentReplyAsIntegration({
+          ...input,
+          user_creator: user.documentId,
+        });
         return response.data;
       } catch (err) {
         throw new Error(`Error creating comment reply: ${err.message}`);
       }
     },
 
-    updateCommentReply: async (_, { id, input }, { dataSources }) => {
+    updateCommentReply: async (_, { id, input }, ctx) => {
+      await requireReplyAuthor(ctx, id);
+      // The author of a reply never changes.
+      const { user_creator: _ignored, ...data } = input;
       try {
-        const response = await dataSources.manager.updateCommentReply(
+        const response = await ctx.dataSources.managerIntegration.updateCommentReplyAsIntegration(
           id,
-          input
+          data
         );
         return response.data;
       } catch (err) {
@@ -58,9 +74,10 @@ const CommentReply = {
       }
     },
 
-    deleteCommentReply: async (_, { id }, { dataSources }) => {
+    deleteCommentReply: async (_, { id }, ctx) => {
+      await requireReplyAuthor(ctx, id);
       try {
-        const response = await dataSources.manager.deleteCommentReply(id);
+        const response = await ctx.dataSources.managerIntegration.deleteCommentReplyAsIntegration(id);
         return response.data;
       } catch (err) {
         throw new Error(`Error deleting comment reply: ${err.message}`);

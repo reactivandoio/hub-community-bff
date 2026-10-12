@@ -7,6 +7,10 @@ import Checkin from './index';
 // vi.mock is hoisted above the imports by vitest. The e-mail service is mocked whole:
 // these tests only check who gets an e-mail, never send one.
 vi.mock('../../dataSources/pubsub', () => ({ default: { publish: vi.fn(), asyncIterator: vi.fn() } }));
+
+// These tests cover what each resolver does once allowed; who is allowed is covered
+// in utils/auth/index.test.js and in the authorization tests below.
+const ADMIN = { documentId: 'u-admin', email: 'admin@x.io', role: { type: 'admin' } };
 vi.mock('../../services/email/signup-confirmation', () => ({
   sendSignupConfirmation: vi.fn().mockResolvedValue({ success: true }),
   sendSignupConfirmationBatch: vi.fn().mockResolvedValue({ sent: 0, failed: 0 }),
@@ -16,8 +20,8 @@ vi.mock('../../services/email/complete-registration', () => ({
 }));
 
 const rawSignups = [
-  { documentId: 's1', name: 'ana-4f2k', email: 'ana@x.io' },
-  { documentId: 's2', name: 'Bia Lima', email: 'bia@x.io' },
+  { documentId: 's1', name: 'ana-4f2k', email: 'ana@x.io', event: { id: 42 } },
+  { documentId: 's2', name: 'Bia Lima', email: 'bia@x.io', event: { id: 42 } },
 ];
 
 const makeDataSources = ({ users = [], usersError = null } = {}) => ({
@@ -39,20 +43,20 @@ beforeEach(() => vi.clearAllMocks());
 describe('eventSignups', () => {
   it('uses the HubCommunity user name when the account has one', async () => {
     const dataSources = makeDataSources({ users: [{ email: 'ana@x.io', name: 'Ana Souza' }] });
-    const out = await Checkin.Query.eventSignups(null, { eventSlug: 'ev' }, { dataSources });
+    const out = await Checkin.Query.eventSignups(null, { eventSlug: 'ev' }, { dataSources, user: ADMIN });
     expect(out.map((s) => s.name)).toEqual(['Ana Souza', 'Bia Lima']);
     expect(dataSources.managerIntegration.findUsersByEmails).toHaveBeenCalledWith(['ana@x.io', 'bia@x.io']);
   });
 
   it('searches on the resolved name', async () => {
     const dataSources = makeDataSources({ users: [{ email: 'ana@x.io', name: 'Ana Souza' }] });
-    const out = await Checkin.Query.eventSignups(null, { eventSlug: 'ev', search: 'souza' }, { dataSources });
+    const out = await Checkin.Query.eventSignups(null, { eventSlug: 'ev', search: 'souza' }, { dataSources, user: ADMIN });
     expect(out.map((s) => s.id)).toEqual(['s1']);
   });
 
   it('keeps the signup names when the user lookup fails', async () => {
     const dataSources = makeDataSources({ usersError: new Error('strapi down') });
-    const out = await Checkin.Query.eventSignups(null, { eventSlug: 'ev' }, { dataSources });
+    const out = await Checkin.Query.eventSignups(null, { eventSlug: 'ev' }, { dataSources, user: ADMIN });
     expect(out.map((s) => s.name)).toEqual(['ana-4f2k', 'Bia Lima']);
   });
 });
@@ -60,7 +64,7 @@ describe('eventSignups', () => {
 describe('checkinSignup', () => {
   it('returns and publishes the signup with the resolved name', async () => {
     const dataSources = makeDataSources({ users: [{ email: 'ana@x.io', name: 'Ana Souza' }] });
-    const out = await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 's1' }, { dataSources });
+    const out = await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 's1' }, { dataSources, user: ADMIN });
     expect(out.success).toBe(true);
     expect(out.signup.name).toBe('Ana Souza');
     expect(dataSources.managerIntegration.findUsersByEmails).toHaveBeenCalledWith(['ana@x.io']);
@@ -72,7 +76,7 @@ describe('checkinSignup', () => {
     await Checkin.Mutation.checkinSignup(
       null,
       { eventSlug: 'ev', signupId: 's1', checkedInAt: '2026-09-12T08:15:00.000Z' },
-      { dataSources },
+      { dataSources, user: ADMIN },
     );
     expect(dataSources.eventandoIntegration.updateSignup).toHaveBeenCalledWith('s1', {
       checked_in: true,
@@ -82,7 +86,7 @@ describe('checkinSignup', () => {
 
   it('falls back to now when checkedInAt is not a valid date', async () => {
     const dataSources = makeDataSources();
-    await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 's1', checkedInAt: 'ontem' }, { dataSources });
+    await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 's1', checkedInAt: 'ontem' }, { dataSources, user: ADMIN });
     const [, data] = dataSources.eventandoIntegration.updateSignup.mock.calls[0];
     expect(Number.isNaN(Date.parse(data.checked_in_at))).toBe(false);
   });
@@ -95,7 +99,7 @@ describe('checkinSignup', () => {
     const out = await Checkin.Mutation.checkinSignup(
       null,
       { eventSlug: 'ev', signupId: 's1', checkedInAt: '2026-09-12T09:00:00.000Z' },
-      { dataSources },
+      { dataSources, user: ADMIN },
     );
     expect(out.success).toBe(true);
     expect(out.signup.checked_in_at).toBe('2026-09-12T07:00:00.000Z');
@@ -106,7 +110,7 @@ describe('checkinSignup', () => {
   it('reports a missing signup', async () => {
     const dataSources = makeDataSources();
     dataSources.eventandoIntegration.findSignupById.mockResolvedValue(null);
-    const out = await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 'nope' }, { dataSources });
+    const out = await Checkin.Mutation.checkinSignup(null, { eventSlug: 'ev', signupId: 'nope' }, { dataSources, user: ADMIN });
     expect(out).toEqual({ success: false, message: 'Inscrição não encontrada.', signup: null });
   });
 });
@@ -134,7 +138,7 @@ describe('manualSignup', () => {
   });
 
   const run = (dataSources) =>
-    Checkin.Mutation.manualSignup(null, { eventSlug: 'ev', batchId: '3', input }, { dataSources });
+    Checkin.Mutation.manualSignup(null, { eventSlug: 'ev', batchId: '3', input }, { dataSources, user: ADMIN });
 
   it('sets up the account and sends the confirmation with the new signup id', async () => {
     const dataSources = walkInDataSources();
@@ -200,7 +204,7 @@ describe('manualSignup', () => {
     await Checkin.Mutation.manualSignup(
       null,
       { eventSlug: 'ev', batchId: '3', input: { ...input, cpf: '123.456.789-09' } },
-      { dataSources },
+      { dataSources, user: ADMIN },
     );
     expect(dataSources.managerIntegration.updateUser)
       .toHaveBeenCalledWith(5, { cpf: '12345678909', phone: '+55 62 9', name: 'Ana Souza' });
@@ -236,7 +240,7 @@ describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
   });
 
   const run = (dataSources, extra = {}) =>
-    Checkin.Mutation.manualSignup(null, { eventSlug: 'veredas', batchId: '3', input: { ...input, ...extra } }, { dataSources });
+    Checkin.Mutation.manualSignup(null, { eventSlug: 'veredas', batchId: '3', input: { ...input, ...extra } }, { dataSources, user: ADMIN });
 
   it('found by CPF: signs up under that account e-mail and sends only the confirmation', async () => {
     const account = { id: 1, email: 'Ana@Antigo.io', name: 'Ana', cpf: '52998224725', phone: '62988887777', date_of_birth: null };
@@ -370,7 +374,7 @@ describe('importSignups', () => {
 
   it('sends the confirmation, in the background, to each imported signup with an e-mail', async () => {
     const dataSources = importDataSources();
-    const out = await Checkin.Mutation.importSignups(null, { eventSlug: 'ev', batchId: 3, signups }, { dataSources });
+    const out = await Checkin.Mutation.importSignups(null, { eventSlug: 'ev', batchId: 3, signups }, { dataSources, user: ADMIN });
 
     expect(out).toMatchObject({ success: true, imported_count: 3, skipped_count: 1 });
     expect(sendSignupConfirmationBatch).toHaveBeenCalledTimes(1);
@@ -399,7 +403,7 @@ describe('importSignups', () => {
           { name: 'Dup', email: 'dup@x.io', cpf: '987.654.321-00' },
         ],
       },
-      { dataSources },
+      { dataSources, user: ADMIN },
     );
 
     expect(sendSignupConfirmationBatch.mock.calls[0][0].signups).toEqual([
@@ -416,7 +420,7 @@ describe('importSignups', () => {
     const out = await Checkin.Mutation.importSignups(
       null,
       { eventSlug: 'ev', batchId: 3, signups: signups.slice(0, 1) },
-      { dataSources: importDataSources() },
+      { dataSources: importDataSources(), user: ADMIN },
     );
     expect(out.success).toBe(true);
   });
@@ -425,7 +429,7 @@ describe('importSignups', () => {
     await Checkin.Mutation.importSignups(
       null,
       { eventSlug: 'ev', batchId: 3, signups: [{ name: 'Dup', email: 'dup@x.io' }] },
-      { dataSources: importDataSources() },
+      { dataSources: importDataSources(), user: ADMIN },
     );
     expect(sendSignupConfirmationBatch).not.toHaveBeenCalled();
   });
@@ -452,7 +456,7 @@ describe('sendImportedSignupConfirmations', () => {
   it('queues only the imported signups that have an e-mail and answers right away', async () => {
     sendSignupConfirmationBatch.mockReturnValueOnce(new Promise(() => {}));
     const dataSources = bulkDataSources();
-    const out = await Checkin.Mutation.sendImportedSignupConfirmations(null, { eventSlug: 'ev' }, { dataSources });
+    const out = await Checkin.Mutation.sendImportedSignupConfirmations(null, { eventSlug: 'ev' }, { dataSources, user: ADMIN });
 
     expect(out).toEqual({ success: true, message: '2 e-mails na fila de envio.', queued_count: 2 });
     expect(dataSources.eventandoIntegration.findSignupsByEvent).toHaveBeenCalledWith(42);
@@ -467,7 +471,7 @@ describe('sendImportedSignupConfirmations', () => {
   it('queues nothing for an event without imported signups', async () => {
     const dataSources = bulkDataSources();
     dataSources.eventandoIntegration.findSignupsByEvent.mockResolvedValue(eventSignups.slice(2, 5));
-    const out = await Checkin.Mutation.sendImportedSignupConfirmations(null, { eventSlug: 'ev' }, { dataSources });
+    const out = await Checkin.Mutation.sendImportedSignupConfirmations(null, { eventSlug: 'ev' }, { dataSources, user: ADMIN });
     expect(out).toMatchObject({ success: true, queued_count: 0 });
     expect(sendSignupConfirmationBatch).not.toHaveBeenCalled();
   });
@@ -476,7 +480,7 @@ describe('sendImportedSignupConfirmations', () => {
     const out = await Checkin.Mutation.sendImportedSignupConfirmations(
       null,
       { eventSlug: 'nope' },
-      { dataSources: bulkDataSources(null) },
+      { dataSources: bulkDataSources(null), user: ADMIN },
     );
     expect(out).toEqual({ success: false, message: 'Evento "nope" não encontrado.', queued_count: 0 });
   });
@@ -491,7 +495,7 @@ describe('updateSignup', () => {
       .fn()
       .mockResolvedValue({ data: { ...rawSignups[0], phone_number: '62981219249' } });
 
-    const out = await Checkin.Mutation.updateSignup(null, args({ phone_number: ' 62981219249 ' }), { dataSources });
+    const out = await Checkin.Mutation.updateSignup(null, args({ phone_number: ' 62981219249 ' }), { dataSources, user: ADMIN });
 
     expect(dataSources.eventandoIntegration.updateSignup)
       .toHaveBeenCalledWith('s1', { phone_number: '62981219249' });
@@ -501,7 +505,7 @@ describe('updateSignup', () => {
 
   it('never touches the check-in, so fixing a name cannot un-credential anyone', async () => {
     const dataSources = makeDataSources();
-    await Checkin.Mutation.updateSignup(null, args({ name: 'Ana Souza' }), { dataSources });
+    await Checkin.Mutation.updateSignup(null, args({ name: 'Ana Souza' }), { dataSources, user: ADMIN });
 
     const [, patch] = dataSources.eventandoIntegration.updateSignup.mock.calls[0];
     expect(patch).toEqual({ name: 'Ana Souza' });
@@ -512,13 +516,13 @@ describe('updateSignup', () => {
     const dataSources = makeDataSources();
     dataSources.eventandoIntegration.findSignupById = vi.fn().mockResolvedValue(null);
 
-    const out = await Checkin.Mutation.updateSignup(null, args({ name: 'Ana' }), { dataSources });
+    const out = await Checkin.Mutation.updateSignup(null, args({ name: 'Ana' }), { dataSources, user: ADMIN });
     expect(out).toMatchObject({ success: false, message: 'Inscrição não encontrada.', signup: null });
   });
 
   it('is a no-op for an empty input instead of writing nothing over everything', async () => {
     const dataSources = makeDataSources();
-    const out = await Checkin.Mutation.updateSignup(null, args({}), { dataSources });
+    const out = await Checkin.Mutation.updateSignup(null, args({}), { dataSources, user: ADMIN });
 
     expect(dataSources.eventandoIntegration.updateSignup).not.toHaveBeenCalled();
     expect(out).toMatchObject({ success: true, message: 'Nada para alterar.' });

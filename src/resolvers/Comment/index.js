@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { requireAuthorOrAdmin, requireUser } from '../../utils/auth';
 
 dotenv.config();
 
@@ -29,8 +30,9 @@ const Comment = {
   },
 
   Mutation: {
-    createComment: async (_, { input }, { dataSources, user }) => {
-      const { createComment } = dataSources.managerIntegration;
+    createComment: async (_, { input }, ctx) => {
+      const user = requireUser(ctx);
+      const { createComment } = ctx.dataSources.managerIntegration;
 
       const data = {
         user_creator: {
@@ -47,6 +49,21 @@ const Comment = {
         return response.data;
       } catch (err) {
         throw new Error(`Error creating comment: ${err.message}`);
+      }
+    },
+
+    // Declared in the schema long ago, never implemented until now: the author or an admin.
+    deleteComment: async (_, { id }, ctx) => {
+      requireUser(ctx);
+      const { managerIntegration } = ctx.dataSources;
+      const comment = await managerIntegration.findCommentWithAuthor(id).catch(() => null);
+      if (!comment) throw new Error('Comentário não encontrado.');
+      requireAuthorOrAdmin(ctx, comment.user_creator?.documentId);
+      try {
+        await managerIntegration.deleteComment(id);
+        return true;
+      } catch (err) {
+        throw new Error(`Error deleting comment: ${err.message}`);
       }
     },
   },

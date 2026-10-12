@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { isValidCpf, normalizeIdentifier } from '../Certificate/eligibility';
+import { requireAdmin } from '../../utils/auth';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -39,8 +40,10 @@ const User = {
     users: async (
       _,
       { filters, sort, pagination, search },
-      { dataSources },
+      ctx,
     ) => {
+      requireAdmin(ctx);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.manager.findUsers(
           filters,

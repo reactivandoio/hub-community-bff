@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { requireAdmin } from '../../utils/auth';
 
 dotenv.config();
 
@@ -50,7 +51,9 @@ const Speaker = {
   },
 
   Mutation: {
-    createSpeaker: async (_, { data }, { dataSources }) => {
+    createSpeaker: async (_, { data }, ctx) => {
+      requireAdmin(ctx);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.managerIntegration.createSpeaker(
           data,
@@ -61,7 +64,9 @@ const Speaker = {
         throw new Error(`Error creating speaker: ${err.message}`);
       }
     },
-    updateSpeaker: async (_, { id, data }, { dataSources }) => {
+    updateSpeaker: async (_, { id, data }, ctx) => {
+      requireAdmin(ctx);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.managerIntegration.updateSpeaker(
           id,
@@ -73,7 +78,9 @@ const Speaker = {
         throw new Error(`Error updating speaker: ${err.message}`);
       }
     },
-    deleteSpeaker: async (_, { id }, { dataSources }) => {
+    deleteSpeaker: async (_, { id }, ctx) => {
+      requireAdmin(ctx);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.managerIntegration.deleteSpeakerById(
           id,

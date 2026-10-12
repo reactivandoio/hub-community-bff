@@ -1,4 +1,9 @@
 import dotenv from 'dotenv';
+import {
+  requireAdmin,
+  requireEventOrganizer,
+  requireTalkOrganizer,
+} from '../../utils/auth';
 
 dotenv.config();
 
@@ -42,7 +47,10 @@ const Talk = {
   },
 
   Mutation: {
-    createTalk: async (_, { data }, { dataSources }) => {
+    createTalk: async (_, { data }, ctx) => {
+      if (data.event) await requireEventOrganizer(ctx, data.event);
+      else requireAdmin(ctx);
+      const { dataSources } = ctx;
       try {
         const payload = {
           title: data.title,
@@ -64,7 +72,10 @@ const Talk = {
         throw new Error(`Error creating talk: ${err.message}`);
       }
     },
-    updateTalk: async (_, { id, data }, { dataSources }) => {
+    updateTalk: async (_, { id, data }, ctx) => {
+      await requireTalkOrganizer(ctx, id);
+      if (data.event) await requireEventOrganizer(ctx, data.event);
+      const { dataSources } = ctx;
       try {
         const payload = {
           title: data.title,
@@ -87,7 +98,9 @@ const Talk = {
         throw new Error(`Error updating talk: ${err.message}`);
       }
     },
-    deleteTalk: async (_, { id }, { dataSources }) => {
+    deleteTalk: async (_, { id }, ctx) => {
+      await requireTalkOrganizer(ctx, id);
+      const { dataSources } = ctx;
       try {
         const response = await dataSources.managerIntegration.deleteTalk(id);
         return response.data;
