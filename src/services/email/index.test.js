@@ -21,6 +21,13 @@ describe('sendEmail', () => {
   it('sends no attachments key when there are none', async () => {
     await sendEmail({ to: 'ana@x.io', subject: 'Oi', html: '<p/>' });
     expect(sendMail.mock.calls[0][0]).not.toHaveProperty('attachments');
+    expect(sendMail.mock.calls[0][0]).not.toHaveProperty('headers');
+  });
+
+  it('passes extra headers through (List-Unsubscribe, REA-29)', async () => {
+    const headers = { 'List-Unsubscribe': '<https://x/u>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' };
+    await sendEmail({ to: 'ana@x.io', subject: 'Oi', html: '<p/>', headers });
+    expect(sendMail.mock.calls[0][0]).toMatchObject({ headers });
   });
 
   it('reports an SMTP failure instead of throwing', async () => {

@@ -14,8 +14,8 @@ const DEFAULT_FROM = process.env.EMAIL_FROM || 'Hub Community <contato@8020digit
 const DEFAULT_REPLY_TO = process.env.EMAIL_REPLY_TO || 'contato@8020digital.com.br';
 
 // `attachments` goes to nodemailer as is — e.g. an inline image referenced
-// from the HTML as `cid:<cid>`.
-export const sendEmail = async ({ to, subject, html, from, replyTo, attachments }) => {
+// from the HTML as `cid:<cid>`. `headers` too — e.g. List-Unsubscribe on campaign e-mails (REA-29).
+export const sendEmail = async ({ to, subject, html, from, replyTo, attachments, headers }) => {
   try {
     const info = await transporter.sendMail({
       from: from || DEFAULT_FROM,
@@ -24,6 +24,7 @@ export const sendEmail = async ({ to, subject, html, from, replyTo, attachments 
       html,
       replyTo: replyTo || DEFAULT_REPLY_TO,
       ...(attachments?.length ? { attachments } : {}),
+      ...(headers && Object.keys(headers).length ? { headers } : {}),
     });
     console.log(`[Email] Sent to ${to}: ${info.messageId}`);
     return { success: true, messageId: info.messageId };

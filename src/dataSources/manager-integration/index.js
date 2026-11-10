@@ -15,6 +15,7 @@ import accountSetup from './account-setup';
 import authz from './authz';
 import voting from './voting';
 import adminUsers from './admin-users';
+import emailCampaigns from './email-campaigns';
 
 const managerIntegration = ({ headers }) => ({
   ...analyticsEvents({ headers }),
@@ -34,6 +35,7 @@ const managerIntegration = ({ headers }) => ({
   ...authz({ headers }),
   ...voting({ headers }),
   ...adminUsers({ headers }),
+  ...emailCampaigns({ headers }),
 });
 
 export default managerIntegration;
