@@ -159,6 +159,24 @@ describe('eventAnalytics paid signups and payment per signup (REA-27/REA-28)', (
     expect(out.free_signups).toBe(3);
   });
 
+  it('leaves expired and canceled signups out of the total, occupancy, timeline and check-in', async () => {
+    const dataSources = makeDataSources();
+    const dated = signups.map((s, i) => ({ ...s, createdAt: `2026-11-0${(i % 2) + 1}T12:00:00.000Z` }));
+    dataSources.eventandoIntegration.findEvents = vi
+      .fn()
+      .mockResolvedValue({ data: [{ id: 42, name: 'Ev', slug: 'ev', uuid: 'u', products: [], max_slots: 100 }] });
+    dataSources.eventandoIntegration.findSignupsByEvent = vi.fn().mockResolvedValue(dated);
+    const out = await Analytics.Query.eventAnalytics(null, { slugOrId: 'ev' }, { dataSources, user: ADMIN });
+    // 10 signups: vencido (pending past deadline), expirado and cancelado are out.
+    expect(out.total_signups).toBe(7);
+    expect(out.total_signups).toBe(out.free_signups + out.paid_signups + out.pending_paid_signups);
+    expect(out.occupancy_percentage).toBe(7);
+    expect(out.signups_timeline.reduce((sum, p) => sum + p.count, 0)).toBe(7);
+    expect(out.signups_by_origin.reduce((sum, o) => sum + o.total, 0)).toBe(7);
+    // The list still has everyone, with the status.
+    expect(out.all_signups).toHaveLength(10);
+  });
+
   it('gives each signup its status, what it paid and the coupon used', async () => {
     const out = await run();
     const byEmail = Object.fromEntries(out.all_signups.map((s) => [s.email, s]));

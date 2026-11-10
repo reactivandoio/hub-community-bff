@@ -6,6 +6,7 @@ type EventAnalytics {
   event_slug: String
 
   # Core signup metrics
+  "Signups holding or having held a place: expired and canceled ones are left out (a pending charge past its deadline counts as expired). Occupancy, timeline and check-in numbers use the same set; all_signups lists everyone."
   total_signups: Int!
   "No payment or a zero value."
   free_signups: Int!
