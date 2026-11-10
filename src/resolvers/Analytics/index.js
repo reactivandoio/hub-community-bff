@@ -3,7 +3,7 @@ import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import { checkinMetrics, eventDays, signupOrigin } from '../../utils/checkin-analytics';
 import { withCpf } from '../../utils/signup-cpf';
 import { requireEventOrganizer } from '../../utils/auth';
-import { CONFIRMED } from '../../utils/payment-status';
+import { CONFIRMED, EXPIRED, PENDING, effectiveStatus } from '../../utils/payment-status';
 
 dotenv.config();
 
@@ -14,6 +14,22 @@ const isSold = (signup) => signup.payment?.status === CONFIRMED;
 // What was actually paid, in cents (coupon and half price already applied; old
 // Pix Aí payments were stored in cents too).
 const paidCents = (signup) => Number(signup.payment?.value) || 0;
+
+// A paid signup is a confirmed payment with a value; a pending one is a charge with a
+// value still within its deadline (past expires_at it already reads as EXPIRED).
+const isPaid = (signup) => isSold(signup) && paidCents(signup) > 0;
+const isPendingPaid = (signup) =>
+  paidCents(signup) > 0 && effectiveStatus(signup.payment) === PENDING;
+
+// Expired and canceled signups do not count as signed up: they freed the place (the
+// Pagamentos card says so). A pending charge past its deadline reads EXPIRED. They stay
+// in the participants list and the CSV, with their status (REA-27/REA-28).
+const DROPPED = new Set([EXPIRED, 'CANCELED']);
+const countsAsSignup = (signup) => !signup.payment || !DROPPED.has(effectiveStatus(signup.payment));
+
+// The coupon that set the price. When half price won, the coupon was not used.
+const couponCode = (payment) =>
+  payment?.discount_kind === 'student' ? null : payment?.coupon?.code || null;
 
 /**
  * Analytics resolver — aggregates data from Hub Community Manager + Eventando Manager
@@ -98,20 +114,16 @@ const Analytics = {
         }
 
         // 4. Process signups
-        const totalSignups = allSignups.length;
+        const signups = allSignups.filter(countsAsSignup);
+        const totalSignups = signups.length;
 
-        // Determine free vs paid based on payment presence/value
-        let freeSignups = 0;
-        let paidSignups = 0;
-
-        allSignups.forEach(signup => {
-          const payment = signup.payment;
-          if (!payment || Number(payment.value) === 0 || payment.value === null) {
-            freeSignups++;
-          } else {
-            paidSignups++;
-          }
-        });
+        // Free: no payment or a zero value. Paid: only confirmed ones — a pending, expired,
+        // canceled or refunded charge brought no money (REA-27).
+        const freeSignups = signups.filter(
+          (s) => !s.payment || !(Number(s.payment.value) > 0),
+        ).length;
+        const paidSignups = signups.filter(isPaid).length;
+        const pendingPaidSignups = signups.filter(isPendingPaid).length;
 
         // 5. Capacity/occupancy
         const maxSlots = eventandoEvent?.max_slots || managerEvent?.max_slots || null;
@@ -163,7 +175,7 @@ const Analytics = {
 
         // 7. Timeline — aggregate signups by day
         const timelineMap = {};
-        allSignups.forEach(signup => {
+        signups.forEach(signup => {
           const createdAt = signup.createdAt || signup.created_at;
           if (createdAt) {
             const day = createdAt.slice(0, 10); // "YYYY-MM-DD"
@@ -200,13 +212,17 @@ const Analytics = {
             checked_in: Boolean(signup.checked_in),
             checked_in_at: signup.checked_in_at || null,
             origin: signupOrigin(signup),
+            payment_status: signup.payment ? effectiveStatus(signup.payment) : null,
+            paid_cents: isPaid(signup) ? paidCents(signup) : null,
+            coupon_code: couponCode(signup.payment),
           })),
           users,
         ), users, swForms);
 
         // 9. Check-in — attendance, signups made on the event day and check-ins per hour
+        //    Over the same signups as the total, so the per-origin numbers add up to it.
         const checkin = checkinMetrics(
-          allSignups,
+          signups,
           eventDays(managerEvent?.start_date, managerEvent?.end_date),
         );
 
@@ -218,6 +234,7 @@ const Analytics = {
           total_signups: totalSignups,
           free_signups: freeSignups,
           paid_signups: paidSignups,
+          pending_paid_signups: pendingPaidSignups,
           max_slots: maxSlots,
           occupancy_percentage: occupancyPercentage,
           certificate_requests: certificateRequests,
