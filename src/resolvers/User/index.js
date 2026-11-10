@@ -112,6 +112,7 @@ const User = {
         password: input.password,
         name: input.name,
         phone: input.phone || undefined,
+        marketing_opt_in: input.marketing_opt_in === true,
       });
 
       const createdUser = response.data.user;

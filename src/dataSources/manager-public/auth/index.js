@@ -9,12 +9,13 @@ function signIn({ identifier, password }) {
   );
 }
 
-function signUp({ username, email, password, name, phone }) {
+function signUp({ username, email, password, name, phone, marketing_opt_in: marketingOptIn }) {
   return managerPublicNetworkUtils.fetch(
     '/auth/local/register',
     'POST',
     {},
-    { username, email, password, name, phone },
+    // marketing_opt_in is in the backend's register.allowedFields (REA-29)
+    { username, email, password, name, phone, marketing_opt_in: marketingOptIn === true },
   );
 }
 

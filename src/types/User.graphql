@@ -52,6 +52,8 @@ input UserInput {
   password: String!
   name: String!
   phone: String
+  "Checkbox 'quero receber novidades' of the signup form (REA-29). Only recorded."
+  marketing_opt_in: Boolean
 }
 
 # Paginated User response

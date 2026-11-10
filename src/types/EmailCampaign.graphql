@@ -1,0 +1,80 @@
+"REA-29: e-mail campaigns of an event (admin page 'E-mail marketing')."
+enum EmailCampaignType {
+  "Whole Hub base (admin only)."
+  invite
+  "Signups get a personal link to invite someone."
+  share
+  "Signups only."
+  reminder
+}
+
+enum EmailCampaignAction {
+  pause
+  resume
+  cancel
+}
+
+type EmailCampaign {
+  "documentId"
+  id: ID!
+  type: EmailCampaignType!
+  subject: String!
+  message: String
+  "draft | sending | paused | done | canceled"
+  status: String!
+  "Audience when it started (approximate for invite)."
+  total: Int!
+  sent: Int!
+  failed: Int!
+  created_by_email: String
+  started_at: String
+  finished_at: String
+  createdAt: String
+}
+
+type EmailCampaignAudience {
+  total: Int!
+  "True for invite: users of the base minus the unsubscribed, before leaving out the signups."
+  approximate: Boolean!
+  "Campaign e-mails a day, all campaigns together."
+  daily_limit: Int!
+  estimated_days: Int
+  "False while the queue is off on this server (EMAIL_CAMPAIGNS_ENABLED)."
+  sending_enabled: Boolean!
+  "Set when every e-mail goes to a test address instead (EMAIL_CAMPAIGN_REDIRECT_TO)."
+  redirect_to: String
+}
+
+type EmailCampaignPreview {
+  subject: String!
+  html: String!
+}
+
+input EmailCampaignInput {
+  "Slug or documentId of the Hub event."
+  eventSlug: String!
+  type: EmailCampaignType!
+  "Empty: the default subject of the type."
+  subject: String
+  "Optional plain text shown above the button."
+  message: String
+}
+
+extend type Query {
+  "Organizers of the event (newest first)."
+  eventEmailCampaigns(eventSlug: String!): [EmailCampaign!]!
+  "Organizers; invite is admin only."
+  emailCampaignAudience(eventSlug: String!, type: EmailCampaignType!): EmailCampaignAudience!
+  "Organizers; invite is admin only. Rendered for the signed-in user."
+  emailCampaignPreview(input: EmailCampaignInput!): EmailCampaignPreview!
+}
+
+extend type Mutation {
+  "Sends the e-mail once to the signed-in user. Organizers; invite is admin only."
+  sendEmailCampaignTest(input: EmailCampaignInput!): Boolean!
+  "Queues the campaign (daily quota). Organizers; invite is admin only."
+  startEmailCampaign(input: EmailCampaignInput!): EmailCampaign!
+  updateEmailCampaignStatus(eventSlug: String!, id: ID!, action: EmailCampaignAction!): EmailCampaign!
+  "Public: the token of the unsubscribe link. False when the token is not valid."
+  unsubscribeEmail(token: String!): Boolean!
+}

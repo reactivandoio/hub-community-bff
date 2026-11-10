@@ -134,6 +134,17 @@ const PROTECTED = [
   ['Mutation', 'connectEventOpaPingou', { eventId: 'ev-1', apiKey: 'opk_live_x' }, 'organizer'],
   ['Mutation', 'useOpaPingouConnection', { eventId: 'ev-1', connectionId: 'opc_1' }, 'organizer'],
   ['Mutation', 'disconnectEventOpaPingou', { eventId: 'ev-1' }, 'organizer'],
+  // E-mail campaigns (REA-29): the whole base (invite) is admin only.
+  ['Query', 'eventEmailCampaigns', ev, 'organizer'],
+  ['Query', 'emailCampaignAudience', { ...ev, type: 'reminder' }, 'organizer'],
+  ['Query', 'emailCampaignAudience', { ...ev, type: 'invite' }, 'admin'],
+  ['Query', 'emailCampaignPreview', { input: { ...ev, type: 'share' } }, 'organizer'],
+  ['Query', 'emailCampaignPreview', { input: { ...ev, type: 'invite' } }, 'admin'],
+  ['Mutation', 'sendEmailCampaignTest', { input: { ...ev, type: 'reminder' } }, 'organizer'],
+  ['Mutation', 'sendEmailCampaignTest', { input: { ...ev, type: 'invite' } }, 'admin'],
+  ['Mutation', 'startEmailCampaign', { input: { ...ev, type: 'share' } }, 'organizer'],
+  ['Mutation', 'startEmailCampaign', { input: { ...ev, type: 'invite' } }, 'admin'],
+  ['Mutation', 'updateEmailCampaignStatus', { ...ev, id: 'cp-1', action: 'pause' }, 'organizer'],
 ];
 
 describe('protected operations', () => {
