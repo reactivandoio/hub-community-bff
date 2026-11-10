@@ -36,6 +36,9 @@ jobs:
       - name: Testes dos scripts de deploy
         run: bash .github/scripts/env-scripts.test.sh
 
+      - name: Testes dos scripts do e-mail marketing
+        run: bash scripts/email-campaigns/test.sh
+
       - name: Build
         run: yarn build
 
