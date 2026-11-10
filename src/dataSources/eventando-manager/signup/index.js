@@ -28,6 +28,7 @@ const findSignupsByEvent = async (eventId, headers) => {
     const pagination = { page, pageSize: 100 };
     const populate = [
       'payment',
+      'payment.coupon',
       'payment.batch.product',
       'payment.batch',
       'event',

@@ -7,8 +7,12 @@ type EventAnalytics {
 
   # Core signup metrics
   total_signups: Int!
+  "No payment or a zero value."
   free_signups: Int!
+  "Confirmed payments with a value. Pending, expired, canceled and refunded are left out."
   paid_signups: Int!
+  "Charges with a value still waiting for payment, within their deadline."
+  pending_paid_signups: Int!
 
   # Capacity
   max_slots: Int
@@ -91,6 +95,12 @@ type SignupEntry {
   origin: SignupOrigin
   "Digits only; from the account, or the Startup Weekend form."
   cpf: String
+  "PEDING_PAYMENT | CONFIRMED | EXPIRED | CANCELED | REFUND; a pending charge past expires_at reads EXPIRED. Null without payment."
+  payment_status: String
+  "What was paid, in cents (coupon and half price applied). Only for a confirmed payment with a value; null when free or not paid."
+  paid_cents: Float
+  "Code of the coupon applied to the price; null without coupon or when half price won."
+  coupon_code: String
 }
 
 type Query {

@@ -130,3 +130,46 @@ describe('eventAnalytics.products_breakdown (REA-19)', () => {
     }
   });
 });
+
+describe('eventAnalytics paid signups and payment per signup (REA-27/REA-28)', () => {
+  const pay = (status, value, extra = {}) => ({ status, value, ...extra });
+  const signups = [
+    { id: 1, email: 'pago@x.io', payment: pay('CONFIRMED', 2000) },
+    { id: 2, email: 'cupom@x.io', payment: pay('CONFIRMED', 1500, { discount_kind: 'coupon', coupon: { code: 'MEETUP25' } }) },
+    { id: 3, email: 'pendente@x.io', payment: pay('PEDING_PAYMENT', 2000, { expires_at: '2999-01-01T00:00:00.000Z' }) },
+    { id: 4, email: 'vencido@x.io', payment: pay('PEDING_PAYMENT', 2000, { expires_at: '2020-01-01T00:00:00.000Z' }) },
+    { id: 5, email: 'expirado@x.io', payment: pay('EXPIRED', 2000) },
+    { id: 6, email: 'cancelado@x.io', payment: pay('CANCELED', 2000) },
+    { id: 7, email: 'gratis@x.io', payment: pay('CONFIRMED', 0) },
+    { id: 8, email: 'semPagamento@x.io' },
+    { id: 9, email: 'meia@x.io', payment: pay('CONFIRMED', 1000, { discount_kind: 'student', coupon: { code: 'PERDEU' } }) },
+    { id: 10, email: 'cupom100@x.io', payment: pay('CONFIRMED', 0, { discount_kind: 'coupon', coupon: { code: 'FREE' } }) },
+  ];
+
+  const run = async () => {
+    const dataSources = makeDataSources();
+    dataSources.eventandoIntegration.findSignupsByEvent = vi.fn().mockResolvedValue(signups);
+    return Analytics.Query.eventAnalytics(null, { slugOrId: 'ev' }, { dataSources, user: ADMIN });
+  };
+
+  it('counts as paid only confirmed payments with a value, and pending ones apart', async () => {
+    const out = await run();
+    expect(out.paid_signups).toBe(3);
+    expect(out.pending_paid_signups).toBe(1);
+    expect(out.free_signups).toBe(3);
+  });
+
+  it('gives each signup its status, what it paid and the coupon used', async () => {
+    const out = await run();
+    const byEmail = Object.fromEntries(out.all_signups.map((s) => [s.email, s]));
+    expect(byEmail['pago@x.io']).toMatchObject({ payment_status: 'CONFIRMED', paid_cents: 2000, coupon_code: null });
+    expect(byEmail['cupom@x.io']).toMatchObject({ paid_cents: 1500, coupon_code: 'MEETUP25' });
+    expect(byEmail['pendente@x.io']).toMatchObject({ payment_status: 'PEDING_PAYMENT', paid_cents: null });
+    expect(byEmail['vencido@x.io']).toMatchObject({ payment_status: 'EXPIRED', paid_cents: null });
+    expect(byEmail['expirado@x.io']).toMatchObject({ payment_status: 'EXPIRED', paid_cents: null });
+    expect(byEmail['gratis@x.io']).toMatchObject({ payment_status: 'CONFIRMED', paid_cents: null });
+    expect(byEmail['semPagamento@x.io']).toMatchObject({ payment_status: null, paid_cents: null, coupon_code: null });
+    expect(byEmail['meia@x.io']).toMatchObject({ paid_cents: 1000, coupon_code: null });
+    expect(byEmail['cupom100@x.io']).toMatchObject({ paid_cents: null, coupon_code: 'FREE' });
+  });
+});
