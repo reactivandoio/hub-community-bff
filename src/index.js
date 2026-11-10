@@ -21,6 +21,7 @@ import getResolvers from './resolvers';
 
 import dataSources from './dataSources';
 import { mountOpaPingouWebhook, startOpaPingouSweep } from './routes/opapingou-webhook';
+import { startEmailCampaignSweep } from './services/email-campaign/sender';
 
 const startServer = async () => {
   const typeDefs = await getTypes();
@@ -81,6 +82,8 @@ const startServer = async () => {
   // Opa Pingou webhook: raw body, so it comes before any JSON parser (404 with the flag off).
   const opaPingou = mountOpaPingouWebhook(app, { makeDataSources: dataSources });
   startOpaPingouSweep(opaPingou);
+  // E-mail campaigns of the events (REA-29): daily-quota queue, off unless EMAIL_CAMPAIGNS_ENABLED=true.
+  startEmailCampaignSweep(dataSources);
 
   // File upload endpoint - proxies to Strapi upload API
   const upload = multer({
