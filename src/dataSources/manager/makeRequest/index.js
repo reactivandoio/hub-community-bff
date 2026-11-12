@@ -173,11 +173,10 @@ const fetch = async (route, method, customHeaders = {}, body = null) => {
       data: body,
     });
   } catch (error) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('error: ', error.message);
-    }
+    // REA-35: the manager's address and the cause stay in the log, not in the GraphQL answer.
+    console.error(`[${method}] ${decodeURIComponent(url)} failed: ${error.message}`);
 
-    throw new Error(`Error on try ${method} in ${url}`);
+    throw new Error(`Error on try ${method} in ${route.split('?')[0]}`);
   }
 
   if (process.env.NODE_ENV === 'production') {
