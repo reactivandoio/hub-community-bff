@@ -36,3 +36,15 @@ export const countsAsCouponUse = (payment, now = new Date()) => {
   if (payment?.status !== PENDING) return false;
   return Boolean(payment.expires_at) && !isPast(payment.expires_at, now);
 };
+
+// REA-34: o admin aprovou a inscrição sem cobrança. O payment fica CONFIRMED com o
+// value original (histórico), mas conta como R$ 0 e fica fora da receita.
+export const isManuallyApproved = (payment) => Boolean(payment?.manual_approved_at);
+
+// Quem aprovou, para mostrar: o nome, ou o e-mail ({ id, email, name } no Eventando).
+export const manualApproverOf = (payment) => {
+  const by = payment?.manual_approved_by;
+  if (!by) return null;
+  if (typeof by === 'string') return by;
+  return by.name || by.email || null;
+};

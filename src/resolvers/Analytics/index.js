@@ -3,7 +3,9 @@ import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import { checkinMetrics, eventDays, signupOrigin } from '../../utils/checkin-analytics';
 import { withCpf } from '../../utils/signup-cpf';
 import { requireEventOrganizer } from '../../utils/auth';
-import { CONFIRMED, EXPIRED, PENDING, effectiveStatus } from '../../utils/payment-status';
+import {
+  CONFIRMED, EXPIRED, PENDING, effectiveStatus, isManuallyApproved, manualApproverOf,
+} from '../../utils/payment-status';
 
 dotenv.config();
 
@@ -12,12 +14,22 @@ dotenv.config();
 const isSold = (signup) => signup.payment?.status === CONFIRMED;
 
 // What was actually paid, in cents (coupon and half price already applied; old
-// Pix Aí payments were stored in cents too).
-const paidCents = (signup) => Number(signup.payment?.value) || 0;
+// Pix Aí payments were stored in cents too). Aprovada manualmente (REA-34): nada foi
+// pago, o value que ficou é só histórico.
+const isManual = (signup) => isManuallyApproved(signup.payment);
+const paidCents = (signup) => {
+  if (isManual(signup)) return 0;
+  return Number(signup.payment?.value) || 0;
+};
 
 // A paid signup is a confirmed payment with a value; a pending one is a charge with a
 // value still within its deadline (past expires_at it already reads as EXPIRED).
 const isPaid = (signup) => isSold(signup) && paidCents(signup) > 0;
+// paid_cents da lista: o valor pago; 0 numa aprovada manualmente; null se nada foi pago.
+const paidCentsShown = (signup) => {
+  if (isManual(signup)) return 0;
+  return isPaid(signup) ? paidCents(signup) : null;
+};
 const isPendingPaid = (signup) =>
   paidCents(signup) > 0 && effectiveStatus(signup.payment) === PENDING;
 
@@ -119,8 +131,10 @@ const Analytics = {
 
         // Free: no payment or a zero value. Paid: only confirmed ones — a pending, expired,
         // canceled or refunded charge brought no money (REA-27).
+        // Aprovada manualmente (REA-34) conta só no total e em manual_signups.
+        const manualSignups = signups.filter(isManual).length;
         const freeSignups = signups.filter(
-          (s) => !s.payment || !(Number(s.payment.value) > 0),
+          (s) => !isManual(s) && (!s.payment || !(Number(s.payment.value) > 0)),
         ).length;
         const paidSignups = signups.filter(isPaid).length;
         const pendingPaidSignups = signups.filter(isPendingPaid).length;
@@ -204,6 +218,8 @@ const Analytics = {
         ]);
         const allSignupsMapped = withCpf(withUserNames(
           allSignups.map((signup) => ({
+            // O id que approveSignupManually aceita (o numérico do Eventando).
+            signup_id: signup.id !== undefined && signup.id !== null ? String(signup.id) : null,
             name: signup.name,
             email: signup.email,
             phone_number: signup.phone_number,
@@ -213,8 +229,11 @@ const Analytics = {
             checked_in_at: signup.checked_in_at || null,
             origin: signupOrigin(signup),
             payment_status: signup.payment ? effectiveStatus(signup.payment) : null,
-            paid_cents: isPaid(signup) ? paidCents(signup) : null,
+            paid_cents: paidCentsShown(signup),
             coupon_code: couponCode(signup.payment),
+            manual_approved: isManual(signup),
+            manual_approved_at: signup.payment?.manual_approved_at || null,
+            manual_approved_by: manualApproverOf(signup.payment),
           })),
           users,
         ), users, swForms);
@@ -235,6 +254,7 @@ const Analytics = {
           free_signups: freeSignups,
           paid_signups: paidSignups,
           pending_paid_signups: pendingPaidSignups,
+          manual_signups: manualSignups,
           max_slots: maxSlots,
           occupancy_percentage: occupancyPercentage,
           certificate_requests: certificateRequests,
