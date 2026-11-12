@@ -15,6 +15,11 @@ import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/lib/use/ws';
 import { createAuthContext } from './utils/auth';
 import { clientIpOf } from './utils/client-ip';
+import {
+  exposeErrorDetails,
+  createFormatError,
+  createExpressErrorHandler,
+} from './utils/error-handling';
 
 import getTypes from './types';
 import getResolvers from './resolvers';
@@ -58,8 +63,14 @@ const startServer = async () => {
     wsServer,
   );
 
+  // REA-35: stacktrace and internal details only with EXPOSE_ERROR_DETAILS=true (development);
+  // never left to Apollo's NODE_ENV default.
+  const exposeDetails = exposeErrorDetails();
+
   const apolloServer = new ApolloServer({
     schema,
+    includeStacktraceInErrorResponses: exposeDetails,
+    formatError: createFormatError({ expose: exposeDetails }),
     plugins: [
       // Proper shutdown for the HTTP server.
       ApolloServerPluginDrainHttpServer({ httpServer }),
@@ -93,7 +104,9 @@ const startServer = async () => {
       if (file.mimetype.startsWith('image/')) {
         cb(null, true);
       } else {
-        cb(new Error('Apenas imagens são permitidas.'));
+        const err = new Error('Apenas imagens são permitidas.');
+        err.status = 400;
+        cb(err);
       }
     },
   });
@@ -185,6 +198,9 @@ const startServer = async () => {
       },
     }),
   );
+
+  // Last: errors of the routes above and of the body parser, without Express' HTML stack page.
+  app.use(createExpressErrorHandler({ expose: exposeDetails }));
 
   const PORT = process.env.PORT || 4001;
   // Now that our HTTP server is fully set up, we can listen to it.
