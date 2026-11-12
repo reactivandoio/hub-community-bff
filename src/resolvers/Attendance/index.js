@@ -1,4 +1,6 @@
 import { requireEventOrganizer } from '../../utils/auth';
+import { normalizeDateOfBirth } from '../Certificate/birthdate';
+import { ADULT_DECLARATION_REQUIRED, INVALID_DATE_MESSAGE, isAdultDate } from '../../utils/age';
 
 const Attendance = {
   Query: {
@@ -32,7 +34,7 @@ const Attendance = {
   Mutation: {
     createAttendance: async (
       _,
-      { eventDocumentId, cpf, date_of_birth, phone, name },
+      { eventDocumentId, cpf, date_of_birth, phone, name, adult_declaration },
       { user, dataSources },
     ) => {
       if (!user) {
@@ -43,16 +45,12 @@ const Attendance = {
       }
 
       try {
-        // 1. Validate age (must be 18+)
-        const birthDate = new Date(date_of_birth);
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-          age--;
-        }
-
-        if (age < 18) {
+        // 1. REA-36: the 18+ checkbox, and a valid date of birth of someone aged 18+ (counted in
+        //    São Paulo; an invalid date used to pass, as NaN < 18 is false).
+        if (adult_declaration !== true) return { success: false, message: ADULT_DECLARATION_REQUIRED };
+        const birthDate = normalizeDateOfBirth(date_of_birth);
+        if (!birthDate) return { success: false, message: INVALID_DATE_MESSAGE };
+        if (!isAdultDate(birthDate)) {
           return {
             success: false,
             message: 'É necessário ter pelo menos 18 anos para assinar a presença.',
@@ -62,7 +60,8 @@ const Attendance = {
         // 2. Update user profile with provided data
         const userUpdate = {};
         if (cpf) userUpdate.cpf = cpf;
-        if (date_of_birth) userUpdate.date_of_birth = date_of_birth;
+        userUpdate.date_of_birth = birthDate;
+        if (user.adult_declaration !== true) userUpdate.adult_declaration = true;
         if (phone) userUpdate.phone = phone;
         if (name) userUpdate.name = name;
 

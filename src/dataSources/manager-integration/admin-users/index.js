@@ -107,7 +107,50 @@ const findRoleChanges = async ({ targetId, page, pageSize }, headers) => {
   return { data: response?.data || [], total: response?.meta?.total || 0 };
 };
 
+// REA-36: age review (users without a date of birth, and minors). `cutoff` is the latest date of
+// birth of an adult today: a minor was born after it.
+const AGE_REVIEW_FIELDS = [
+  'id', 'documentId', 'username', 'email', 'name', 'blocked', 'createdAt', 'date_of_birth',
+  'adult_declaration_at', 'age_review_status', 'age_review_requested_at', 'age_review_blocked_at',
+];
+
+const ageReviewParams = ({ kind, cutoff, status }, prefix = 'filters') => {
+  const key = (path) => (prefix ? `${prefix}${path}` : path.replace(/^\[([^\]]+)\]/, '$1'));
+  const params = new URLSearchParams();
+  if (kind === 'MINOR') params.append(key('[date_of_birth][$gt]'), cutoff);
+  else params.append(key('[date_of_birth][$null]'), 'true');
+  if (status === 'NONE') params.append(key('[age_review_status][$null]'), 'true');
+  else if (status) params.append(key('[age_review_status][$eq]'), status);
+  return params;
+};
+
+const findAgeReviewUsers = async ({ kind, cutoff, status, page, pageSize }, headers) => {
+  const params = ageReviewParams({ kind, cutoff, status });
+  params.append('start', String((page - 1) * pageSize));
+  params.append('limit', String(pageSize));
+  params.append('sort[0]', 'id:asc');
+  AGE_REVIEW_FIELDS.forEach((field, index) => params.append(`fields[${index}]`, field));
+  const response = await fetch(`/users?${params.toString()}`, 'GET', headers);
+  return response?.data || [];
+};
+
+const countAgeReviewUsers = ({ kind, cutoff, status }, headers) =>
+  count(`/users/count?${ageReviewParams({ kind, cutoff, status }, '').toString()}`, headers);
+
+const findAgeReviewUser = async (id, headers) => {
+  const params = new URLSearchParams();
+  AGE_REVIEW_FIELDS.forEach((field, index) => params.append(`fields[${index}]`, field));
+  const response = await fetch(`/users/${encodeURIComponent(id)}?${params.toString()}`, 'GET', headers);
+  return response?.data || null;
+};
+
+const updateUserFields = (id, data, headers) => fetch(`/users/${encodeURIComponent(id)}`, 'PUT', headers, data);
+
 const adminUsers = ({ headers }) => ({
+  adminFindAgeReviewUsers: (args) => findAgeReviewUsers(args, headers),
+  adminCountAgeReviewUsers: (args) => countAgeReviewUsers(args, headers),
+  adminFindAgeReviewUser: (id) => findAgeReviewUser(id, headers),
+  adminUpdateUserFields: (id, data) => updateUserFields(id, data, headers),
   adminFindUsers: (args) => findUsers(args, headers),
   adminCountUsers: (args) => countUsers(args, headers),
   adminCountActiveAdmins: () => countActiveAdmins(headers),

@@ -101,7 +101,7 @@ const createEmailSuppression = async (data, headers) => {
   return response?.data || null;
 };
 
-const USER_FIELDS = ['id', 'email', 'name', 'username', 'blocked'];
+const USER_FIELDS = ['id', 'email', 'name', 'username', 'blocked', 'date_of_birth'];
 
 /** The next `limit` users after id `afterId` (the invite campaign walks the base by id). */
 const findUsersAfterId = async (afterId, limit, headers) => {
@@ -117,10 +117,12 @@ const findUsersAfterId = async (afterId, limit, headers) => {
 };
 
 // /users/count answers a bare number (the shared fetch drops it) and reads bare `where` params.
-const countReachableUsers = async (headers) => {
+// REA-36: only adults (a date of birth on or before `adultCutoff`; no date means no e-mail).
+const countReachableUsers = async (adultCutoff, headers) => {
   const params = new URLSearchParams();
   params.append('$or[0][blocked][$eq]', 'false');
   params.append('$or[1][blocked][$null]', 'true');
+  if (adultCutoff) params.append('date_of_birth[$lte]', adultCutoff);
   const response = await axios.get(`${process.env.MANAGER_URL}/api/users/count?${params.toString()}`, {
     headers: { 'Content-Type': 'application/json', ...headers },
   });
@@ -146,7 +148,7 @@ const emailCampaigns = ({ headers }) => ({
   findEmailSuppression: (email) => findEmailSuppression(email, headers),
   createEmailSuppression: (data) => createEmailSuppression(data, headers),
   findUsersAfterId: (afterId, limit) => findUsersAfterId(afterId, limit, headers),
-  countReachableUsers: () => countReachableUsers(headers),
+  countReachableUsers: (adultCutoff) => countReachableUsers(adultCutoff, headers),
   countEmailSuppressions: () => countEmailSuppressions(headers),
 });
 

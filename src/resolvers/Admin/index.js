@@ -8,6 +8,9 @@ import {
   requireAdmin,
   roleOf,
 } from '../../utils/auth';
+import {
+  ageReviewSummary, blockMinor, listAgeReview, requestDateOfBirth,
+} from '../../services/age-review';
 
 // Users and roles of the Hub admin (REA-10). Everything but adminAccess is admin only and
 // runs with the integration token after requireAdmin.
@@ -171,6 +174,26 @@ const Admin = {
       return ASSIGNABLE_ROLES;
     },
 
+    // REA-36: age review (users without a date of birth, and minors).
+    adminAgeReview: async (_, args, ctx) => {
+      requireAdmin(ctx);
+      const { page, pageSize } = pageArgs(args);
+      return listAgeReview({
+        integration: ctx.dataSources.managerIntegration,
+        kind: args.kind,
+        status: args.status || null,
+        page,
+        pageSize,
+        env: process.env,
+        now: new Date(),
+      });
+    },
+
+    adminAgeReviewSummary: (_, __, ctx) => {
+      requireAdmin(ctx);
+      return ageReviewSummary({ integration: ctx.dataSources.managerIntegration, env: process.env, now: new Date() });
+    },
+
     roleChanges: async (_, args, ctx) => {
       requireAdmin(ctx);
       const targetId = args.userId != null ? userIdArg(args.userId) : null;
@@ -182,6 +205,16 @@ const Admin = {
   },
 
   Mutation: {
+    adminRequestDateOfBirth: (_, args, ctx) => {
+      requireAdmin(ctx);
+      return requestDateOfBirth({ integration: ctx.dataSources.managerIntegration, userIds: args.userIds, actor: ctx.user });
+    },
+
+    adminBlockMinor: (_, args, ctx) => {
+      requireAdmin(ctx);
+      return blockMinor({ integration: ctx.dataSources.managerIntegration, userId: args.userId, actor: ctx.user });
+    },
+
     setUserRole: async (_, args, ctx) => {
       requireAdmin(ctx);
       const userId = userIdArg(args.userId);

@@ -79,3 +79,99 @@ extend type Mutation {
   """
   setUserRole(userId: ID!, roleType: String!): AdminUser!
 }
+
+"REA-36: who is listed in the age review of /admin/usuarios."
+enum AgeReviewKind {
+  "Accounts without a date of birth."
+  NO_BIRTH_DATE
+  "Accounts whose date of birth is of someone under 18."
+  MINOR
+}
+
+type AgeReviewUser {
+  "Numeric users-permissions id."
+  id: ID!
+  username: String
+  email: String
+  name: String
+  blocked: Boolean!
+  createdAt: String
+  "YYYY-MM-DD"
+  dateOfBirth: String
+  age: Int
+  "When the account last ticked 'Declaro que tenho 18 anos ou mais'."
+  adultDeclaredAt: String
+  "null | dob_requested | dob_blocked | minor_blocked"
+  status: String
+  "When the date-of-birth request e-mail was sent (the 7 days count from here)."
+  requestedAt: String
+  "requestedAt + 7 days: without a date by then, the account is deactivated by the backend."
+  deadline: String
+  blockedAt: String
+}
+
+type AgeReviewPage {
+  items: [AgeReviewUser!]!
+  total: Int!
+  page: Int!
+  pageSize: Int!
+  "E-mails left today in the budget shared with the campaigns (EMAIL_CAMPAIGN_DAILY_LIMIT)."
+  emailsLeftToday: Int!
+}
+
+type AgeReviewSummary {
+  noBirthDate: Int!
+  "Without a date and not e-mailed yet."
+  notRequested: Int!
+  "E-mailed, waiting for the date (inside the 7 days or about to be deactivated)."
+  requested: Int!
+  minors: Int!
+  minorsBlocked: Int!
+  emailsLeftToday: Int!
+}
+
+type AgeReviewRequestResult {
+  userId: ID!
+  "sent | failed | quota | not-found | blocked | has-birth-date | already-requested"
+  outcome: String!
+  message: String
+}
+
+type AgeReviewRequestBatch {
+  sent: Int!
+  failed: Int!
+  skipped: Int!
+  emailsLeftToday: Int!
+  results: [AgeReviewRequestResult!]!
+}
+
+type AgeReviewBlockResult {
+  user: AgeReviewUser!
+  emailSent: Boolean!
+  message: String!
+  emailsLeftToday: Int!
+}
+
+extend type Query {
+  """
+  Admin only (REA-36). Accounts without a date of birth or under 18. status narrows the list:
+  NONE (no action yet) | dob_requested | dob_blocked | minor_blocked. pageSize: 1–50 (default 20).
+  """
+  adminAgeReview(kind: AgeReviewKind!, status: String, page: Int, pageSize: Int): AgeReviewPage!
+  "Admin only (REA-36). Counts for the age review menu."
+  adminAgeReviewSummary: AgeReviewSummary!
+}
+
+extend type Mutation {
+  """
+  Admin only (REA-36). E-mails each account without a date of birth (at most 50) asking for it;
+  without a date 7 days after the e-mail the backend deactivates the account. Sends only what
+  fits in today's e-mail budget.
+  """
+  adminRequestDateOfBirth(userIds: [ID!]!): AgeReviewRequestBatch!
+  """
+  Admin only (REA-36). Deactivates the account of a minor and e-mails the reason. On an account
+  already deactivated for this reason it only sends the e-mail again.
+  """
+  adminBlockMinor(userId: ID!): AgeReviewBlockResult!
+}

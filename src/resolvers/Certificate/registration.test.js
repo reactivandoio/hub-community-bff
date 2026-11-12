@@ -28,7 +28,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
-const request = { eventId: 'e1', name: 'Ana', identifier: '529.982.247-25', email: 'ana@x.io' };
+const request = { eventId: 'e1', name: 'Ana', identifier: '529.982.247-25', email: 'ana@x.io', adult_declaration: true };
 const rejection = (promise) => promise.then(() => null, (e) => e);
 
 describe('certificado só com o cadastro concluído (REA-22, regra 6)', () => {
@@ -85,5 +85,21 @@ describe('certificado só com o cadastro concluído (REA-22, regra 6)', () => {
     expect(out.issued).toBe(1);
     expect(out.errors).toHaveLength(1);
     expect(out.errors[0]).toMatch(/Ana.*cadastro incompleto: falta data de nascimento/);
+  });
+});
+
+describe('REA-36: declaração de 18 anos ou mais', () => {
+  it('o autoatendimento recusa sem a declaração', async () => {
+    const err = await rejection(Certificate.Mutation.requestCertificate(
+      null, { ...request, adult_declaration: undefined }, { dataSources: {} },
+    ));
+    expect(err.message).toBe('Confirme que você tem 18 anos ou mais.');
+  });
+
+  it('o formulário público recusa sem a declaração, antes de qualquer leitura', async () => {
+    const err = await rejection(Certificate.Mutation.submitCertificateRequest(
+      null, { slug: 'f', name: 'Ana', identifier: '529.982.247-25', email: 'a@x.io', phone: '62', date_of_birth: '1990-01-01' }, { dataSources: {} },
+    ));
+    expect(err.message).toBe('Confirme que você tem 18 anos ou mais.');
   });
 });

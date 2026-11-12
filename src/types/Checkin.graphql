@@ -49,8 +49,10 @@ input ManualSignupInput {
   email: String!
   cpf: String
   phone_number: String
-  "YYYY-MM-DD. Saved on the account when it has none; an invalid date fails the signup."
+  "YYYY-MM-DD. Saved on the account when it has none; an invalid date or one under 18 fails the signup."
   date_of_birth: String
+  "REA-36: the person declared being 18 or more (ticked by the staff). Required: must be true."
+  adult_declaration: Boolean
 }
 
 type ManualSignupResponse {

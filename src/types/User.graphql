@@ -7,6 +7,9 @@ type User {
   phone: String
   cpf: String
   date_of_birth: String
+  "REA-36: the account declared being 18 or more (checkbox of a signup form)."
+  adult_declaration: Boolean
+  adult_declaration_at: String
   cover_photo: String
   twitter: String
   linkedin: String
@@ -54,6 +57,8 @@ input UserInput {
   phone: String
   "Checkbox 'quero receber novidades' of the signup form (REA-29). Only recorded."
   marketing_opt_in: Boolean
+  "Checkbox 'Declaro que tenho 18 anos ou mais' (REA-36). Required: must be true."
+  adult_declaration: Boolean
 }
 
 # Paginated User response
@@ -81,7 +86,10 @@ input ProfileInput {
   name: String
   phone: String
   cpf: String
+  "YYYY-MM-DD; must be of someone aged 18 or more (REA-36)."
   date_of_birth: String
+  "Checkbox 'Declaro que tenho 18 anos ou mais' (REA-36). Required with date_of_birth while the account has not declared it."
+  adult_declaration: Boolean
   avatar: String
   cover_photo: String
   twitter: String

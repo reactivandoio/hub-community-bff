@@ -9,7 +9,7 @@ vi.mock('../email/signup-confirmation', () => ({
 const env = { EMAIL_CAMPAIGNS_ENABLED: 'true', EMAIL_UNSUBSCRIBE_SECRET: 's', FRONTEND_URL: 'https://hub.io' };
 const now = new Date('2026-11-10T15:00:00Z');
 
-const users = (from, count) => Array.from({ length: count }, (_, i) => ({ id: from + i, email: `u${from + i}@x.io`, name: `U${from + i}` }));
+const users = (from, count) => Array.from({ length: count }, (_, i) => ({ id: from + i, email: `u${from + i}@x.io`, name: `U${from + i}`, date_of_birth: '1990-01-01' }));
 
 const makeDataSources = ({ campaigns, sentToday = 0, pages = [], signups = [], existingKeys = [] } = {}) => {
   const createdKeys = new Set(existingKeys);
@@ -26,6 +26,7 @@ const makeDataSources = ({ campaigns, sentToday = 0, pages = [], signups = [], e
     }),
     updateEmailDelivery: vi.fn().mockResolvedValue({}),
     updateEmailCampaign: vi.fn().mockResolvedValue({}),
+    findUsersByEmails: vi.fn(async (emails) => emails.map((email) => ({ email, date_of_birth: '1990-01-01' }))),
   };
   return {
     managerIntegration: integration,

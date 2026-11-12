@@ -23,6 +23,7 @@ import { createRateLimiter } from '../../utils/rate-limit';
 import { maskEmail } from '../../utils/mask-email';
 import { signupIdOf } from '../../utils/signup-id';
 import { saveMissingCpf } from '../../utils/signup-cpf';
+import { ADULT_DECLARATION_REQUIRED } from '../../utils/age';
 import { isValidCpf } from '../../resolvers/Certificate/eligibility';
 import { sendSignupConfirmation as defaultSendConfirmation } from '../email/signup-confirmation';
 import { sendPaymentPending as defaultSendPaymentPending } from '../email/payment-pending';
@@ -42,6 +43,9 @@ export const MESSAGES = Object.freeze({
   NO_EVENT: 'Evento não encontrado no sistema de inscrições.',
   UNAVAILABLE: 'Não foi possível concluir a inscrição agora. Tente de novo em instantes.',
   FAILED: 'Erro ao realizar inscrição.',
+  // REA-36
+  ADULT: ADULT_DECLARATION_REQUIRED,
+  BLOCKED: 'Esta conta está desativada. Responda a um e-mail do Hub Community ou fale com o suporte.',
 });
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -106,6 +110,7 @@ export const guestSignupToEvent = async ({
   const phone = String(args.phone_number || '').trim() || undefined;
   const cpf = digitsOf(args.cpf);
 
+  if (args.adult_declaration !== true) return failure(MESSAGES.ADULT);
   if (!isValidCpf(cpf)) return failure(MESSAGES.CPF);
   if (name.length < 3) return failure(MESSAGES.NAME);
   if (!EMAIL_PATTERN.test(typedEmail)) return failure(MESSAGES.EMAIL);
@@ -129,6 +134,8 @@ export const guestSignupToEvent = async ({
   }
   const { outcome, account } = resolved;
   const isCpfOwner = outcome === OUTCOMES.CPF_OWNER;
+  // REA-36: a deactivated account (e.g. a minor) does not get new signups.
+  if (account?.blocked) return failure(MESSAGES.BLOCKED);
 
   // Rule 2: what was typed is dropped; the signup carries the owner's data.
   const signupEmail = isCpfOwner ? normalizeEmail(account.email) : typedEmail;
@@ -203,6 +210,7 @@ export const guestSignupToEvent = async ({
       phone_number: signupPhone,
       cpf,
       kind,
+      adult_declaration: true,
     });
   } catch (err) {
     if (err.code === 'ALREADY_SIGNED_UP') {

@@ -42,7 +42,7 @@ describe('isUserSignedUp', () => {
 });
 
 describe('signupToEvent', () => {
-  const args = { eventId: 'meetup', name: 'Ana', email: 'ana@x.io', batch_id: '3' };
+  const args = { eventId: 'meetup', name: 'Ana', email: 'ana@x.io', batch_id: '3', adult_declaration: true };
 
   it('returns the created signup id alongside the payment payload', async () => {
     const dataSources = makeDataSources({ signup: { id: 9, documentId: 'sig9', is_free: true, qr_code: null } });

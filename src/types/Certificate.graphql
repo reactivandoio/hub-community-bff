@@ -125,6 +125,8 @@ type Mutation {
     identifier: String!
     email: String!
     phone: String
+    "Checkbox 'Declaro que tenho 18 anos ou mais' (REA-36). Required: must be true."
+    adult_declaration: Boolean
   ): Certificate
 }
 
@@ -225,7 +227,9 @@ extend type Mutation {
     identifier: String!
     email: String!
     phone: String!
-    "\"YYYY-MM-DD\". Opcional no schema para não quebrar um front antigo em deploy."
+    "\"YYYY-MM-DD\". Opcional no schema para não quebrar um front antigo em deploy. Precisa ser de quem tem 18 anos ou mais (REA-36)."
     date_of_birth: String
+    "Checkbox 'Declaro que tenho 18 anos ou mais' (REA-36). Obrigatório: precisa ser true."
+    adult_declaration: Boolean
   ): CertificateRequestReceipt!
 }

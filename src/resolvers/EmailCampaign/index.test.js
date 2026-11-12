@@ -23,6 +23,7 @@ const makeDataSources = (over = {}) => ({
     findSuppressedEmails: vi.fn().mockResolvedValue(new Set()),
     findEmailSuppression: vi.fn().mockResolvedValue(null),
     createEmailSuppression: vi.fn().mockResolvedValue({}),
+    findUsersByEmails: vi.fn(async (emails) => emails.map((email) => ({ email, date_of_birth: '1990-01-01' }))),
     ...over,
   },
   eventandoIntegration: {
