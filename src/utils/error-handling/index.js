@@ -10,10 +10,23 @@ export const exposeErrorDetails = (env = process.env) =>
 
 const INTERNAL = 'INTERNAL_SERVER_ERROR';
 
+// Extensions the BFF itself puts on business errors for the frontend to act on. Only these pass
+// (and never on an internal error); anything else, such as an upstream answer a data source
+// attached, is dropped. A new public extension must be added here or it never reaches the page.
+// - REA-22 REGISTRATION_INCOMPLETE: password_pending, missing
+// - REA-6 OPAPINGOU_*: missing, count
+// - REA-26 LOGIN_CODE_*: retryAfter, attemptsLeft
+export const PUBLIC_EXTENSIONS = Object.freeze(['password_pending', 'missing', 'count', 'retryAfter', 'attemptsLeft']);
+
+const publicExtensions = (extensions = {}) => PUBLIC_EXTENSIONS.reduce(
+  (out, key) => (extensions[key] !== undefined ? { ...out, [key]: extensions[key] } : out),
+  {},
+);
+
 // formatError of the ApolloServer. Apollo already cuts the stacktrace when
 // includeStacktraceInErrorResponses is false; here the error also loses every extension but
-// the code (a data source can put the upstream answer in extensions), and server errors are
-// logged with the stack.
+// the code and the PUBLIC_EXTENSIONS (a data source can put the upstream answer in extensions),
+// and server errors are logged with the stack.
 export const createFormatError = ({ expose = false, log = console.error } = {}) =>
   (formatted, error) => {
     const code = formatted.extensions?.code || INTERNAL;
@@ -27,7 +40,7 @@ export const createFormatError = ({ expose = false, log = console.error } = {}) 
       message,
       ...(locations ? { locations } : {}),
       ...(path ? { path } : {}),
-      extensions: { code },
+      extensions: { code, ...(code === INTERNAL ? {} : publicExtensions(formatted.extensions)) },
     };
   };
 
