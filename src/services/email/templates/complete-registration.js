@@ -12,9 +12,9 @@ const escapeHtml = (value) => String(value ?? '')
  * @param {Object} params
  * @param {string} params.userName - The attendee's name
  * @param {string} params.eventTitle - Event the account was created for
- * @param {string} params.setPasswordUrl - The /criar-senha link (single use)
+ * @param {string} params.completeRegistrationUrl - The /completar-cadastro link (login by code, REA-26)
  */
-export const completeRegistrationTemplate = ({ userName, eventTitle, setPasswordUrl }) => {
+export const completeRegistrationTemplate = ({ userName, eventTitle, completeRegistrationUrl }) => {
   const name = escapeHtml(userName);
   const title = escapeHtml(eventTitle);
 
@@ -40,21 +40,21 @@ export const completeRegistrationTemplate = ({ userName, eventTitle, setPassword
           <tr>
             <td style="background-color:#1a1d27;border-radius:16px;border:1px solid #2a2d37;padding:32px;">
               <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#ffffff;">
-                🔑 Conclua seu cadastro
+                ✍️ Conclua seu cadastro
               </h1>
               <p style="margin:0;font-size:15px;line-height:1.6;color:#d1d5db;">
                 Olá, <strong style="color:#ffffff;">${name}</strong>! Criamos sua conta no Hub Community quando você se inscreveu no <strong style="color:#ffffff;">${title}</strong>.
               </p>
               <p style="margin:16px 0 0;font-size:15px;line-height:1.6;color:#d1d5db;">
-                Falta só criar sua senha para acessar a plataforma, ver seus ingressos e certificados e acompanhar os próximos eventos.
+                Para ver seus ingressos e certificados e acompanhar os próximos eventos, entre com este email: você recebe um código de acesso, sem precisar de senha. Depois, complete seus dados (CPF, data de nascimento e WhatsApp).
               </p>
               <p style="margin:28px 0 0;text-align:center;">
-                <a href="${setPasswordUrl}" style="display:inline-block;padding:14px 32px;background-color:#fbbf24;color:#0f1117;text-decoration:none;font-size:15px;font-weight:600;border-radius:50px;">
-                  Criar minha senha
+                <a href="${completeRegistrationUrl}" style="display:inline-block;padding:14px 32px;background-color:#fbbf24;color:#0f1117;text-decoration:none;font-size:15px;font-weight:600;border-radius:50px;">
+                  Concluir meu cadastro
                 </a>
               </p>
               <p style="margin:20px 0 0;font-size:13px;color:#9ca3af;">
-                O link vale para um único uso. Se você receber outro email como este, use o link mais recente.
+                Os certificados dos eventos só são emitidos com o cadastro concluído.
               </p>
             </td>
           </tr>

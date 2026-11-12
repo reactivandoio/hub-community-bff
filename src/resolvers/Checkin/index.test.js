@@ -119,7 +119,7 @@ describe('checkinSignup', () => {
 describe('manualSignup', () => {
   const input = { name: 'Ana Souza', email: 'ana@x.io', phone_number: '+55 62 9', adult_declaration: true };
 
-  const walkInDataSources = ({ account = { created: true, token: 'tok' }, setupError = null, existing = [] } = {}) => ({
+  const walkInDataSources = ({ account = { created: true, pending: true }, setupError = null, existing = [] } = {}) => ({
     eventandoIntegration: {
       findEvents: vi.fn().mockResolvedValue({ data: [{ id: 42, slug: 'ev' }] }),
       findSignupByEmail: vi.fn().mockResolvedValue({ data: existing }),
@@ -155,13 +155,13 @@ describe('manualSignup', () => {
       name: 'Ana Souza',
       email: 'ana@x.io',
       isFree: true,
-      account: { created: true, token: 'tok' },
+      account: { created: true, pending: true },
     }));
     expect(out.signup).toMatchObject({ id: 's9', name: 'Ana Souza', email: 'ana@x.io', checked_in: false });
   });
 
   it('reports account_created false for an account that already existed', async () => {
-    const dataSources = walkInDataSources({ account: { created: false, token: null } });
+    const dataSources = walkInDataSources({ account: { created: false, pending: false } });
     const out = await run(dataSources);
     expect(out.success).toBe(true);
     expect(out.account_created).toBe(false);
@@ -169,9 +169,9 @@ describe('manualSignup', () => {
     expect(out.signup).toMatchObject({ id: 's9' });
   });
 
-  it('returns the existing signup without creating one or e-mailing an account with a password', async () => {
+  it('returns the existing signup without creating one or e-mailing a finished account', async () => {
     const existing = [{ id: 5, name: 'ana-4f2k', email: 'ana@x.io', checked_in: true }];
-    const dataSources = walkInDataSources({ account: { created: false, token: null }, existing });
+    const dataSources = walkInDataSources({ account: { created: false, pending: false }, existing });
     const out = await run(dataSources);
     expect(out.success).toBe(true);
     expect(dataSources.eventandoIntegration.createSignupDirect).not.toHaveBeenCalled();
@@ -179,9 +179,9 @@ describe('manualSignup', () => {
     expect(out.signup).toMatchObject({ id: '5', checked_in: true });
   });
 
-  it('still e-mails an existing signup whose account has no password yet', async () => {
+  it('still e-mails an existing signup whose registration is pending', async () => {
     const existing = [{ id: 5, name: 'ana-4f2k', email: 'ana@x.io' }];
-    const dataSources = walkInDataSources({ account: { created: false, token: 'tok2' }, existing });
+    const dataSources = walkInDataSources({ account: { created: false, pending: true }, existing });
     await run(dataSources);
     expect(sendSignupConfirmation).toHaveBeenCalledWith(expect.objectContaining({ signupId: '5' }));
   });
@@ -194,7 +194,7 @@ describe('manualSignup', () => {
     expect(out.signup).toMatchObject({ id: 's9' });
     expect(sendSignupConfirmation).toHaveBeenCalledWith(expect.objectContaining({
       signupId: 's9',
-      account: { created: false, token: null },
+      account: { created: false, pending: false },
     }));
   });
 
@@ -241,7 +241,7 @@ describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
     adult_declaration: true,
   };
 
-  const dataSourcesFor = ({ byCpf = null, byEmail = null, account = { created: false, token: null }, existing = [] } = {}) => ({
+  const dataSourcesFor = ({ byCpf = null, byEmail = null, account = { created: false, pending: false }, existing = [] } = {}) => ({
     eventandoIntegration: {
       findEvents: vi.fn().mockResolvedValue({ data: [{ id: 42, slug: 'veredas', name: 'Veredas da Inovação' }] }),
       findSignupByEmail: vi.fn().mockResolvedValue({ data: existing }),
@@ -307,7 +307,7 @@ describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
   });
 
   it('new person: creates the account with the CPF and sends the confirmation plus "Conclua seu cadastro"', async () => {
-    const dataSources = dataSourcesFor({ account: { created: true, token: 'tok' } });
+    const dataSources = dataSourcesFor({ account: { created: true, pending: true } });
     // The account only exists once account-setup made it.
     dataSources.managerIntegration.findUserByEmail
       .mockResolvedValueOnce(null)
@@ -323,10 +323,10 @@ describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
       cpf: '52998224725', date_of_birth: '1990-04-07', phone: '+55 62 9', name: 'Ana Souza',
     });
     expect(sendSignupConfirmation).toHaveBeenCalledWith(expect.objectContaining({
-      email: 'ana.nova@x.io', signupId: 's9', account: { created: true, token: 'tok' },
+      email: 'ana.nova@x.io', signupId: 's9', account: { created: true, pending: true },
     }));
     expect(sendCompleteRegistration).toHaveBeenCalledWith({
-      email: 'ana.nova@x.io', name: 'Ana Souza', eventTitle: 'Veredas da Inovação', token: 'tok',
+      email: 'ana.nova@x.io', name: 'Ana Souza', eventTitle: 'Veredas da Inovação',
     });
   });
 

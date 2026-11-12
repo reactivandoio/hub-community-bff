@@ -19,8 +19,8 @@
  *        the "Seu ingresso" block
  * @param {string} [params.ticketQrCid] - cid of the inline QR attachment; the block
  *        shows the image only when it is set
- * @param {string} [params.setPasswordUrl] - Link for an account without a password
- *        yet; renders the "Crie sua senha" block
+ * @param {string} [params.completeRegistrationUrl] - Link for an account whose registration
+ *        is not finished (REA-26); renders the "Conclua seu cadastro" block
  *
  * Every confirmation also invites the attendee to the share-art page of the event.
  */
@@ -40,7 +40,7 @@ export const signupConfirmationTemplate = ({
   baseUrl = 'https://hubcommunity.io',
   ticketUrl = null,
   ticketQrCid = null,
-  setPasswordUrl = null,
+  completeRegistrationUrl = null,
 }) => {
   const eventUrl = `${baseUrl}/events/${eventSlug}`;
   // hub-community-frontend /events/[id]/arte: the "me inscrevi" art generator. It
@@ -180,23 +180,20 @@ export const signupConfirmationTemplate = ({
                     </div>
                     ` : ''}
 
-                    ${setPasswordUrl ? `
-                    <!-- Set password -->
+                    ${completeRegistrationUrl ? `
+                    <!-- Complete registration (REA-26: login by code, no password) -->
                     <div style="margin-top:20px;padding:20px;background-color:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);border-radius:12px;">
                       <div style="margin-bottom:8px;">
-                        <span style="font-size:18px;">🔑</span>
-                        <span style="font-size:14px;font-weight:600;color:#fbbf24;">Crie sua senha</span>
+                        <span style="font-size:18px;">✍️</span>
+                        <span style="font-size:14px;font-weight:600;color:#fbbf24;">Conclua seu cadastro</span>
                       </div>
                       <p style="margin:0;font-size:14px;line-height:1.6;color:#d1d5db;">
-                        Criamos uma conta no Hub Community para você com este email. Sua inscrição <strong style="color:#ffffff;">já está garantida</strong> — crie sua senha para acessar a plataforma e acompanhar seus eventos.
+                        Criamos uma conta no Hub Community para você com este email. Sua inscrição <strong style="color:#ffffff;">já está garantida</strong> — entre com este email (você recebe um código de acesso, sem senha) e complete seus dados para acompanhar seus eventos e receber certificados.
                       </p>
                       <p style="margin:16px 0 0;text-align:center;">
-                        <a href="${setPasswordUrl}" style="display:inline-block;padding:12px 28px;background-color:#fbbf24;color:#0f1117;text-decoration:none;font-size:14px;font-weight:600;border-radius:50px;">
-                          Crie sua senha
+                        <a href="${completeRegistrationUrl}" style="display:inline-block;padding:12px 28px;background-color:#fbbf24;color:#0f1117;text-decoration:none;font-size:14px;font-weight:600;border-radius:50px;">
+                          Concluir meu cadastro
                         </a>
-                      </p>
-                      <p style="margin:12px 0 0;font-size:13px;color:#9ca3af;">
-                        O link vale para um único uso. Se você receber outro email como este, use o link mais recente.
                       </p>
                     </div>
                     ` : ''}
@@ -209,7 +206,7 @@ export const signupConfirmationTemplate = ({
                       </div>
                       <p style="margin:0;font-size:14px;line-height:1.6;color:#d1d5db;">
                         Monte uma imagem com sua foto dizendo que você vai ao <strong style="color:#ffffff;">${eventTitle}</strong> e compartilhe nos Stories ou no Feed.
-                        ${setPasswordUrl ? 'Primeiro crie sua senha no botão acima; depois é só entrar com este email.' : 'É só entrar no Hub Community com este email.'}
+                        É só entrar no Hub Community com este email: enviamos um código de acesso na hora.
                       </p>
                       <p style="margin:16px 0 0;text-align:center;">
                         <a href="${artUrl}" style="display:inline-block;padding:12px 28px;background-color:#a855f7;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;border-radius:50px;">

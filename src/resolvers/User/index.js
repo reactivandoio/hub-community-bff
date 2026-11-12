@@ -3,6 +3,7 @@ import { GraphQLError } from 'graphql';
 import { isValidCpf, normalizeIdentifier } from '../Certificate/eligibility';
 import { requireAdmin } from '../../utils/auth';
 import { adultDateOfBirth, requireAdultDeclaration } from '../../utils/age';
+import { requestLoginCode, verifyLoginCode } from '../../services/login-code';
 
 dotenv.config();
 
@@ -85,125 +86,12 @@ const User = {
   },
 
   Mutation: {
-    signIn: async (_, { identifier, password }, { dataSources }) => {
-      try {
-        const response = await dataSources.managerPublic.signIn({
-          identifier,
-          password,
-        });
+    // REA-26: login (and signup) by a code e-mailed — services/login-code.
+    requestLoginCode: (_, { email }, { dataSources, clientIp }) =>
+      requestLoginCode({ dataSources, email, clientIp }),
 
-        const { jwt, user } = response.data;
-
-        return {
-          ...user,
-          token: jwt,
-        };
-      } catch (err) {
-        throw new Error(`Error signing in: ${err.message}`);
-      }
-    },
-
-    signUp: async (_, { input }, { dataSources }) => {
-      let speaker;
-      // REA-36: the "18 anos ou mais" checkbox is required; the backend stamps its date.
-      requireAdultDeclaration(input.adult_declaration);
-
-      const response = await dataSources.managerPublic.signUp({
-        username: input.username,
-        email: input.email,
-        password: input.password,
-        name: input.name,
-        phone: input.phone || undefined,
-        marketing_opt_in: input.marketing_opt_in === true,
-        adult_declaration: true,
-      });
-
-      const createdUser = response.data.user;
-
-      if (createdUser) {
-        try {
-          const speakerResponse =
-            await dataSources.managerIntegration.findSpeakers({
-              filters: {
-                email: createdUser.email,
-              },
-            });
-
-          if (speakerResponse.data.length > 0) {
-            [speaker] = speakerResponse.data;
-          }
-        } catch (err) {
-          throw new Error(`Error fetching speaker: ${err.message}`);
-        }
-      }
-
-      if (speaker) {
-        try {
-          const updatedSpeaker =
-            await dataSources.managerIntegration.updateSpeaker(
-              speaker.documentId,
-              {
-                users_permissions_user: {
-                  set: [createdUser.documentId],
-                },
-              },
-            );
-
-          return {
-            ...createdUser,
-            speaker: updatedSpeaker.data,
-          };
-        } catch (err) {
-          throw new Error(`Error updating speaker: ${err.message}`);
-        }
-      }
-
-      if (!speaker) {
-        try {
-          const createdSpeaker =
-            await dataSources.managerIntegration.createSpeaker({
-              name: input.name,
-              email: input.email,
-              users_permissions_user: {
-                set: [createdUser.documentId],
-              },
-            });
-
-          return {
-            ...createdUser,
-            speaker: createdSpeaker.data,
-          };
-        } catch (err) {
-          throw new Error(`Error creating speaker: ${err.message}`);
-        }
-      }
-
-      return createdUser;
-    },
-
-    forwardPassword: async (_, { email }, { dataSources }) => {
-      try {
-        const response = await dataSources.managerPublic.forwardPassword({
-          email,
-        });
-        return response.data.sent;
-      } catch (err) {
-        throw new Error(`Error forwarding password: ${err.message}`);
-      }
-    },
-
-    resetPassword: async (_, { code, password, passwordConfirmation }, { dataSources }) => {
-      try {
-        await dataSources.managerPublic.resetPassword({
-          code,
-          password,
-          passwordConfirmation,
-        });
-        return true;
-      } catch (err) {
-        throw new Error(`Error resetting password: ${err.message}`);
-      }
-    },
+    verifyLoginCode: (_, { email, code }, { dataSources, clientIp }) =>
+      verifyLoginCode({ dataSources, email, code, clientIp }),
 
     updateUserPhone: async (_, { email, phone }, { user, dataSources }) => {
       if (!user) {
@@ -257,6 +145,22 @@ const User = {
             userUpdate,
           );
           updatedUser = response.data || updatedUser;
+        }
+
+        // REA-26: an account created by a login code gets its speaker without a name; the
+        // complete-profile form brings it. Never overwrites a name the speaker already has.
+        if (userUpdate.name) {
+          try {
+            const speakerResponse = await dataSources.managerIntegration.findSpeakers({
+              filters: { users_permissions_user: { documentId: { eq: user.documentId } } },
+            });
+            const [speaker] = speakerResponse?.data || [];
+            if (speaker && !String(speaker.name || '').trim()) {
+              await dataSources.managerIntegration.updateSpeaker(speaker.documentId, { name: userUpdate.name });
+            }
+          } catch (speakerErr) {
+            console.error('Error updating speaker name:', speakerErr.message);
+          }
         }
 
         // Update speaker avatar if provided

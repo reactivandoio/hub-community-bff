@@ -23,7 +23,7 @@ import {
   normalizeCategory,
 } from './categories';
 import { sendCertificateEmail } from './email';
-import { adminIncompleteReason, assertRegistrationComplete, registrationGap, remindPassword } from '../../utils/registration';
+import { adminIncompleteReason, assertRegistrationComplete, registrationGap, remindCompleteRegistration } from '../../utils/registration';
 import { requireEventOrganizer, requireUser as requireAuthenticated } from '../../utils/auth';
 
 export const requireUser = (user) => {
@@ -409,7 +409,7 @@ const Certificate = {
         // REA-22: no certificate while the registration is not finished (the link goes again).
         const gap = await registrationGap(dataSources, { cpf: identifier, email: entry.email });
         if (gap) {
-          if (gap.passwordPending) await remindPassword(dataSources, gap.account, event?.title);
+          if (gap.passwordPending) await remindCompleteRegistration(dataSources, gap.account, event?.title);
           throw new Error(`${label}: ${adminIncompleteReason(gap)}`);
         }
 
