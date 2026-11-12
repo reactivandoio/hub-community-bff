@@ -1,8 +1,8 @@
 import dotenv from 'dotenv';
+import { GraphQLError } from 'graphql';
 import { isValidCpf, normalizeIdentifier } from '../Certificate/eligibility';
 import { requireAdmin } from '../../utils/auth';
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+import { adultDateOfBirth, requireAdultDeclaration } from '../../utils/age';
 
 dotenv.config();
 
@@ -105,6 +105,8 @@ const User = {
 
     signUp: async (_, { input }, { dataSources }) => {
       let speaker;
+      // REA-36: the "18 anos ou mais" checkbox is required; the backend stamps its date.
+      requireAdultDeclaration(input.adult_declaration);
 
       const response = await dataSources.managerPublic.signUp({
         username: input.username,
@@ -113,6 +115,7 @@ const User = {
         name: input.name,
         phone: input.phone || undefined,
         marketing_opt_in: input.marketing_opt_in === true,
+        adult_declaration: true,
       });
 
       const createdUser = response.data.user;
@@ -232,10 +235,13 @@ const User = {
           if (!isValidCpf(input.cpf)) throw new Error('CPF inválido.');
           userUpdate.cpf = normalizeIdentifier(input.cpf);
         }
-        if (input.date_of_birth !== undefined && input.date_of_birth !== null) {
-          if (!ISO_DATE.test(input.date_of_birth)) throw new Error('Data de nascimento inválida.');
-          userUpdate.date_of_birth = input.date_of_birth;
-        }
+        // REA-36: the date of birth must be of someone aged 18+.
+        const dateOfBirth = adultDateOfBirth(input.date_of_birth);
+        if (dateOfBirth) userUpdate.date_of_birth = dateOfBirth;
+        // The "18 anos ou mais" checkbox of the complete-profile form: required while the
+        // account has not declared it yet and the form sends a date of birth.
+        if (input.adult_declaration === true) userUpdate.adult_declaration = true;
+        else if (dateOfBirth && user.adult_declaration !== true) requireAdultDeclaration(input.adult_declaration);
         if (input.cover_photo !== undefined) userUpdate.cover_photo = input.cover_photo;
         if (input.twitter !== undefined) userUpdate.twitter = input.twitter;
         if (input.linkedin !== undefined) userUpdate.linkedin = input.linkedin;
@@ -278,6 +284,8 @@ const User = {
 
         return updatedUser;
       } catch (err) {
+        // REA-36: age and declaration errors reach the form as they are (code + pt-BR message).
+        if (err instanceof GraphQLError) throw err;
         throw new Error(`Error updating profile: ${err.message}`);
       }
     },

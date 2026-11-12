@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import pubsub from '../../dataSources/pubsub';
 import { sendSignupConfirmation } from '../../services/email/signup-confirmation';
 import { guestSignupToEvent } from '../../services/guest-signup';
+import { ADULT_DECLARATION_REQUIRED } from '../../utils/age';
 import { signupIdOf } from '../../utils/signup-id';
 import {
   requireCommunitiesOrganizer,
@@ -697,16 +698,21 @@ const Event = {
         t_shirt_size,
         cpf,
         kind,
+        adult_declaration,
       },
       { dataSources, user, clientIp },
     ) => {
+      // REA-36: every signup form has the required "18 anos ou mais" checkbox.
+      if (adult_declaration !== true) {
+        return { success: false, message: ADULT_DECLARATION_REQUIRED, payment: null, is_free: false };
+      }
       // REA-22: without a session it is the signup without login (CPF and e-mail rules,
       // attempt limits, no session afterwards).
       if (!user) {
         return guestSignupToEvent({
           dataSources,
           clientIp,
-          args: { eventId, name, email, batch_id, coupon_code, is_student, phone_number, cpf, kind },
+          args: { eventId, name, email, batch_id, coupon_code, is_student, phone_number, cpf, kind, adult_declaration },
         });
       }
       try {
@@ -733,6 +739,7 @@ const Event = {
           t_shirt_size,
           cpf,
           kind,
+          adult_declaration: true,
         };
 
         const response = await dataSources.eventandoIntegration.signup(
@@ -752,6 +759,13 @@ const Event = {
 
         const isFree = response.data?.is_free || response.is_free || false;
         const signupId = signupIdOf(response.data || response);
+
+        // REA-36: the account keeps its own record of the 18+ declaration (backend stamps the date).
+        if (user.adult_declaration !== true) {
+          Promise.resolve()
+            .then(() => dataSources.managerIntegration.updateUser(user.id, { adult_declaration: true }))
+            .catch((err) => console.error('[Signup] could not record the 18+ declaration:', err.message));
+        }
 
         // Confirmation e-mail (ticket QR + set-password link) in the background:
         // it never blocks nor fails the signup. A paid signup gets it from the Opa

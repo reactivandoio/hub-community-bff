@@ -111,6 +111,8 @@ type Mutation {
     cpf: String
     "PIX_QR | PAYMENT_LINK (Opa Pingou). Calling again with the other kind on a pending signup is a new attempt."
     kind: String
+    "Checkbox 'Declaro que tenho 18 anos ou mais' (REA-36). Required: must be true."
+    adult_declaration: Boolean
   ): SignupResponse
 }
 

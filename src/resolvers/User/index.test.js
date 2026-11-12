@@ -15,11 +15,30 @@ const ctx = () => {
 describe('updateProfile', () => {
   it('stores the CPF as digits only and the date of birth', async () => {
     const c = ctx();
-    await User.Mutation.updateProfile(null, { input: { cpf: '529.982.247-25', date_of_birth: '1990-05-17' } }, c);
+    await User.Mutation.updateProfile(null, { input: { cpf: '529.982.247-25', date_of_birth: '1990-05-17', adult_declaration: true } }, c);
     expect(c.dataSources.managerAuthenticated.updateUser).toHaveBeenCalledWith(9, {
       cpf: '52998224725',
       date_of_birth: '1990-05-17',
+      adult_declaration: true,
     });
+  });
+
+  it('REA-36: refuses a date of birth under 18', async () => {
+    const c = ctx();
+    await expect(
+      User.Mutation.updateProfile(null, { input: { date_of_birth: '2015-01-01', adult_declaration: true } }, c),
+    ).rejects.toThrow('É preciso ter 18 anos ou mais.');
+    expect(c.dataSources.managerAuthenticated.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('REA-36: asks for the 18+ declaration with the date when the account never declared it', async () => {
+    const c = ctx();
+    await expect(
+      User.Mutation.updateProfile(null, { input: { date_of_birth: '1990-05-17' } }, c),
+    ).rejects.toThrow('Confirme que você tem 18 anos ou mais.');
+    const declared = { ...ctx(), user: { id: 9, documentId: 'u9', adult_declaration: true } };
+    await User.Mutation.updateProfile(null, { input: { date_of_birth: '1990-05-17' } }, declared);
+    expect(declared.dataSources.managerAuthenticated.updateUser).toHaveBeenCalledWith(9, { date_of_birth: '1990-05-17' });
   });
 
   it('rejects an invalid CPF without touching the user', async () => {
@@ -34,7 +53,7 @@ describe('updateProfile', () => {
     const c = ctx();
     await expect(
       User.Mutation.updateProfile(null, { input: { date_of_birth: '17/05/1990' } }, c),
-    ).rejects.toThrow(/Data de nascimento inválida/);
+    ).rejects.toThrow(/Informe uma data de nascimento válida/);
     expect(c.dataSources.managerAuthenticated.updateUser).not.toHaveBeenCalled();
   });
 

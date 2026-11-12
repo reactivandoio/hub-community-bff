@@ -8,6 +8,7 @@ import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import { signupIdOf } from '../../utils/signup-id';
 import { cpfDigits, saveMissingCpf, saveMissingProfile } from '../../utils/signup-cpf';
 import { normalizeDateOfBirth } from '../Certificate/birthdate';
+import { ADULT_DECLARATION_REQUIRED, MINOR_MESSAGE, isAdultDate } from '../../utils/age';
 import { updateCpfs } from '../../utils/cpf-mapping';
 import { holdsPlace } from '../../utils/payment-status';
 import mapSignup, { halfPriceOf } from './mappers';
@@ -454,7 +455,18 @@ const Checkin = {
             account_created: false,
           };
         }
+        // REA-36: the person declares at the door being 18+ (the staff ticks it), and a date of
+        // birth, when typed, must be of an adult.
+        if (input.adult_declaration !== true) {
+          return { success: false, message: ADULT_DECLARATION_REQUIRED, account_created: false };
+        }
+        if (input.date_of_birth && !isAdultDate(normalizeDateOfBirth(input.date_of_birth))) {
+          return { success: false, message: MINOR_MESSAGE, account_created: false };
+        }
         const { user, matchedBy } = await findAccount(dataSources, input);
+        if (user?.blocked) {
+          return { success: false, message: 'Esta conta está desativada.', account_created: false };
+        }
         const email = normalizeEmail(user?.email) || normalizeEmail(input.email);
 
         // 1. Set up the account (creates it when there is none; while it has no
@@ -560,6 +572,7 @@ const Checkin = {
             event: event.id,
             payment: paymentId || null,
             checked_in: false,
+            adult_declaration_at: new Date().toISOString(),
           });
           createdSignup = created?.data || null;
         } catch (signupErr) {

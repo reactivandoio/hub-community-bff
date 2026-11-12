@@ -23,7 +23,7 @@ const makeDataSources = ({ signup, existing = [] } = {}) => ({
 const ANA = { id: 7, email: 'ana@x.io' };
 const ADMIN = { id: 1, email: 'admin@x.io', role: { type: 'admin' } };
 
-const args = { eventId: 'meetup', name: 'Ana', email: 'ana@x.io', batch_id: '3', cpf: '529.982.247-25', kind: 'PIX_QR' };
+const args = { eventId: 'meetup', name: 'Ana', email: 'ana@x.io', batch_id: '3', cpf: '529.982.247-25', kind: 'PIX_QR', adult_declaration: true };
 
 // Signed in (the signup without login is services/guest-signup).
 describe('signupToEvent com Opa Pingou', () => {

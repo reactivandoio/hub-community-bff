@@ -117,7 +117,7 @@ describe('checkinSignup', () => {
 });
 
 describe('manualSignup', () => {
-  const input = { name: 'Ana Souza', email: 'ana@x.io', phone_number: '+55 62 9' };
+  const input = { name: 'Ana Souza', email: 'ana@x.io', phone_number: '+55 62 9', adult_declaration: true };
 
   const walkInDataSources = ({ account = { created: true, token: 'tok' }, setupError = null, existing = [] } = {}) => ({
     eventandoIntegration: {
@@ -138,8 +138,8 @@ describe('manualSignup', () => {
     },
   });
 
-  const run = (dataSources) =>
-    Checkin.Mutation.manualSignup(null, { eventSlug: 'ev', batchId: '3', input }, { dataSources, user: ADMIN });
+  const run = (dataSources, extra = {}) =>
+    Checkin.Mutation.manualSignup(null, { eventSlug: 'ev', batchId: '3', input: { ...input, ...extra } }, { dataSources, user: ADMIN });
 
   it('sets up the account and sends the confirmation with the new signup id', async () => {
     const dataSources = walkInDataSources();
@@ -211,6 +211,22 @@ describe('manualSignup', () => {
       .toHaveBeenCalledWith(5, { cpf: '12345678909', phone: '+55 62 9', name: 'Ana Souza' });
   });
 
+  it('REA-36: refuses without the 18+ declaration or with a date of birth under 18', async () => {
+    const dataSources = walkInDataSources();
+    const noDeclaration = await run(dataSources, { adult_declaration: undefined });
+    expect(noDeclaration).toMatchObject({ success: false, message: 'Confirme que você tem 18 anos ou mais.' });
+    const minor = await run(dataSources, { date_of_birth: '2015-01-01' });
+    expect(minor).toMatchObject({ success: false, message: 'É preciso ter 18 anos ou mais.' });
+    expect(dataSources.eventandoIntegration.createSignupDirect).not.toHaveBeenCalled();
+  });
+
+  it('REA-36: records the declaration on the signup', async () => {
+    const dataSources = walkInDataSources();
+    await run(dataSources);
+    expect(dataSources.eventandoIntegration.createSignupDirect)
+      .toHaveBeenCalledWith(expect.objectContaining({ adult_declaration_at: expect.any(String) }));
+  });
+
   it('still succeeds when the confirmation e-mail rejects', async () => {
     sendSignupConfirmation.mockRejectedValueOnce(new Error('smtp down'));
     const out = await run(walkInDataSources());
@@ -222,6 +238,7 @@ describe('manualSignup', () => {
 describe('manualSignup: who the person is (CPF first, then e-mail)', () => {
   const input = {
     name: 'Ana Souza', email: 'ana.nova@x.io', phone_number: '+55 62 9', cpf: '529.982.247-25', date_of_birth: '1990-04-07',
+    adult_declaration: true,
   };
 
   const dataSourcesFor = ({ byCpf = null, byEmail = null, account = { created: false, token: null }, existing = [] } = {}) => ({

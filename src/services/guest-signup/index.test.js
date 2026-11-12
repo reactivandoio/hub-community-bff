@@ -12,6 +12,7 @@ const args = (extra = {}) => ({
   phone_number: '+55 62 99999-0000',
   cpf: '529.982.247-25',
   kind: 'PIX_QR',
+  adult_declaration: true,
   ...extra,
 });
 
@@ -179,6 +180,20 @@ describe('guestSignupToEvent: casos do REA-22', () => {
 });
 
 describe('guestSignupToEvent: validação e limites', () => {
+  it('REA-36: sem a declaração de 18+ não inscreve; com ela, a declaração vai para o Eventando', async () => {
+    const ds = makeDataSources();
+    expect(await run(ds, { adult_declaration: undefined })).toMatchObject({ success: false, message: MESSAGES.ADULT });
+    expect(ds.eventandoIntegration.signup).not.toHaveBeenCalled();
+    await run(ds);
+    expect(ds.eventandoIntegration.signup).toHaveBeenCalledWith(42, expect.objectContaining({ adult_declaration: true }));
+  });
+
+  it('REA-36: conta desativada não ganha inscrição nova', async () => {
+    const ds = makeDataSources({ byEmail: { id: 5, email: 'ana@x.io', blocked: true } });
+    expect(await run(ds)).toMatchObject({ success: false, message: MESSAGES.BLOCKED });
+    expect(ds.eventandoIntegration.signup).not.toHaveBeenCalled();
+  });
+
   it('CPF validado no servidor (dígito verificador) e nunca ecoado', async () => {
     const ds = makeDataSources();
     const out = await run(ds, { cpf: '529.982.247-24' });

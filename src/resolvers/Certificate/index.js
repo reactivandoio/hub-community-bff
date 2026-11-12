@@ -1,3 +1,4 @@
+import { MINOR_MESSAGE, isAdultDate, requireAdultDeclaration } from '../../utils/age';
 import {
   mapConfig,
   mapCertificate,
@@ -347,7 +348,9 @@ const Certificate = {
       return upsertConfig(dataSources, toEventId, configToInput(source));
     },
 
-    requestCertificate: async (_, { eventId, name, identifier, email }, { dataSources, user: viewer }) => {
+    requestCertificate: async (_, { eventId, name, identifier, email, adult_declaration: adultDeclaration }, { dataSources, user: viewer }) => {
+      // REA-36: the certificate form has the required "18 anos ou mais" checkbox.
+      requireAdultDeclaration(adultDeclaration);
       const cpf = normalizeIdentifier(identifier);
       if (!isValidCpf(cpf)) throw new Error('CPF inválido.');
       if (!name?.trim()) throw new Error('Nome é obrigatório.');
@@ -485,9 +488,11 @@ const Certificate = {
     // Re-sending the same form is a no-op, so a double click never duplicates a row.
     submitCertificateRequest: async (
       _,
-      { slug, name, identifier, email, phone, date_of_birth: dateOfBirth },
+      { slug, name, identifier, email, phone, date_of_birth: dateOfBirth, adult_declaration: adultDeclaration },
       { dataSources },
     ) => {
+      // REA-36: required "18 anos ou mais" checkbox; recorded on the participant.
+      requireAdultDeclaration(adultDeclaration);
       const form = await loadRequestFormBySlug(dataSources, slug);
       if (form.enabled === false) throw new Error('Este formulário não está mais aceitando solicitações.');
 
@@ -504,6 +509,7 @@ const Certificate = {
       // and makes no sense is worth saying out loud instead of silently dropping.
       const birthDate = normalizeDateOfBirth(dateOfBirth);
       if (dateOfBirth?.trim() && !birthDate) throw new Error('Data de nascimento inválida.');
+      if (birthDate && !isAdultDate(birthDate)) throw new Error(MINOR_MESSAGE);
 
       const category = normalizeCategory(form.category);
       // No read-back to dedup: this runs unauthenticated, and the public role must not be able
@@ -518,6 +524,7 @@ const Certificate = {
         category,
         event: eventId,
         certificate_request_form: form.documentId,
+        adult_declaration_at: new Date().toISOString(),
       });
 
       return { ok: true, category, event_title: form.event?.title || '' };
