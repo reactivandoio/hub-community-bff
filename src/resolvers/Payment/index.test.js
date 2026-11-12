@@ -68,8 +68,26 @@ describe('eventPaymentSettings / eventPayments', () => {
   it('lista pagamentos sem CPF, com o pendente vencido como EXPIRED', async () => {
     const out = await Payment.Query.eventPayments(null, { slugOrId: 'meetup' }, ctx(eventando()));
     expect(out).toEqual([
-      { email: 'a@x.io', name: 'A', status: 'CONFIRMED', value: 1000, expires_at: null },
-      { email: 'b@x.io', name: null, status: 'EXPIRED', value: 1000, expires_at: '2000-01-01T00:00:00Z' },
+      {
+        email: 'a@x.io', name: 'A', status: 'CONFIRMED', value: 1000, expires_at: null,
+        manual_approved: false, manual_approved_at: null, manual_approved_by: null,
+      },
+      {
+        email: 'b@x.io', name: null, status: 'EXPIRED', value: 1000, expires_at: '2000-01-01T00:00:00Z',
+        manual_approved: false, manual_approved_at: null, manual_approved_by: null,
+      },
     ]);
+  });
+
+  it('marca o pagamento aprovado manualmente, com quem aprovou e quando (REA-34)', async () => {
+    const ev = eventando();
+    ev.findPaymentsByEvent.mockResolvedValue([{
+      status: 'CONFIRMED', value: 1000, signup: { email: 'c@x.io' },
+      manual_approved_at: '2026-11-10T15:00:00.000Z', manual_approved_by: { id: 'u1', email: 'adm@x.io', name: 'Adm' },
+    }]);
+    const [out] = await Payment.Query.eventPayments(null, { slugOrId: 'meetup' }, ctx(ev));
+    expect(out).toMatchObject({
+      status: 'CONFIRMED', manual_approved: true, manual_approved_at: '2026-11-10T15:00:00.000Z', manual_approved_by: 'Adm',
+    });
   });
 });

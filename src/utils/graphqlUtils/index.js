@@ -39,8 +39,9 @@ const parseShadowResults = (response) => {
     if (isArray(dataToParse[item])) {
       const parsedData = [];
 
+      // Strings, numbers and nulls in a list (e.g. the REA-34 `warnings`) stay as they are.
       dataToParse[item].map((obj) => {
-        parsedData.push(parseShadowResults(obj));
+        parsedData.push(obj !== null && typeof obj === 'object' ? parseShadowResults(obj) : obj);
       });
 
       dataToParse[item] = parsedData;

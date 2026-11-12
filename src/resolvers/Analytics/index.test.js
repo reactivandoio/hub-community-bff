@@ -191,3 +191,67 @@ describe('eventAnalytics paid signups and payment per signup (REA-27/REA-28)', (
     expect(byEmail['cupom100@x.io']).toMatchObject({ paid_cents: null, coupon_code: 'FREE' });
   });
 });
+
+describe('eventAnalytics aprovação manual (REA-34)', () => {
+  const approvedAt = '2026-11-10T15:00:00.000Z';
+  const manual = (id, email, extra = {}) => ({
+    id,
+    email,
+    payment: {
+      status: 'CONFIRMED',
+      value: 5000,
+      manual_approved_at: approvedAt,
+      manual_approved_by: { id: 'u-admin', email: 'admin@x.io', name: 'Admin Silva' },
+      batch: { id: 70, product: { id: 7, name: 'Ingresso' } },
+      ...extra,
+    },
+  });
+  const signups = [
+    { id: 1, email: 'pago@x.io', payment: { status: 'CONFIRMED', value: 2000, batch: { id: 70, product: { id: 7 } } } },
+    manual(2, 'aprovada@x.io'),
+    manual(3, 'semnome@x.io', { manual_approved_by: { email: 'outro@x.io' } }),
+    { id: 4, email: 'gratis@x.io', payment: { status: 'CONFIRMED', value: 0, batch: { id: 99 } } },
+  ];
+
+  const run = async () => {
+    const dataSources = makeDataSources();
+    dataSources.eventandoIntegration.findEvents = vi.fn().mockResolvedValue({
+      data: [{
+        id: 42, name: 'Ev', slug: 'ev', uuid: 'u',
+        products: [{ id: 7, name: 'Ingresso', batches: [{ id: 70, batch_number: 1, value: 5000 }] }],
+      }],
+    });
+    dataSources.eventandoIntegration.findSignupsByEvent = vi.fn().mockResolvedValue(signups);
+    return Analytics.Query.eventAnalytics(null, { slugOrId: 'ev' }, { dataSources, user: ADMIN });
+  };
+
+  it('conta como inscrição, fora das pagas, das gratuitas e da receita', async () => {
+    const out = await run();
+    expect(out.total_signups).toBe(4);
+    expect(out.manual_signups).toBe(2);
+    expect(out.paid_signups).toBe(1);
+    expect(out.free_signups).toBe(1);
+    expect(out.total_signups)
+      .toBe(out.free_signups + out.paid_signups + out.pending_paid_signups + out.manual_signups);
+    const batch = out.products_breakdown[0].batches[0];
+    expect(batch.sold_quantity).toBe(3);
+    expect(batch.revenue).toBe(2000);
+  });
+
+  it('lista com signup_id, selo, quem aprovou e quando, valor pago 0', async () => {
+    const out = await run();
+    const byEmail = Object.fromEntries(out.all_signups.map((s) => [s.email, s]));
+    expect(byEmail['aprovada@x.io']).toMatchObject({
+      signup_id: '2',
+      payment_status: 'CONFIRMED',
+      paid_cents: 0,
+      manual_approved: true,
+      manual_approved_at: approvedAt,
+      manual_approved_by: 'Admin Silva',
+    });
+    expect(byEmail['semnome@x.io'].manual_approved_by).toBe('outro@x.io');
+    expect(byEmail['pago@x.io']).toMatchObject({
+      signup_id: '1', paid_cents: 2000, manual_approved: false, manual_approved_at: null, manual_approved_by: null,
+    });
+  });
+});

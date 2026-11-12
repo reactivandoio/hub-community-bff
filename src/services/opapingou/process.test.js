@@ -53,6 +53,19 @@ describe('createOpaProcessor', () => {
     expect(sendConfirmation).toHaveBeenCalledTimes(1);
   });
 
+  it('aprovada manualmente (REA-34): webhook posterior não manda segundo e-mail e fica no log', async () => {
+    const approved = { ...payment, status: 'CONFIRMED', manual_approved_at: '2026-11-10T15:00:00.000Z' };
+    const eventando = { processEvent: vi.fn().mockResolvedValue({ transitioned: false, status: 'CONFIRMED', payment: approved }) };
+    const sendConfirmation = vi.fn();
+    const log = { error: vi.fn(), info: vi.fn(), warn: vi.fn() };
+    const { processEvent } = createOpaProcessor({ eventando, sendConfirmation, log });
+    await processEvent({ eventId: 'evt_paid', type: 'charge.paid' });
+    await processEvent({ eventId: 'evt_exp', type: 'charge.expired' });
+    expect(sendConfirmation).not.toHaveBeenCalled();
+    expect(log.warn).toHaveBeenCalledTimes(2);
+    expect(log.warn.mock.calls[0][0]).toMatch(/\[opapingou\].*aprovado manualmente.*charge\.paid/);
+  });
+
   it('erro do Eventando ao processar: não manda e-mail e não lança (a varredura repete)', async () => {
     const eventando = { processEvent: vi.fn().mockRejectedValue(new Error('HTTP 503')) };
     const sendConfirmation = vi.fn();

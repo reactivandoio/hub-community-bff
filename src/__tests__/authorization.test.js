@@ -145,6 +145,9 @@ const PROTECTED = [
   ['Mutation', 'startEmailCampaign', { input: { ...ev, type: 'share' } }, 'organizer'],
   ['Mutation', 'startEmailCampaign', { input: { ...ev, type: 'invite' } }, 'admin'],
   ['Mutation', 'updateEmailCampaignStatus', { ...ev, id: 'cp-1', action: 'pause' }, 'organizer'],
+  // Aprovação manual de inscrição (REA-34): só admin; o community manager só vê o selo.
+  ['Query', 'signupApprovalPreview', { event: 'meetup', signup_id: '9' }, 'admin'],
+  ['Mutation', 'approveSignupManually', { event: 'meetup', signup_id: '9' }, 'admin'],
 ];
 
 describe('protected operations', () => {

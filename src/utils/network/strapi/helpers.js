@@ -208,9 +208,12 @@ export const createStrapiFetch =
         console.log(`Error on try ${method} in ${url}`, message);
       }
 
-      // The Eventando business errors may carry a code (REA-22: ALREADY_SIGNED_UP).
+      // The Eventando business errors may carry a code (REA-22: ALREADY_SIGNED_UP), at
+      // the top or, on the REA-34 routes, under `error` ({ error: { code: 'NOT_FOUND' } }).
       const failure = new Error(message);
-      if (typeof data?.code === 'string') failure.code = data.code;
+      const code = typeof data?.code === 'string' ? data.code : data?.error?.code;
+      if (typeof code === 'string') failure.code = code;
+      if (error.response?.status) failure.status = error.response.status;
       throw failure;
     }
 

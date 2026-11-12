@@ -34,6 +34,12 @@ export const createOpaProcessor = ({
       if (result?.alert && !ALERT_TYPES.has(type)) {
         alert(`evento ${eventId}: ${result.reason || result.status || 'verificar no Eventando'}`);
       }
+      // REA-34: o admin já aprovou a inscrição sem cobrança; o Eventando não mexe nela e
+      // aqui não sai outro e-mail. Um charge.paid quer dizer que entrou dinheiro: conferir.
+      if (!result?.transitioned && result?.payment?.manual_approved_at) {
+        const paid = type === 'charge.paid' ? ' (entrou um pagamento numa inscrição já aprovada: conferir)' : '';
+        log.warn(`[opapingou] pagamento ${result.payment.id} aprovado manualmente; ${type || 'evento'}/${result.status || '?'} ignorado${paid}`);
+      }
       if (result?.transitioned && result.status === 'CONFIRMED' && result.payment) {
         try {
           await sendConfirmation(result.payment);

@@ -8,12 +8,14 @@ type EventAnalytics {
   # Core signup metrics
   "Signups holding or having held a place: expired and canceled ones are left out (a pending charge past its deadline counts as expired). Occupancy, timeline and check-in numbers use the same set; all_signups lists everyone."
   total_signups: Int!
-  "No payment or a zero value."
+  "No payment or a zero value (approved manually is not free: see manual_signups)."
   free_signups: Int!
   "Confirmed payments with a value. Pending, expired, canceled and refunded are left out."
   paid_signups: Int!
   "Charges with a value still waiting for payment, within their deadline."
   pending_paid_signups: Int!
+  "Approved by an admin without a charge (REA-34): in the total, out of paid, free and revenue."
+  manual_signups: Int
 
   # Capacity
   max_slots: Int
@@ -98,10 +100,17 @@ type SignupEntry {
   cpf: String
   "PEDING_PAYMENT | CONFIRMED | EXPIRED | CANCELED | REFUND; a pending charge past expires_at reads EXPIRED. Null without payment."
   payment_status: String
-  "What was paid, in cents (coupon and half price applied). Only for a confirmed payment with a value; null when free or not paid."
+  "What was paid, in cents (coupon and half price applied). Only for a confirmed payment with a value; null when free or not paid; 0 when approved manually."
   paid_cents: Float
   "Code of the coupon applied to the price; null without coupon or when half price won."
   coupon_code: String
+  "The Eventando signup id, the one approveSignupManually takes (REA-34)."
+  signup_id: ID
+  "Approved by an admin without a charge (REA-34): payment_status CONFIRMED, paid_cents 0."
+  manual_approved: Boolean
+  manual_approved_at: String
+  "Name (or e-mail) of the admin who approved it."
+  manual_approved_by: String
 }
 
 type Query {

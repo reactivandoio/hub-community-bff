@@ -34,6 +34,33 @@ type EventPayment {
   "Cents."
   value: Float
   expires_at: String
+  "Approved by an admin without a charge (REA-34): CONFIRMED, but counts as R$ 0 and out of the revenue."
+  manual_approved: Boolean
+  manual_approved_at: String
+  "Name (or e-mail) of the admin who approved it."
+  manual_approved_by: String
+}
+
+"Whether a signup can be approved without a charge (REA-34)."
+type SignupApprovalPreview {
+  approvable: Boolean!
+  "NOT_FOUND | NO_PAYMENT | ALREADY_CONFIRMED | REFUNDED | ALREADY_APPROVED; null when approvable."
+  reason: String
+  "The payment status (PEDING_PAYMENT | CONFIRMED | EXPIRED | CANCELED | REFUND); null without payment."
+  status: String
+  "BATCH_FULL | EVENT_FULL | COUPON_EXHAUSTED: the approval goes over that limit (it is still allowed)."
+  warnings: [String!]!
+}
+
+type ApproveSignupResult {
+  success: Boolean!
+  "For the admin, in Portuguese."
+  message: String
+  "It was already approved: nothing changed and no e-mail was sent."
+  already_approved: Boolean
+  warnings: [String!]!
+  "The \"Inscrição confirmada\" e-mail with the ticket went out."
+  email_sent: Boolean
 }
 
 extend type Query {
@@ -43,4 +70,11 @@ extend type Query {
   eventPaymentSettings(eventId: ID!): EventPaymentSettings @deprecated(reason: "Opa Pingou is the only provider.")
   "Admin only."
   eventPayments(slugOrId: String!): [EventPayment!]!
+  "Admin only (REA-34). event: slug or Hub id; signup_id: the SignupEntry.signup_id."
+  signupApprovalPreview(event: String!, signup_id: ID!): SignupApprovalPreview!
+}
+
+extend type Mutation {
+  "Admin only (REA-34). Confirms a pending, expired or canceled signup without a charge and e-mails the ticket."
+  approveSignupManually(event: String!, signup_id: ID!): ApproveSignupResult!
 }
