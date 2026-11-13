@@ -219,3 +219,56 @@ describe('share_art_open', () => {
     }
   });
 });
+
+// REA-48: a manager of the event edits it, but neither moves it to another community nor deletes it.
+describe('updateEvent / deleteEvent — event managers (REA-48)', () => {
+  const EVA = { id: 7, documentId: 'u-eva', email: 'eva@x.io', role: { type: 'event-manager' } };
+  const ANA_CM = { id: 2, documentId: 'u-ana', email: 'ana@x.io', role: { type: 'community-manager' } };
+  const MANAGED = {
+    documentId: 'ev1',
+    slug: 'meetup',
+    communities: [{ documentId: 'c-1', organizers: [{ documentId: 'u-ana' }] }],
+    managers: [{ documentId: 'u-eva' }],
+  };
+  const makeUpdate = () => ({
+    managerIntegration: {
+      findEventWithOrganizers: vi.fn().mockResolvedValue(MANAGED),
+      updateEvent: vi.fn().mockResolvedValue({ data: { documentId: 'ev1' } }),
+      deleteEvent: vi.fn().mockResolvedValue({ data: { documentId: 'ev1' } }),
+      findCommunityById: vi.fn().mockResolvedValue({ data: { events: [] } }),
+      updateCommunity: vi.fn().mockResolvedValue({}),
+      updateTalk: vi.fn().mockResolvedValue({}),
+    },
+    eventandoIntegration: {
+      findEvents: vi.fn().mockResolvedValue({ data: [{ id: 1, uuid: 'ev1' }] }),
+      updateEvent: vi.fn().mockResolvedValue({ data: { id: 1 } }),
+      findEventBySlug: vi.fn().mockResolvedValue({ data: [] }),
+    },
+  });
+  const base = { title: 'Meetup', start_date: '2026-10-01', end_date: '2026-10-01' };
+
+  it('lets the manager save the event, ignoring the communities it sends', async () => {
+    const dataSources = makeUpdate();
+    await Event.Mutation.updateEvent(null, { id: 'ev1', data: { ...base, communities: ['c-other'] } }, { dataSources, user: EVA });
+    expect(dataSources.managerIntegration.updateEvent.mock.calls[0][1].communities).toBeUndefined();
+    expect(dataSources.managerIntegration.updateCommunity).not.toHaveBeenCalled();
+  });
+
+  it('keeps the communities of an owner', async () => {
+    const dataSources = makeUpdate();
+    await Event.Mutation.updateEvent(null, { id: 'ev1', data: { ...base, communities: ['c-1'] } }, { dataSources, user: ANA_CM });
+    expect(dataSources.managerIntegration.updateEvent.mock.calls[0][1].communities).toEqual(['c-1']);
+  });
+
+  it('does not let the manager delete the event', async () => {
+    const dataSources = makeUpdate();
+    let code = null;
+    try {
+      await Event.Mutation.deleteEvent(null, { id: 'ev1' }, { dataSources, user: EVA });
+    } catch (err) {
+      code = err.extensions?.code;
+    }
+    expect(code).toBe('FORBIDDEN');
+    expect(dataSources.managerIntegration.deleteEvent).not.toHaveBeenCalled();
+  });
+});

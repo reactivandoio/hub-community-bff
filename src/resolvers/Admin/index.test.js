@@ -25,6 +25,7 @@ const makeDs = (overrides = {}) => ({
     adminCreateRoleChange: vi.fn().mockResolvedValue({ data: {} }),
     adminFindRoleChanges: vi.fn().mockResolvedValue({ data: [], total: 0 }),
     adminFindOrganizedCommunities: vi.fn().mockResolvedValue([{ documentId: 'c-1', title: 'Comunidade', slug: 'comunidade' }]),
+    findManagedEvents: vi.fn().mockResolvedValue([]),
     ...overrides,
   },
 });
@@ -52,9 +53,35 @@ describe('adminAccess', () => {
       role: 'community-manager',
       isAdmin: false,
       isCommunityManager: true,
+      isEventManager: false,
       canAccessAdmin: true,
       communities: [{ id: 'c-1', title: 'Comunidade', slug: 'comunidade' }],
+      events: [],
     });
+  });
+
+  // REA-48
+  it('tells an event-manager which events it manages, and nothing else', async () => {
+    const EVENT_MANAGER = { id: 9, documentId: 'u-eva', role: { type: 'event-manager' } };
+    const dataSources = makeDs({
+      findManagedEvents: vi.fn().mockResolvedValue([{ documentId: 'ev-1', title: 'Meetup', slug: 'meetup' }]),
+    });
+    const access = await Query.adminAccess(null, {}, { user: EVENT_MANAGER, dataSources });
+    expect(access).toMatchObject({
+      role: 'event-manager',
+      isEventManager: true,
+      isCommunityManager: false,
+      canAccessAdmin: true,
+      communities: [],
+      events: [{ id: 'ev-1', title: 'Meetup', slug: 'meetup' }],
+    });
+    expect(dataSources.managerIntegration.findManagedEvents).toHaveBeenCalledWith(9);
+    expect(dataSources.managerIntegration.adminFindOrganizedCommunities).not.toHaveBeenCalled();
+  });
+
+  it('lists Event Manager among the roles the admin assigns', () => {
+    expect(Query.adminRoles(null, {}, { user: ADMIN }).map((r) => r.type))
+      .toEqual(['authenticated', 'event-manager', 'community-manager', 'admin']);
   });
 
   it('keeps a plain user out', async () => {
@@ -62,6 +89,7 @@ describe('adminAccess', () => {
     const access = await Query.adminAccess(null, {}, { user: MEMBER, dataSources });
     expect(access.canAccessAdmin).toBe(false);
     expect(dataSources.managerIntegration.adminFindOrganizedCommunities).not.toHaveBeenCalled();
+    expect(dataSources.managerIntegration.findManagedEvents).not.toHaveBeenCalled();
   });
 });
 

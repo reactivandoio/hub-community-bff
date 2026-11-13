@@ -1,13 +1,24 @@
-"Roles (REA-10): authenticated (every user), community-manager and admin."
+"Roles (REA-10, REA-48): authenticated (every user), event-manager, community-manager and admin."
 type AdminAccess {
-  "users-permissions role type: authenticated | community-manager | admin"
+  "users-permissions role type: authenticated | event-manager | community-manager | admin"
   role: String
   isAdmin: Boolean!
   isCommunityManager: Boolean!
-  "admin or community-manager: may enter the Hub admin"
+  "REA-48: manages only the events in `events`."
+  isEventManager: Boolean!
+  "admin, community-manager or event-manager: may enter the Hub admin"
   canAccessAdmin: Boolean!
   "Communities the user organizes — what a community-manager manages."
   communities: [AdminCommunity!]!
+  "REA-48: events the user is a manager of (event-manager or community-manager)."
+  events: [AdminEvent!]!
+}
+
+type AdminEvent {
+  "documentId"
+  id: ID!
+  title: String
+  slug: String
 }
 
 type AdminCommunity {
@@ -18,7 +29,7 @@ type AdminCommunity {
 }
 
 type AdminRole {
-  "authenticated | community-manager | admin"
+  "authenticated | event-manager | community-manager | admin"
   type: String!
   name: String!
 }
@@ -34,6 +45,8 @@ type AdminUser {
   role: AdminRole
   "Communities the user is listed as organizer of."
   communities: [AdminCommunity!]!
+  "REA-48: events the user is listed as manager of."
+  events: [AdminEvent!]!
 }
 
 type AdminUserPage {

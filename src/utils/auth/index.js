@@ -9,6 +9,9 @@ import jwt from '../jwt';
 // - admin: sees and does everything and assigns roles.
 // - community-manager: manages only the communities it organizes (`community.organizers`)
 //   and their events. Being listed as organizer without this role grants nothing.
+// - event-manager (REA-48): manages only the events it is a manager of (`event.managers`), like a
+//   community-manager does with its events, but creates no event and touches no community. Being
+//   listed as manager without this role (or community-manager) grants nothing either.
 // - authenticated (every other user): no admin operation.
 
 const USER_TTL_MS = 60 * 1000;
@@ -90,8 +93,19 @@ export const createAuthContext = async ({ authorization, acceptLanguage, makeDat
 export const ROLES = Object.freeze({
   ADMIN: 'admin',
   COMMUNITY_MANAGER: 'community-manager',
+  EVENT_MANAGER: 'event-manager',
   AUTHENTICATED: 'authenticated',
 });
+
+// Higher grants more (REA-48: an invite never lowers a role).
+const ROLE_RANK = Object.freeze({
+  [ROLES.AUTHENTICATED]: 0,
+  [ROLES.EVENT_MANAGER]: 1,
+  [ROLES.COMMUNITY_MANAGER]: 2,
+  [ROLES.ADMIN]: 3,
+});
+
+export const roleRank = (roleType) => ROLE_RANK[roleType] ?? 0;
 
 export const roleOf = (user) => user?.role?.type || null;
 
@@ -99,8 +113,10 @@ export const isAdmin = (user) => roleOf(user) === ROLES.ADMIN;
 
 export const isCommunityManager = (user) => roleOf(user) === ROLES.COMMUNITY_MANAGER;
 
+export const isEventManager = (user) => roleOf(user) === ROLES.EVENT_MANAGER;
+
 /** Who may enter the Hub admin at all (what each one sees is decided per operation). */
-export const canAccessAdmin = (user) => isAdmin(user) || isCommunityManager(user);
+export const canAccessAdmin = (user) => isAdmin(user) || isCommunityManager(user) || isEventManager(user);
 
 export const unauthenticatedError = () =>
   new GraphQLError('Não autenticado. Faça login novamente.', {
@@ -126,6 +142,9 @@ const idsOf = (users) => (users || []).map((u) => u?.documentId).filter(Boolean)
 export const organizerIdsOfEvent = (event) =>
   new Set((event?.communities || []).flatMap((community) => idsOf(community?.organizers)));
 
+/** REA-48: the users listed as managers of the event. */
+export const managerIdsOfEvent = (event) => new Set(idsOf(event?.managers));
+
 // Per-request memo, so a resolver that checks the same event twice asks Strapi once.
 const memo = (ctx, key, load) => {
   if (!ctx.authzCache) ctx.authzCache = new Map();
@@ -146,14 +165,39 @@ const loadCommunity = (ctx, communityId) =>
   memo(ctx, `community:${communityId}`, () =>
     ctx.dataSources.managerIntegration.findCommunityWithOrganizers(String(communityId)));
 
-/** Non-throwing check: admin, or a community-manager organizing one of the event's communities. */
-export const isEventOrganizer = async (ctx, eventIdOrSlug) => {
+/**
+ * Non-throwing check: who owns the event — admin, or a community-manager organizing one of its
+ * communities. Only they invite and remove the event's managers, move it to another community or
+ * delete it (REA-48).
+ */
+export const isEventOwner = async (ctx, eventIdOrSlug) => {
   const user = ctx?.user;
   if (!user) return false;
   if (isAdmin(user)) return true;
   if (!isCommunityManager(user) || !eventIdOrSlug) return false;
   const event = await loadEvent(ctx, eventIdOrSlug);
   return Boolean(event) && organizerIdsOfEvent(event).has(user.documentId);
+};
+
+/**
+ * Non-throwing check: who manages the event in the admin — its owners (isEventOwner) and, REA-48,
+ * its managers (`event.managers`) holding the event-manager or community-manager role.
+ */
+export const isEventOrganizer = async (ctx, eventIdOrSlug) => {
+  const user = ctx?.user;
+  if (!user) return false;
+  if (isAdmin(user)) return true;
+  if (!(isCommunityManager(user) || isEventManager(user)) || !eventIdOrSlug) return false;
+  const event = await loadEvent(ctx, eventIdOrSlug);
+  if (!event) return false;
+  return organizerIdsOfEvent(event).has(user.documentId) || managerIdsOfEvent(event).has(user.documentId);
+};
+
+export const requireEventOwner = async (ctx, eventIdOrSlug) => {
+  requireUser(ctx);
+  if (!(await isEventOwner(ctx, eventIdOrSlug))) {
+    throw forbiddenError('Apenas o admin e os organizadores da comunidade do evento podem fazer esta operação.');
+  }
 };
 
 export const requireEventOrganizer = async (ctx, eventIdOrSlug) => {

@@ -1,3 +1,4 @@
+import { acceptPendingInvites } from '../management-invite';
 import { GraphQLError } from 'graphql';
 import crypto from 'crypto';
 import { sendEmail } from '../email';
@@ -102,6 +103,8 @@ export const verifyLoginCode = async ({ dataSources, email: rawEmail, code, clie
   switch (result?.status) {
     case 'ok':
       if (result.created) await linkSpeaker(dataSources, result.user);
+      // REA-48: pending invites of this e-mail become access now (never fails the login).
+      await acceptPendingInvites(dataSources, result.user);
       return { ...result.user, token: result.jwt };
     case 'invalid':
       if (!result.attemptsLeft) {

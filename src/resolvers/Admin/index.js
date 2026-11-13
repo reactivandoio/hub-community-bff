@@ -5,6 +5,7 @@ import {
   forbiddenError,
   isAdmin,
   isCommunityManager,
+  isEventManager,
   requireAdmin,
   roleOf,
 } from '../../utils/auth';
@@ -18,6 +19,8 @@ import {
 // Order shown in the admin screen; also the only types setUserRole accepts.
 export const ASSIGNABLE_ROLES = [
   { type: ROLES.AUTHENTICATED, name: 'Usuário' },
+  // REA-48: manages only the events it is a manager of.
+  { type: ROLES.EVENT_MANAGER, name: 'Event Manager' },
   { type: ROLES.COMMUNITY_MANAGER, name: 'Community Manager' },
   { type: ROLES.ADMIN, name: 'Admin' },
 ];
@@ -54,6 +57,12 @@ const toCommunity = (community) => ({
   slug: community.slug ?? null,
 });
 
+const toEvent = (event) => ({
+  id: event.documentId,
+  title: event.title ?? null,
+  slug: event.slug ?? null,
+});
+
 const toUser = (user) => ({
   id: String(user.id),
   documentId: user.documentId ?? null,
@@ -65,6 +74,7 @@ const toUser = (user) => ({
     ? { type: user.role.type, name: ROLE_NAMES.get(user.role.type) || user.role.name || user.role.type }
     : null,
   communities: (user.communities || []).filter((c) => c?.documentId).map(toCommunity),
+  events: (user.managed_events || []).filter((e) => e?.documentId && !e.deleted_at).map(toEvent),
 });
 
 const toRoleChange = (change) => ({
@@ -144,15 +154,22 @@ const Admin = {
       const { user } = ctx;
       if (!user) return null;
       const manager = isCommunityManager(user);
-      const communities = manager
-        ? await ctx.dataSources.managerIntegration.adminFindOrganizedCommunities(user.id)
-        : [];
+      const eventManager = isEventManager(user);
+      const ds = ctx.dataSources.managerIntegration;
+      // REA-48: the events it manages count for a community-manager too (it may have been
+      // invited to an event of another community).
+      const [communities, events] = await Promise.all([
+        manager ? ds.adminFindOrganizedCommunities(user.id) : [],
+        manager || eventManager ? ds.findManagedEvents(user.id) : [],
+      ]);
       return {
         role: roleOf(user),
         isAdmin: isAdmin(user),
         isCommunityManager: manager,
+        isEventManager: eventManager,
         canAccessAdmin: canAccessAdmin(user),
         communities: communities.filter((c) => c?.documentId).map(toCommunity),
+        events: events.filter((e) => e?.documentId).map(toEvent),
       };
     },
 

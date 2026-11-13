@@ -18,7 +18,8 @@ const findEventWithOrganizers = async (slugOrId, headers) => {
       { documentId: { eq: slugOrId } },
     ],
   };
-  const query = buildQuery(filters, [], { pageSize: 1 }, '', ['communities.organizers']);
+  // REA-48: managers too — they manage the event in the admin like its organizers.
+  const query = buildQuery(filters, [], { pageSize: 1 }, '', ['communities.organizers', 'managers']);
   const response = await fetch(`/events?${query}`, 'GET', headers);
   return response?.data?.[0] || null;
 };

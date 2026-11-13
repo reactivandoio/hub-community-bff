@@ -99,6 +99,22 @@ describe('graphql schema', () => {
     expect(schema.getType('ShareArtConfigInput').getFields().product_roles).toBeUndefined();
   });
 
+  it('exposes the REA-48 invites, event managers and the event-manager access', () => {
+    const query = schema.getQueryType().getFields();
+    const mutation = schema.getMutationType().getFields();
+    const argsOf = (field) => field.args.map((a) => `${a.name}: ${a.type}`);
+    expect(argsOf(mutation.inviteCommunityOrganizer)).toEqual(['communityId: String!', 'email: String!']);
+    expect(argsOf(mutation.inviteEventManager)).toEqual(['eventId: String!', 'email: String!']);
+    expect(argsOf(mutation.removeEventManager)).toEqual(['eventId: String!', 'userId: ID!']);
+    expect(argsOf(mutation.acceptManagementInvite)).toEqual(['token: String!']);
+    expect(argsOf(query.eventManagers)).toEqual(['eventId: String!']);
+    expect(argsOf(query.managementInvite)).toEqual(['token: String!']);
+    const access = schema.getType('AdminAccess').getFields();
+    expect(access.isEventManager.type.toString()).toBe('Boolean!');
+    expect(access.events.type.toString()).toBe('[AdminEvent!]!');
+    expect(schema.getType('AdminUser').getFields().events.type.toString()).toBe('[AdminEvent!]!');
+  });
+
   it('exposes the REA-45 switch that opens the art to people not signed up', () => {
     expect(schema.getType('Event').getFields().share_art_open.type.toString()).toBe('Boolean');
     expect(schema.getType('EventInput').getFields().share_art_open.type.toString()).toBe('Boolean');

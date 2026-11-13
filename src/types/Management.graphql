@@ -1,0 +1,83 @@
+# REA-48 — convites para organizar uma comunidade (só admin) ou gerir um evento (admin e
+# organizadores da comunidade do evento). O convite expira, é de uso único e só vale para o e-mail
+# convidado; é aceito no login por código (REA-26) desse e-mail ou pelo link, já logado.
+
+type ManagementPerson {
+  "documentId of the user"
+  id: ID!
+  name: String
+  email: String
+}
+
+type ManagementInvite {
+  id: ID!
+  "community_organizer | event_manager"
+  kind: String!
+  email: String!
+  "pending | accepted | revoked | expired"
+  status: String!
+  expiresAt: String
+  invitedByEmail: String
+  createdAt: String
+}
+
+type CommunityOrganizers {
+  organizers: [ManagementPerson!]!
+  "Pending invites"
+  invites: [ManagementInvite!]!
+}
+
+type EventManagers {
+  managers: [ManagementPerson!]!
+  "Pending invites (only for who can manage them)"
+  invites: [ManagementInvite!]!
+  "Admin or organizer of the event's community: invites and removes managers."
+  canManage: Boolean!
+}
+
+"What the /convite page shows before the login."
+type ManagementInvitePreview {
+  kind: String!
+  "pending | accepted | revoked | expired"
+  status: String!
+  "The invited e-mail, masked (glad****@***ail.com)."
+  maskedEmail: String!
+  communityTitle: String
+  eventTitle: String
+  expiresAt: String
+}
+
+type ManagementInviteAcceptance {
+  kind: String!
+  "The role the person has now."
+  role: String
+  communityId: String
+  communityTitle: String
+  eventId: String
+  eventSlug: String
+  eventTitle: String
+}
+
+extend type Query {
+  "Admin only."
+  communityOrganizers(communityId: String!): CommunityOrganizers!
+  "Organizers and managers of the event (managers see the list, only owners change it)."
+  eventManagers(eventId: String!): EventManagers!
+  "Public: the invite of a link, without the e-mail in full. Null when the link is not valid."
+  managementInvite(token: String!): ManagementInvitePreview
+}
+
+extend type Mutation {
+  "Admin only. E-mails an invite to organize the community (the person becomes community-manager)."
+  inviteCommunityOrganizer(communityId: String!, email: String!): ManagementInvite!
+  "Admin only. Their role is not changed."
+  removeCommunityOrganizer(communityId: String!, userId: ID!): Boolean!
+  "Admin or organizer of the event's community. The person becomes event-manager (never lower)."
+  inviteEventManager(eventId: String!, email: String!): ManagementInvite!
+  "Admin or organizer of the event's community. Their role is not changed."
+  removeEventManager(eventId: String!, userId: ID!): Boolean!
+  "Who may send that invite."
+  revokeManagementInvite(id: ID!): Boolean!
+  "Logged in with the invited e-mail."
+  acceptManagementInvite(token: String!): ManagementInviteAcceptance!
+}

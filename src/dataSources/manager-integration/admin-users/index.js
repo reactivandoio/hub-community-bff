@@ -44,6 +44,8 @@ const findUsers = async ({ search, roleType, page, pageSize }, headers) => {
   params.append('populate[role][fields][1]', 'name');
   ['documentId', 'title', 'slug'].forEach((field, index) => {
     params.append(`populate[communities][fields][${index}]`, field);
+    // REA-48: the events the user manages.
+    params.append(`populate[managed_events][fields][${index}]`, field);
   });
   const response = await fetch(`/users?${params.toString()}`, 'GET', headers);
   return response?.data || [];
@@ -69,6 +71,8 @@ const findUser = async (id, headers) => {
   params.append('populate[role][fields][1]', 'name');
   ['documentId', 'title', 'slug'].forEach((field, index) => {
     params.append(`populate[communities][fields][${index}]`, field);
+    // REA-48: the events the user manages.
+    params.append(`populate[managed_events][fields][${index}]`, field);
   });
   const response = await fetch(`/users/${encodeURIComponent(id)}?${params.toString()}`, 'GET', headers);
   return response?.data || null;
