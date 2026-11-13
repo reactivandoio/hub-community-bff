@@ -16,6 +16,16 @@ const findSignupByEmail = (eventId, email, headers) => {
   return fetch(route, 'GET', headers);
 };
 
+// REA-47: the signup with the product of its batch (the ticket type), for the role on the art.
+const findSignupWithProduct = (eventId, email, headers) => {
+  const filters = {
+    email: { eq: email },
+    event: { id: { eq: eventId } },
+  };
+  const query = buildQuery(filters, [], {}, '', ['payment', 'payment.batch', 'payment.batch.product']);
+  return fetch(`/signups?${query}`, 'GET', headers);
+};
+
 const findSignupsByEvent = async (eventId, headers) => {
   let allSignups = [];
   let page = 1;
@@ -101,6 +111,7 @@ const signupDataSource = ({ headers }) => ({
   findSignupByEmail: (eventId, email) =>
     findSignupByEmail(eventId, email, headers),
   findSignupsByEvent: (eventId) => findSignupsByEvent(eventId, headers),
+  findSignupWithProduct: (eventId, email) => findSignupWithProduct(eventId, email, headers),
   findSignupById: (signupId) => findSignupById(signupId, headers),
   findSignupWithPayment: (signupId) => findSignupWithPayment(signupId, headers),
   updateSignup: (signupId, data) => updateSignup(signupId, data, headers),

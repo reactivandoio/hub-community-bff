@@ -11,6 +11,43 @@ type ShareArtPhotoArea {
   radius: Float!
 }
 
+"REA-47: fonts the art draws."
+enum ShareArtFont {
+  inter
+  inter_bold
+  serif
+  serif_bold
+  dancing_script
+  great_vibes
+  allura
+}
+
+enum ShareArtAlign {
+  left
+  center
+  right
+}
+
+"REA-47: where a text (the person's name or role) goes, in fractions of the background, and its style."
+type ShareArtText {
+  x: Float!
+  y: Float!
+  width: Float!
+  height: Float!
+  font: ShareArtFont!
+  "Font size as a fraction of the image width (0.05 → 54px on 1080px); the text shrinks to fit the area."
+  size: Float!
+  "#rrggbb"
+  color: String!
+  align: ShareArtAlign!
+}
+
+type ShareArtProductRole {
+  "Id of the product (ticket type) in the Eventando."
+  product_id: String!
+  role: String!
+}
+
 "One format of the art; only returned when it has both a background and a photo area."
 type ShareArtFormatConfig {
   background: String!   # URL absoluta
@@ -18,14 +55,40 @@ type ShareArtFormatConfig {
   background_width: Int
   background_height: Int
   photo_area: ShareArtPhotoArea!
+  "Null: the name is not on the art."
+  name_text: ShareArtText
+  "Null: the role is not on the art."
+  role_text: ShareArtText
 }
 
 type ShareArtConfig {
   id: String
   "Stories, 9:16. Null → the participant gets the default art in this format."
   story: ShareArtFormatConfig
-  "Feed, 1:1. Null → the participant gets the default art in this format."
+  "Feed, 4:5 (1080×1350; it was 1:1 before REA-47). Null → the participant gets the default art in this format."
   feed: ShareArtFormatConfig
+  "Role of whoever signed up with each product; a product left out gets default_role."
+  product_roles: [ShareArtProductRole!]!
+  default_role: String!
+  "Formats whose saved background is in an old ratio (the 1:1 feed, REA-47): they show the default art until a new background is sent."
+  retired_formats: [String!]!
+}
+
+"REA-47: how the person's role was found."
+enum ShareArtRoleSource {
+  "Organizer of one of the event's communities."
+  ORGANIZER
+  "Speaker of one of the event's talks."
+  SPEAKER
+  "Mapped from the product of their signup."
+  PRODUCT
+  "Signed up with a product without a role: the default role."
+  DEFAULT
+}
+
+type ShareArtRole {
+  role: String!
+  source: ShareArtRoleSource!
 }
 
 input ShareArtPhotoAreaInput {
@@ -36,21 +99,48 @@ input ShareArtPhotoAreaInput {
   radius: Float!
 }
 
+input ShareArtTextInput {
+  x: Float!
+  y: Float!
+  width: Float!
+  height: Float!
+  font: ShareArtFont!
+  size: Float!
+  color: String!
+  align: ShareArtAlign!
+}
+
 input ShareArtFormatInput {
   "Media id of the background (from the upload)."
   background: String!
   photo_area: ShareArtPhotoAreaInput!
+  "Left out: kept as it is. Null: the name leaves the art."
+  name_text: ShareArtTextInput
+  "Left out: kept as it is. Null: the role leaves the art."
+  role_text: ShareArtTextInput
+}
+
+input ShareArtProductRoleInput {
+  product_id: String!
+  "Empty: that product gets the default role."
+  role: String!
 }
 
 "A format left out is kept as it is; a format sent as null goes back to the default art."
 input ShareArtConfigInput {
   story: ShareArtFormatInput
   feed: ShareArtFormatInput
+  "Left out: kept as it is. Only products of this event."
+  product_roles: [ShareArtProductRoleInput!]
+  "Left out: kept as it is. Empty: Participante."
+  default_role: String
 }
 
 type Query {
   "Public: the participant's art page reads it. eventId is the slug or the documentId."
   shareArtConfig(eventId: String!): ShareArtConfig
+  "REA-47: the role of the logged-in person on the art. Null when signed out or not part of the event."
+  myShareArtRole(eventId: String!): ShareArtRole
 }
 
 type Mutation {
