@@ -80,9 +80,23 @@ describe('graphql schema', () => {
     const argsOf = (field) => field.args.map((a) => `${a.name}: ${a.type}`);
     expect(argsOf(query.shareArtConfig)).toEqual(['eventId: String!']);
     expect(argsOf(mutation.upsertShareArtConfig)).toEqual(['eventId: String!', 'data: ShareArtConfigInput!']);
-    expect(Object.keys(schema.getType('ShareArtConfig').getFields())).toEqual(['id', 'story', 'feed']);
+    expect(Object.keys(schema.getType('ShareArtConfig').getFields()))
+      .toEqual(['id', 'story', 'feed', 'retired_formats']);
     expect(Object.keys(schema.getType('ShareArtPhotoArea').getFields()))
       .toEqual(['x', 'y', 'width', 'height', 'radius']);
+  });
+
+  it('exposes the REA-47 name and role texts (where and how; the values come from the generator)', () => {
+    expect(Object.keys(schema.getType('ShareArtText').getFields()))
+      .toEqual(['x', 'y', 'width', 'height', 'font', 'size', 'color', 'align']);
+    const format = schema.getType('ShareArtFormatConfig').getFields();
+    expect(format.name_text.type.toString()).toBe('ShareArtText');
+    expect(format.role_text.type.toString()).toBe('ShareArtText');
+    expect(schema.getType('ShareArtFont').getValues().map((v) => v.name))
+      .toEqual(['inter', 'inter_bold', 'serif', 'serif_bold', 'dancing_script', 'great_vibes', 'allura']);
+    // No role resolution: the person picks the role in the generator.
+    expect(schema.getQueryType().getFields().myShareArtRole).toBeUndefined();
+    expect(schema.getType('ShareArtConfigInput').getFields().product_roles).toBeUndefined();
   });
 
   it('exposes the REA-45 switch that opens the art to people not signed up', () => {

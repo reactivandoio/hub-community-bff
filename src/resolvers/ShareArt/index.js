@@ -1,4 +1,5 @@
 // REA-43 — arte "eu vou" personalizada: fundo e área da foto por formato.
+// REA-47 — onde ficam o nome e o papel que a pessoa preenche no gerador, e com que estilo.
 import { requireEventOrganizer } from '../../utils/auth';
 import {
   FORMAT_KEYS,
@@ -6,6 +7,7 @@ import {
   badInput,
   mapShareArtConfig,
   normalizeArea,
+  normalizeText,
 } from './rules';
 
 const mediaId = (value) => {
@@ -13,10 +15,13 @@ const mediaId = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
+const TEXT_KINDS = ['name', 'role'];
+
 /**
  * GraphQL input → Strapi payload. Formats left out are not touched; a null format goes back to
- * the default art (background and area cleared). Each background is read from the media library
- * to check its ratio and size, so a crafted request cannot skip the frontend check.
+ * the default art (background, areas and texts cleared). Each background is read from the media
+ * library to check its ratio and size, so a crafted request cannot skip the frontend check.
+ * REA-47: inside a format, a text left out is kept and a null text is removed.
  */
 export const buildShareArtData = async (input, findUploadFile) => {
   const data = {};
@@ -28,6 +33,8 @@ export const buildShareArtData = async (input, findUploadFile) => {
     if (value === null) {
       data[`${format}_background`] = null;
       data[`${format}_photo_area`] = null;
+      data[`${format}_name_text`] = null;
+      data[`${format}_role_text`] = null;
       // eslint-disable-next-line no-continue
       continue;
     }
@@ -39,6 +46,11 @@ export const buildShareArtData = async (input, findUploadFile) => {
     assertBackground(format, media);
     data[`${format}_background`] = id;
     data[`${format}_photo_area`] = area;
+    TEXT_KINDS.forEach((kind) => {
+      const text = value[`${kind}_text`];
+      if (text === undefined) return;
+      data[`${format}_${kind}_text`] = text === null ? null : normalizeText(format, kind, text);
+    });
   }
   return data;
 };
@@ -50,6 +62,7 @@ const ShareArt = {
       const raw = await dataSources.managerIntegration.findShareArtConfigByEvent(String(eventId));
       return mapShareArtConfig(raw);
     },
+
   },
 
   Mutation: {

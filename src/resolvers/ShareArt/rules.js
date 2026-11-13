@@ -1,10 +1,12 @@
-// REA-43 — pure rules of the custom "eu vou" art: formats, photo area and background checks.
+// REA-43 — pure rules of the custom "eu vou" art: formats, photo area and background checks;
+// REA-47 — where the name and the role the person typed/picked in the generator go, and how they look.
 // The frontend has the same numbers in lib/share-art-config.ts; this is the one that decides.
 import { GraphQLError } from 'graphql';
 
 export const SHARE_ART_FORMATS = Object.freeze({
   story: { label: 'Stories (9:16)', ratioLabel: '9:16', ratio: 9 / 16, minWidth: 1080, minHeight: 1920 },
-  feed: { label: 'Feed (1:1)', ratioLabel: '1:1', ratio: 1, minWidth: 1080, minHeight: 1080 },
+  // REA-47: the Instagram feed portrait; it was 1:1 before (see mapShareArtConfig).
+  feed: { label: 'Feed (4:5)', ratioLabel: '4:5', ratio: 4 / 5, minWidth: 1080, minHeight: 1350 },
 });
 
 export const FORMAT_KEYS = Object.keys(SHARE_ART_FORMATS);
@@ -78,16 +80,94 @@ export const normalizeArea = (format, area) => {
   };
 };
 
+// ─── REA-47: the name and the role (as filled in the generator) on the art ─────────────────────────────
+
+/** Fonts the art draws (the frontend maps each one to a loaded font). */
+export const TEXT_FONTS = Object.freeze([
+  'inter', 'inter_bold', 'serif', 'serif_bold', 'dancing_script', 'great_vibes', 'allura',
+]);
+export const TEXT_ALIGNS = Object.freeze(['left', 'center', 'right']);
+/** Font size, as a fraction of the image width (0.05 → 54px on a 1080px art). */
+export const TEXT_SIZE_MIN = 0.01;
+export const TEXT_SIZE_MAX = 0.2;
+/** Smallest side of a text area: a line of text is much thinner than a photo. */
+export const MIN_TEXT_SIDE = 0.02;
+
+const TEXT_LABEL = { name: 'do nome', role: 'do papel' };
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/** Validates a text area (name or role) and returns it normalized; throws BAD_USER_INPUT. */
+export const normalizeText = (format, kind, text) => {
+  const { label } = SHARE_ART_FORMATS[format];
+  const what = `A área ${TEXT_LABEL[kind]} no ${label}`;
+  const keys = ['x', 'y', 'width', 'height', 'size'];
+  if (!text || keys.some((k) => typeof text[k] !== 'number' || !Number.isFinite(text[k]))) {
+    throw badInput(`Marque a área ${TEXT_LABEL[kind]} no ${label}.`);
+  }
+  const { x, y, width, height, size } = text;
+  if (x < -EPSILON || y < -EPSILON || x + width > 1 + EPSILON || y + height > 1 + EPSILON) {
+    throw badInput(`${what} precisa ficar dentro da imagem.`);
+  }
+  if (width < MIN_TEXT_SIDE || height < MIN_TEXT_SIDE) {
+    throw badInput(`${what} está pequena demais.`);
+  }
+  if (!TEXT_FONTS.includes(text.font)) throw badInput(`Escolha a fonte ${TEXT_LABEL[kind]} no ${label}.`);
+  if (!TEXT_ALIGNS.includes(text.align)) throw badInput(`Escolha o alinhamento ${TEXT_LABEL[kind]} no ${label}.`);
+  if (typeof text.color !== 'string' || !HEX_COLOR.test(text.color)) {
+    throw badInput(`A cor ${TEXT_LABEL[kind]} no ${label} precisa ser uma cor como #ffffff.`);
+  }
+  if (size < TEXT_SIZE_MIN || size > TEXT_SIZE_MAX) {
+    const range = `${TEXT_SIZE_MIN * 100}% a ${TEXT_SIZE_MAX * 100}%`;
+    throw badInput(`O tamanho ${TEXT_LABEL[kind]} no ${label} vai de ${range} da largura da imagem.`);
+  }
+  const nx = round(Math.max(0, x));
+  const ny = round(Math.max(0, y));
+  return {
+    x: nx,
+    y: ny,
+    width: round(Math.min(width, 1 - nx)),
+    height: round(Math.min(height, 1 - ny)),
+    font: text.font,
+    size: round(size),
+    color: text.color.toLowerCase(),
+    align: text.align,
+  };
+};
+
+const mapText = (text) => {
+  if (!text) return null;
+  return {
+    x: Number(text.x),
+    y: Number(text.y),
+    width: Number(text.width),
+    height: Number(text.height),
+    font: text.font || 'inter_bold',
+    size: Number(text.size),
+    color: text.color || '#ffffff',
+    align: text.align || 'center',
+  };
+};
+
 const mediaUrl = (media, baseUrl) => {
   const url = media?.url;
   if (!url) return null;
   return url.startsWith('http') ? url : `${baseUrl}${url}`;
 };
 
-const mapFormat = (media, area, baseUrl) => {
+/**
+ * A background saved in another ratio than its format's — the 1:1 feed backgrounds saved before
+ * the feed became 4:5 (REA-47). Its area would be stretched, so the format goes back to the default
+ * art until a new background is sent. Without a known size it is kept.
+ */
+const isRetired = (format, media) => Boolean(media?.width && media?.height)
+  && !ratioMatches(media.width, media.height, SHARE_ART_FORMATS[format].ratio);
+
+const mapFormat = (format, media, area, baseUrl, texts = {}) => {
   const background = mediaUrl(media, baseUrl);
-  if (!background || !area) return null;
+  if (!background || !area || isRetired(format, media)) return null;
   return {
+    name_text: mapText(texts.name),
+    role_text: mapText(texts.role),
     background,
     background_id: String(media.id),
     background_width: media.width ?? null,
@@ -107,7 +187,14 @@ export const mapShareArtConfig = (raw, baseUrl = process.env.MANAGER_URL) => {
   if (!raw) return null;
   return {
     id: raw.documentId ?? null,
-    story: mapFormat(raw.story_background, raw.story_photo_area, baseUrl),
-    feed: mapFormat(raw.feed_background, raw.feed_photo_area, baseUrl),
+    story: mapFormat('story', raw.story_background, raw.story_photo_area, baseUrl, {
+      name: raw.story_name_text,
+      role: raw.story_role_text,
+    }),
+    feed: mapFormat('feed', raw.feed_background, raw.feed_photo_area, baseUrl, {
+      name: raw.feed_name_text,
+      role: raw.feed_role_text,
+    }),
+    retired_formats: FORMAT_KEYS.filter((format) => isRetired(format, raw[`${format}_background`])),
   };
 };

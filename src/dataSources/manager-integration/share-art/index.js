@@ -4,7 +4,11 @@ const { fetch, buildQuery } = managerNetworkUtils;
 
 // REA-43: the custom "eu vou" art of an event (api::share-art-config in hub-community-backend).
 
-const POPULATE = ['story_background', 'story_photo_area', 'feed_background', 'feed_photo_area', 'event'];
+const POPULATE = [
+  'story_background', 'story_photo_area', 'story_name_text', 'story_role_text',
+  'feed_background', 'feed_photo_area', 'feed_name_text', 'feed_role_text',
+  'event',
+];
 
 // An event is addressed by its slug or by its documentId, as everywhere else.
 const findShareArtConfigByEvent = async (slugOrId, headers) => {
