@@ -1,12 +1,15 @@
 // REA-43 — arte "eu vou" personalizada: fundo e área da foto por formato.
 // REA-47 — onde ficam o nome e o papel que a pessoa preenche no gerador, e com que estilo.
+// REA-49 — quais papéis o gerador oferece.
 import { requireEventOrganizer } from '../../utils/auth';
 import {
   FORMAT_KEYS,
+  NO_ROLE_MESSAGE,
   assertBackground,
   badInput,
   mapShareArtConfig,
   normalizeArea,
+  normalizeRoles,
   normalizeText,
 } from './rules';
 
@@ -52,7 +55,22 @@ export const buildShareArtData = async (input, findUploadFile) => {
       data[`${format}_${kind}_text`] = text === null ? null : normalizeText(format, kind, text);
     });
   }
+  // REA-49: left out → kept; null → every role.
+  if (input?.roles !== undefined) data.roles = normalizeRoles(input.roles);
   return data;
+};
+
+/**
+ * REA-49: after the save, some role must be left to pick while a format draws the role text.
+ * `payload` is what will be written, `existing` the saved record (null on the first save); a field
+ * left out of the payload keeps its saved value.
+ */
+export const assertRolesFit = (payload, existing) => {
+  const value = (key) => (key in payload ? payload[key] : existing?.[key]);
+  const roles = value('roles');
+  if (!Array.isArray(roles) || roles.length > 0) return;
+  const placed = FORMAT_KEYS.some((format) => value(`${format}_background`) && value(`${format}_role_text`));
+  if (placed) throw badInput(NO_ROLE_MESSAGE);
 };
 
 const ShareArt = {
@@ -74,6 +92,7 @@ const ShareArt = {
 
       const payload = await buildShareArtData(data, (id) => ds.findUploadFile(id));
       const existing = await ds.findShareArtConfigByEvent(event.documentId);
+      assertRolesFit(payload, existing);
       const response = existing
         ? await ds.updateShareArtConfig(existing.documentId, payload)
         : await ds.createShareArtConfig({ ...payload, event: event.documentId });
