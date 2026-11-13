@@ -7,7 +7,7 @@ const { fetch, buildQuery } = managerNetworkUtils;
 const POPULATE = [
   'story_background', 'story_photo_area', 'story_name_text', 'story_role_text',
   'feed_background', 'feed_photo_area', 'feed_name_text', 'feed_role_text',
-  'product_roles', 'event',
+  'event',
 ];
 
 // An event is addressed by its slug or by its documentId, as everywhere else.
@@ -41,28 +41,11 @@ const findUploadFile = async (id, headers) => {
   return response?.data || null;
 };
 
-// REA-47: who the person is in the event — organizers of its communities and its speakers.
-const findEventForShareArtRole = async (slugOrId, headers) => {
-  const filters = {
-    or: [
-      { slug: { eq: slugOrId } },
-      { documentId: { eq: slugOrId } },
-    ],
-  };
-  const query = buildQuery(filters, [], { pageSize: 1 }, '', [
-    'communities.organizers',
-    'talks.speakers.users_permissions_user',
-  ]);
-  const response = await fetch(`/events?${query}`, 'GET', headers);
-  return response?.data?.[0] || null;
-};
-
 const shareArt = ({ headers }) => ({
   findShareArtConfigByEvent: (slugOrId) => findShareArtConfigByEvent(slugOrId, headers),
   createShareArtConfig: (data) => createShareArtConfig(data, headers),
   updateShareArtConfig: (documentId, data) => updateShareArtConfig(documentId, data, headers),
   findUploadFile: (id) => findUploadFile(id, headers),
-  findEventForShareArtRole: (slugOrId) => findEventForShareArtRole(slugOrId, headers),
 });
 
 export default shareArt;

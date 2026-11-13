@@ -1,8 +1,7 @@
 // REA-43 — pure rules of the custom "eu vou" art: formats, photo area and background checks;
-// REA-47 — the name and role texts and the role of the person.
+// REA-47 — where the name and the role the person typed/picked in the generator go, and how they look.
 // The frontend has the same numbers in lib/share-art-config.ts; this is the one that decides.
 import { GraphQLError } from 'graphql';
-import { organizerIdsOfEvent } from '../../utils/auth';
 
 export const SHARE_ART_FORMATS = Object.freeze({
   story: { label: 'Stories (9:16)', ratioLabel: '9:16', ratio: 9 / 16, minWidth: 1080, minHeight: 1920 },
@@ -81,7 +80,7 @@ export const normalizeArea = (format, area) => {
   };
 };
 
-// ─── REA-47: the name and the role of the person on the art ─────────────────────────────
+// ─── REA-47: the name and the role (as filled in the generator) on the art ─────────────────────────────
 
 /** Fonts the art draws (the frontend maps each one to a loaded font). */
 export const TEXT_FONTS = Object.freeze([
@@ -93,10 +92,6 @@ export const TEXT_SIZE_MIN = 0.01;
 export const TEXT_SIZE_MAX = 0.2;
 /** Smallest side of a text area: a line of text is much thinner than a photo. */
 export const MIN_TEXT_SIDE = 0.02;
-export const ROLE_MAX = 40;
-export const DEFAULT_ROLE = 'Participante';
-export const ORGANIZER_ROLE = 'Organizador';
-export const SPEAKER_ROLE = 'Palestrante';
 
 const TEXT_LABEL = { name: 'do nome', role: 'do papel' };
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
@@ -137,64 +132,6 @@ export const normalizeText = (format, kind, text) => {
     color: text.color.toLowerCase(),
     align: text.align,
   };
-};
-
-const cleanRole = (role) => String(role ?? '').replace(/\s+/g, ' ').trim();
-
-/** The default role: trimmed, "Participante" when empty. */
-export const normalizeDefaultRole = (role) => {
-  const value = cleanRole(role);
-  if (value.length > ROLE_MAX) throw badInput(`O papel padrão pode ter até ${ROLE_MAX} caracteres.`);
-  return value || DEFAULT_ROLE;
-};
-
-/**
- * Role per product of the Eventando. Only products of this event (`productIds`); an empty role
- * is dropped (that product gets the default role); the last entry of a product wins.
- */
-export const normalizeProductRoles = (entries, productIds) => {
-  const known = new Set((productIds || []).map(String));
-  const byProduct = new Map();
-  (entries || []).forEach((entry) => {
-    const productId = String(entry?.product_id ?? '');
-    if (!known.has(productId)) throw badInput('Um dos produtos não é deste evento. Recarregue a página.');
-    const role = cleanRole(entry?.role);
-    if (role.length > ROLE_MAX) throw badInput(`O papel pode ter até ${ROLE_MAX} caracteres.`);
-    if (role) byProduct.set(productId, role);
-    else byProduct.delete(productId);
-  });
-  return [...byProduct].map(([productId, role]) => ({ product_id: productId, role }));
-};
-
-const sameEmail = (a, b) => Boolean(a) && Boolean(b)
-  && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
-
-/**
- * The person's role on the art (REA-47), or null when they are not part of the event:
- * organizer of one of its communities > speaker of one of its talks > the role of the product of
- * their signup (a signup that holds its place) > the default role.
- */
-export const resolveShareArtRole = ({
-  user, event, signups, config, holdsPlace,
-}) => {
-  if (!user) return null;
-  if (user.documentId && organizerIdsOfEvent(event).has(user.documentId)) {
-    return { role: ORGANIZER_ROLE, source: 'ORGANIZER' };
-  }
-  const speakers = (event?.talks || [])
-    .flatMap((talk) => talk?.speakers || [])
-    .filter((speaker) => speaker && !speaker.deleted_at);
-  const isSpeaker = speakers.some((speaker) => sameEmail(speaker.email, user.email)
-    || (user.documentId && speaker.users_permissions_user?.documentId === user.documentId));
-  if (isSpeaker) return { role: SPEAKER_ROLE, source: 'SPEAKER' };
-  const signup = (signups || []).find(holdsPlace);
-  if (!signup) return null;
-  const productId = signup.payment?.batch?.product?.id;
-  const mapped = productId != null
-    && (config?.product_roles || [])
-      .find((entry) => String(entry?.product_id) === String(productId));
-  if (mapped?.role) return { role: mapped.role, source: 'PRODUCT' };
-  return { role: config?.default_role || DEFAULT_ROLE, source: 'DEFAULT' };
 };
 
 const mapText = (text) => {
@@ -258,10 +195,6 @@ export const mapShareArtConfig = (raw, baseUrl = process.env.MANAGER_URL) => {
       name: raw.feed_name_text,
       role: raw.feed_role_text,
     }),
-    product_roles: (raw.product_roles || [])
-      .filter((entry) => entry?.product_id && entry?.role)
-      .map((entry) => ({ product_id: String(entry.product_id), role: entry.role })),
-    default_role: raw.default_role || DEFAULT_ROLE,
     retired_formats: FORMAT_KEYS.filter((format) => isRetired(format, raw[`${format}_background`])),
   };
 };

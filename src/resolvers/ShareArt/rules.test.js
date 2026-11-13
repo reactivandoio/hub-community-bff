@@ -110,8 +110,6 @@ describe('mapShareArtConfig', () => {
         role_text: null,
       },
       feed: null,
-      product_roles: [],
-      default_role: 'Participante',
       retired_formats: [],
     });
   });
@@ -124,9 +122,9 @@ describe('mapShareArtConfig', () => {
   });
 });
 
-describe('mapShareArtConfig — REA-47 texts and roles', () => {
+describe('mapShareArtConfig — REA-47 name and role texts', () => {
   const BASE = 'https://manager.test';
-  it('maps the texts of a format and the roles per product', () => {
+  it('maps the texts of a format', () => {
     const text = {
       id: 3, x: 0.1, y: 0.7, width: 0.8, height: 0.06, font: 'serif', size: 0.05, color: '#112233', align: 'right',
     };
@@ -135,14 +133,11 @@ describe('mapShareArtConfig — REA-47 texts and roles', () => {
       feed_background: { id: 8, url: 'https://cdn/f.png', width: 1080, height: 1350 },
       feed_photo_area: { x: 0, y: 0, width: 0.5, height: 0.5, radius: 0 },
       feed_name_text: text,
-      product_roles: [{ id: 1, product_id: '11', role: 'Mentor' }, { id: 2, product_id: '12', role: '' }],
-      default_role: 'Inscrito',
     }, BASE);
     const { id, ...expected } = text;
     expect(out.feed.name_text).toEqual(expected);
     expect(out.feed.role_text).toBeNull();
-    expect(out.product_roles).toEqual([{ product_id: '11', role: 'Mentor' }]);
-    expect(out.default_role).toBe('Inscrito');
+    expect(out).not.toHaveProperty('product_roles');
   });
 });
 

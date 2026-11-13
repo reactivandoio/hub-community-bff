@@ -81,15 +81,12 @@ describe('graphql schema', () => {
     expect(argsOf(query.shareArtConfig)).toEqual(['eventId: String!']);
     expect(argsOf(mutation.upsertShareArtConfig)).toEqual(['eventId: String!', 'data: ShareArtConfigInput!']);
     expect(Object.keys(schema.getType('ShareArtConfig').getFields()))
-      .toEqual(['id', 'story', 'feed', 'product_roles', 'default_role', 'retired_formats']);
+      .toEqual(['id', 'story', 'feed', 'retired_formats']);
     expect(Object.keys(schema.getType('ShareArtPhotoArea').getFields()))
       .toEqual(['x', 'y', 'width', 'height', 'radius']);
   });
 
-  it('exposes the REA-47 name and role texts, the role per product and the role of the person', () => {
-    const query = schema.getQueryType().getFields();
-    expect(query.myShareArtRole.args.map((a) => `${a.name}: ${a.type}`)).toEqual(['eventId: String!']);
-    expect(query.myShareArtRole.type.toString()).toBe('ShareArtRole');
+  it('exposes the REA-47 name and role texts (where and how; the values come from the generator)', () => {
     expect(Object.keys(schema.getType('ShareArtText').getFields()))
       .toEqual(['x', 'y', 'width', 'height', 'font', 'size', 'color', 'align']);
     const format = schema.getType('ShareArtFormatConfig').getFields();
@@ -97,11 +94,9 @@ describe('graphql schema', () => {
     expect(format.role_text.type.toString()).toBe('ShareArtText');
     expect(schema.getType('ShareArtFont').getValues().map((v) => v.name))
       .toEqual(['inter', 'inter_bold', 'serif', 'serif_bold', 'dancing_script', 'great_vibes', 'allura']);
-    expect(schema.getType('ShareArtRoleSource').getValues().map((v) => v.name))
-      .toEqual(['ORGANIZER', 'SPEAKER', 'PRODUCT', 'DEFAULT']);
-    const input = schema.getType('ShareArtConfigInput').getFields();
-    expect(input.product_roles.type.toString()).toBe('[ShareArtProductRoleInput!]');
-    expect(input.default_role.type.toString()).toBe('String');
+    // No role resolution: the person picks the role in the generator.
+    expect(schema.getQueryType().getFields().myShareArtRole).toBeUndefined();
+    expect(schema.getType('ShareArtConfigInput').getFields().product_roles).toBeUndefined();
   });
 
   it('exposes the REA-45 switch that opens the art to people not signed up', () => {
