@@ -81,7 +81,7 @@ describe('graphql schema', () => {
     expect(argsOf(query.shareArtConfig)).toEqual(['eventId: String!']);
     expect(argsOf(mutation.upsertShareArtConfig)).toEqual(['eventId: String!', 'data: ShareArtConfigInput!']);
     expect(Object.keys(schema.getType('ShareArtConfig').getFields()))
-      .toEqual(['id', 'story', 'feed', 'retired_formats']);
+      .toEqual(['id', 'story', 'feed', 'retired_formats', 'roles']);
     expect(Object.keys(schema.getType('ShareArtPhotoArea').getFields()))
       .toEqual(['x', 'y', 'width', 'height', 'radius']);
   });
@@ -97,6 +97,11 @@ describe('graphql schema', () => {
     // No role resolution: the person picks the role in the generator.
     expect(schema.getQueryType().getFields().myShareArtRole).toBeUndefined();
     expect(schema.getType('ShareArtConfigInput').getFields().product_roles).toBeUndefined();
+  });
+
+  it('exposes the REA-49 roles offered in the generator (null = all)', () => {
+    expect(schema.getType('ShareArtConfig').getFields().roles.type.toString()).toBe('[String!]');
+    expect(schema.getType('ShareArtConfigInput').getFields().roles.type.toString()).toBe('[String!]');
   });
 
   it('exposes the REA-45 switch that opens the art to people not signed up', () => {

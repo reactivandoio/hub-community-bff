@@ -63,6 +63,8 @@ type ShareArtConfig {
   feed: ShareArtFormatConfig
   "Formats whose saved background is in an old ratio (the 1:1 feed, REA-47): they show the default art until a new background is sent."
   retired_formats: [String!]!
+  "REA-49: roles the participant may pick in the generator, in the generator's order. Null = all of them."
+  roles: [String!]
 }
 
 
@@ -101,6 +103,8 @@ input ShareArtFormatInput {
 input ShareArtConfigInput {
   story: ShareArtFormatInput
   feed: ShareArtFormatInput
+  "REA-49: roles offered in the generator (Participante, Líder, Mentor, Voluntário, Palestrante, Organizador). Left out: kept; null or all of them: every role. Empty only when no format places the role text."
+  roles: [String!]
 }
 
 type Query {

@@ -1,5 +1,6 @@
 // REA-43 — pure rules of the custom "eu vou" art: formats, photo area and background checks;
-// REA-47 — where the name and the role the person typed/picked in the generator go, and how they look.
+// REA-47 — where the name and the role the person typed/picked in the generator go, and how they look;
+// REA-49 — which roles the generator offers.
 // The frontend has the same numbers in lib/share-art-config.ts; this is the one that decides.
 import { GraphQLError } from 'graphql';
 
@@ -134,6 +135,50 @@ export const normalizeText = (format, kind, text) => {
   };
 };
 
+// ─── REA-49: which roles the generator offers ───────────────────────────────────────────────────
+
+/**
+ * The roles of "Seu papel no evento", in the generator's order (the frontend's SHARE_ART_ROLES).
+ * The organizer may offer only some of them; null (nothing configured) = all.
+ */
+export const SHARE_ART_ROLES = Object.freeze([
+  'Participante', 'Líder', 'Mentor', 'Voluntário', 'Palestrante', 'Organizador',
+]);
+
+const roleKey = (value) => String(value ?? '')
+  .normalize('NFD')
+  .replace(/[̀-ͯ]/g, '')
+  .trim()
+  .toLowerCase();
+const ROLE_BY_KEY = new Map(SHARE_ART_ROLES.map((role) => [roleKey(role), role]));
+
+/**
+ * Input list → what is saved: the known roles in the generator's order, without repeats; null when
+ * every role is marked (so a role added later shows up too). An unknown name is refused.
+ */
+export const normalizeRoles = (roles) => {
+  if (roles === null || roles === undefined) return null;
+  if (!Array.isArray(roles)) throw badInput('Escolha os papéis da arte.');
+  const picked = new Set();
+  roles.forEach((value) => {
+    const role = ROLE_BY_KEY.get(roleKey(value));
+    if (!role) throw badInput(`Papel desconhecido: ${String(value)}.`);
+    picked.add(role);
+  });
+  if (picked.size === SHARE_ART_ROLES.length) return null;
+  return SHARE_ART_ROLES.filter((role) => picked.has(role));
+};
+
+/** Saved value → GraphQL: null (all) unless it is a list; unknown names dropped, order fixed. */
+export const mapRoles = (saved) => {
+  if (!Array.isArray(saved)) return null;
+  const keys = new Set(saved.map(roleKey));
+  return SHARE_ART_ROLES.filter((role) => keys.has(roleKey(role)));
+};
+
+/** Message when no role is marked while a format draws the role text. */
+export const NO_ROLE_MESSAGE = 'Marque pelo menos um papel: o texto do papel está na arte.';
+
 const mapText = (text) => {
   if (!text) return null;
   return {
@@ -196,5 +241,6 @@ export const mapShareArtConfig = (raw, baseUrl = process.env.MANAGER_URL) => {
       role: raw.feed_role_text,
     }),
     retired_formats: FORMAT_KEYS.filter((format) => isRetired(format, raw[`${format}_background`])),
+    roles: mapRoles(raw.roles),
   };
 };

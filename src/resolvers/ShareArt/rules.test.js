@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  assertBackground, mapShareArtConfig, normalizeArea, ratioMatches,
+  SHARE_ART_ROLES, assertBackground, mapRoles, mapShareArtConfig, normalizeArea, normalizeRoles,
+  ratioMatches,
 } from './rules';
 
 const messageOf = (run) => {
@@ -111,6 +112,8 @@ describe('mapShareArtConfig', () => {
       },
       feed: null,
       retired_formats: [],
+      // REA-49: nothing configured → every role.
+      roles: null,
     });
   });
   it('treats a format with a background but no area as not configured', () => {
@@ -166,5 +169,32 @@ describe('mapShareArtConfig — the feed became 4:5 (REA-47)', () => {
     }, BASE);
     expect(out.feed).not.toBeNull();
     expect(out.retired_formats).toEqual([]);
+  });
+});
+
+// REA-49: which roles the generator offers.
+describe('normalizeRoles / mapRoles', () => {
+  it('keeps the generator order and drops repeats, whatever order or accents were sent', () => {
+    expect(normalizeRoles(['Organizador', 'mentor', 'VOLUNTARIO', 'Mentor']))
+      .toEqual(['Mentor', 'Voluntário', 'Organizador']);
+  });
+  it('saves null (every role) when nothing is configured or every role is marked', () => {
+    expect(normalizeRoles(null)).toBeNull();
+    expect(normalizeRoles([...SHARE_ART_ROLES].reverse())).toBeNull();
+  });
+  it('keeps an empty list (checked against the role text by the resolver)', () => {
+    expect(normalizeRoles([])).toEqual([]);
+  });
+  it('refuses an unknown role or something that is not a list', () => {
+    expect(messageOf(() => normalizeRoles(['Patrocinador'])))
+      .toBe('BAD_USER_INPUT: Papel desconhecido: Patrocinador.');
+    expect(messageOf(() => normalizeRoles('Mentor'))).toMatch(/^BAD_USER_INPUT/);
+  });
+  it('reads null as every role and fixes the order of a saved list, dropping unknown names', () => {
+    expect(mapRoles(null)).toBeNull();
+    expect(mapRoles(undefined)).toBeNull();
+    expect(mapRoles(['Organizador', 'Patrocinador', 'Líder'])).toEqual(['Líder', 'Organizador']);
+    const base = 'https://manager.test';
+    expect(mapShareArtConfig({ documentId: 'x', roles: ['Mentor'] }, base).roles).toEqual(['Mentor']);
   });
 });
