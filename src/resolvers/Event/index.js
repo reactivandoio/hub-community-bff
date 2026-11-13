@@ -23,6 +23,7 @@ const NOT_FOR_EVENTANDO = [
   'is_online',
   'call_link',
   'unlisted',
+  'share_art_open',
   'pixai_token_integration',
   'pixai_token_integration_id',
 ];
@@ -52,6 +53,11 @@ dotenv.config();
 // `buildQuery` writes a plain `search` as `filters[$or][...]`, so a top-level
 // `or` here would collide with it.
 const LISTABLE = { or: [{ unlisted: { eq: false } }, { unlisted: { null: true } }] };
+
+// REA-45: only what the form sent. A client that does not know the flag yet (an older frontend
+// tab) leaves it as it is instead of switching the art back to signups only.
+const shareArtOpenUpdate = ({ share_art_open: open }) =>
+  typeof open === 'boolean' ? { share_art_open: open } : {};
 
 const listableOnly = (filters = {}) => {
   const { and, ...rest } = filters || {};
@@ -98,6 +104,8 @@ const Event = {
     // Return call_link from event data (frontend protects display via isUserSignedUp)
     call_link: ({ call_link }) => call_link || null,
     unlisted: ({ unlisted }) => unlisted === true,
+    // REA-45: anyone may generate the event's art, not only its signups (NULL on old rows).
+    share_art_open: ({ share_art_open: open }) => open === true,
   },
 
   Query: {
@@ -291,6 +299,7 @@ const Event = {
             is_online: data.is_online || false,
             call_link: data.call_link || null,
             unlisted: data.unlisted || false,
+            share_art_open: data.share_art_open === true,
             location: data.location,
             images: data.images,
             communities: data.communities,
@@ -406,6 +415,7 @@ const Event = {
               is_online: data.is_online || false,
               call_link: data.call_link || null,
               unlisted: data.unlisted || false,
+              ...shareArtOpenUpdate(data),
               location: data.location,
               images: data.images,
               communities: data.communities,

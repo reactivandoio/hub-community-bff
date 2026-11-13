@@ -161,3 +161,61 @@ describe('createEvent', () => {
       .toMatchObject({ unlisted: false });
   });
 });
+
+// REA-45: "liberar a arte para quem não está inscrito", per event.
+describe('share_art_open', () => {
+  it('is false for an event saved before the field existed', () => {
+    expect(Event.Event.share_art_open({})).toBe(false);
+    expect(Event.Event.share_art_open({ share_art_open: null })).toBe(false);
+    expect(Event.Event.share_art_open({ share_art_open: true })).toBe(true);
+  });
+
+  const makeCreateDataSources = () => ({
+    managerIntegration: {
+      createEvent: vi.fn().mockResolvedValue({ data: { documentId: 'ev1' } }),
+    },
+    eventandoIntegration: {
+      createEvent: vi.fn().mockResolvedValue({ data: { id: 1, uuid: 'ev1' } }),
+    },
+  });
+
+  const makeUpdateDataSources = () => ({
+    managerIntegration: {
+      updateEvent: vi.fn().mockResolvedValue({ data: { documentId: 'ev1' } }),
+    },
+    eventandoIntegration: {
+      findEvents: vi.fn().mockResolvedValue({ data: [{ id: 1, uuid: 'ev1' }] }),
+      updateEvent: vi.fn().mockResolvedValue({ data: { id: 1, uuid: 'ev1' } }),
+    },
+  });
+
+  const base = { title: 'Meetup', start_date: '2026-10-01', end_date: '2026-10-01' };
+
+  it('is saved in the manager on create, off when omitted, never sent to Eventando', async () => {
+    const on = makeCreateDataSources();
+    await Event.Mutation.createEvent(null, { data: { ...base, share_art_open: true } }, { dataSources: on, user: ADMIN });
+    expect(on.managerIntegration.createEvent.mock.calls[0][0]).toMatchObject({ share_art_open: true });
+    expect(on.eventandoIntegration.createEvent.mock.calls[0][0]).not.toHaveProperty('share_art_open');
+
+    const omitted = makeCreateDataSources();
+    await Event.Mutation.createEvent(null, { data: base }, { dataSources: omitted, user: ADMIN });
+    expect(omitted.managerIntegration.createEvent.mock.calls[0][0]).toMatchObject({ share_art_open: false });
+  });
+
+  it('is switched on and off on update, never sent to Eventando', async () => {
+    for (const value of [true, false]) {
+      const dataSources = makeUpdateDataSources();
+      await Event.Mutation.updateEvent(null, { id: 'ev1', data: { ...base, share_art_open: value } }, { dataSources, user: ADMIN });
+      expect(dataSources.managerIntegration.updateEvent.mock.calls[0][1]).toMatchObject({ share_art_open: value });
+      expect(dataSources.eventandoIntegration.updateEvent.mock.calls[0][1]).not.toHaveProperty('share_art_open');
+    }
+  });
+
+  it('is left as it is when the form does not send it (an older frontend)', async () => {
+    for (const data of [base, { ...base, share_art_open: null }]) {
+      const dataSources = makeUpdateDataSources();
+      await Event.Mutation.updateEvent(null, { id: 'ev1', data }, { dataSources, user: ADMIN });
+      expect(dataSources.managerIntegration.updateEvent.mock.calls[0][1]).not.toHaveProperty('share_art_open');
+    }
+  });
+});
