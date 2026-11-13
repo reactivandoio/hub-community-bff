@@ -170,3 +170,36 @@ describe('disconnectEventOpaPingou', () => {
     expect(out.legacy).toBe(false);
   });
 });
+
+// REA-48: the payment account is where the ticket money goes — an event's managers see it, but
+// only its owners (admin, organizers of its community) connect, swap or remove it.
+describe('payment account and event managers (REA-48)', () => {
+  const EVA = { id: 7, documentId: 'u-eva', name: 'Eva', role: { type: 'event-manager' } };
+  const MANAGED = { ...EVENTS['ev-1'], managers: [{ documentId: 'u-eva' }] };
+  const ctxEva = (eventando) => ({
+    ...ctxFor(EVA, eventando),
+    dataSources: { managerIntegration: { findEventWithOrganizers: vi.fn().mockResolvedValue(MANAGED) } },
+  });
+
+  it('lets a manager see the account of its event', async () => {
+    const eventando = fakeEventando();
+    await expect(resolvers.Query.eventOpaPingouAccount(null, { eventId: 'ev-1' }, ctxEva(eventando))).resolves.toBeDefined();
+  });
+
+  it('does not let a manager connect, swap or remove it', async () => {
+    const eventando = fakeEventando();
+    const ctx = ctxEva(eventando);
+    for (const run of [
+      () => resolvers.Mutation.connectEventOpaPingou(null, { eventId: 'ev-1', apiKey: KEY }, ctx),
+      () => resolvers.Mutation.useOpaPingouConnection(null, { eventId: 'ev-1', connectionId: 'opc_mine' }, ctx),
+      () => resolvers.Mutation.disconnectEventOpaPingou(null, { eventId: 'ev-1' }, ctx),
+    ]) {
+      // eslint-disable-next-line no-await-in-loop
+      const err = await run().catch((e) => e);
+      expect(err?.extensions?.code).toBe('FORBIDDEN');
+    }
+    expect(eventando.connect).not.toHaveBeenCalled();
+    expect(eventando.attach).not.toHaveBeenCalled();
+    expect(eventando.detach).not.toHaveBeenCalled();
+  });
+});
