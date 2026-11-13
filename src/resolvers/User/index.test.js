@@ -62,6 +62,17 @@ describe('updateProfile', () => {
     await User.Mutation.updateProfile(null, { input: { name: 'Ana' } }, c);
     expect(c.dataSources.managerAuthenticated.updateUser).toHaveBeenCalledWith(9, { name: 'Ana' });
   });
+
+  it('REA-29/REA-26: records the "quero receber novidades" tick and ignores false', async () => {
+    const c = ctx();
+    await User.Mutation.updateProfile(null, { input: { phone: '+55 62 99999-0000', marketing_opt_in: true } }, c);
+    expect(c.dataSources.managerAuthenticated.updateUser).toHaveBeenCalledWith(9, {
+      phone: '+55 62 99999-0000', marketing_opt_in: true,
+    });
+    const off = ctx();
+    await User.Mutation.updateProfile(null, { input: { phone: '+55 62 99999-0000', marketing_opt_in: false } }, off);
+    expect(off.dataSources.managerAuthenticated.updateUser).toHaveBeenCalledWith(9, { phone: '+55 62 99999-0000' });
+  });
 });
 
 describe('me', () => {

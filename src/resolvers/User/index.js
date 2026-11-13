@@ -130,6 +130,8 @@ const User = {
         // account has not declared it yet and the form sends a date of birth.
         if (input.adult_declaration === true) userUpdate.adult_declaration = true;
         else if (dateOfBirth && user.adult_declaration !== true) requireAdultDeclaration(input.adult_declaration);
+        // REA-29/REA-26: the optional "quero receber novidades" box; the backend stamps the date.
+        if (input.marketing_opt_in === true) userUpdate.marketing_opt_in = true;
         if (input.cover_photo !== undefined) userUpdate.cover_photo = input.cover_photo;
         if (input.twitter !== undefined) userUpdate.twitter = input.twitter;
         if (input.linkedin !== undefined) userUpdate.linkedin = input.linkedin;

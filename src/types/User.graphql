@@ -77,6 +77,8 @@ input ProfileInput {
   date_of_birth: String
   "Checkbox 'Declaro que tenho 18 anos ou mais' (REA-36). Required with date_of_birth while the account has not declared it."
   adult_declaration: Boolean
+  "Checkbox 'quero receber novidades' of the complete-profile form (REA-29/REA-26). Only true is recorded; false is ignored, so an opt-in is never taken back here."
+  marketing_opt_in: Boolean
   avatar: String
   cover_photo: String
   twitter: String
