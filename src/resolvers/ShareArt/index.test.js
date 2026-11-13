@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import ShareArt, { buildShareArtData } from './index';
+import ShareArt, { assertRolesFit, buildShareArtData } from './index';
 
 const ADMIN = { id: 1, documentId: 'u-root', role: { type: 'admin' } };
 const ORGANIZER = { id: 2, documentId: 'u-ana', role: { type: 'community-manager' } };
@@ -176,5 +176,54 @@ describe('upsertShareArtConfig — name and role texts (REA-47)', () => {
         async () => STORY_BG,
       ))).toBe('BAD_USER_INPUT');
     }
+  });
+});
+
+// ─── REA-49: roles offered in the generator ─────────────────────────────────────────────────
+describe('upsertShareArtConfig — roles offered in the generator (REA-49)', () => {
+  const SAVED_WITH_ROLE = {
+    documentId: 'sa-1',
+    story_background: STORY_BG,
+    story_photo_area: AREA,
+    story_role_text: ROLE,
+    roles: null,
+  };
+
+  it('writes the marked roles in the generator order', async () => {
+    const ctx = makeCtx(ADMIN);
+    await upsert(ctx, { roles: ['Palestrante', 'Mentor'] });
+    const data = ctx.dataSources.managerIntegration.createShareArtConfig.mock.calls[0][0];
+    expect(data.roles).toEqual(['Mentor', 'Palestrante']);
+  });
+
+  it('keeps the roles when left out and writes null (every role) when sent as null', async () => {
+    expect(await buildShareArtData({ story: null }, async () => null)).not.toHaveProperty('roles');
+    expect((await buildShareArtData({ roles: null }, async () => null)).roles).toBeNull();
+  });
+
+  it('refuses no role at all while a format places the role text, without writing', async () => {
+    const findShareArtConfigByEvent = vi.fn().mockResolvedValue(SAVED_WITH_ROLE);
+    const ctx = makeCtx(ADMIN, { findShareArtConfigByEvent });
+    expect(await codeOf(() => upsert(ctx, { roles: [] }))).toBe('BAD_USER_INPUT');
+    expect(ctx.dataSources.managerIntegration.updateShareArtConfig).not.toHaveBeenCalled();
+  });
+
+  it('accepts no role when no format places the role text', () => {
+    const noRoleText = { ...SAVED_WITH_ROLE, story_role_text: null };
+    expect(() => assertRolesFit({ roles: [] }, noRoleText)).not.toThrow();
+    // The role text leaves the art in the same save.
+    const textLeaves = { roles: [], story_role_text: null };
+    expect(() => assertRolesFit(textLeaves, SAVED_WITH_ROLE)).not.toThrow();
+    // Its format goes back to the default art.
+    const backToDefault = { roles: [], story_background: null, story_role_text: null };
+    expect(() => assertRolesFit(backToDefault, SAVED_WITH_ROLE)).not.toThrow();
+    expect(() => assertRolesFit({ roles: [] }, null)).not.toThrow();
+  });
+
+  it('refuses placing the role text while the saved list is empty', () => {
+    const saved = { ...SAVED_WITH_ROLE, story_role_text: null, roles: [] };
+    expect(() => assertRolesFit({ story_background: 7, story_role_text: ROLE }, saved))
+      .toThrow('Marque pelo menos um papel');
+    expect(() => assertRolesFit({ story_role_text: ROLE, roles: ['Mentor'] }, saved)).not.toThrow();
   });
 });
