@@ -84,4 +84,9 @@ describe('graphql schema', () => {
     expect(Object.keys(schema.getType('ShareArtPhotoArea').getFields()))
       .toEqual(['x', 'y', 'width', 'height', 'radius']);
   });
+
+  it('exposes the REA-45 switch that opens the art to people not signed up', () => {
+    expect(schema.getType('Event').getFields().share_art_open.type.toString()).toBe('Boolean');
+    expect(schema.getType('EventInput').getFields().share_art_open.type.toString()).toBe('Boolean');
+  });
 });
