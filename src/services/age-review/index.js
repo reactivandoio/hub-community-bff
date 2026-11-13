@@ -1,5 +1,5 @@
 import { GraphQLError } from 'graphql';
-import { sendEmail } from '../email';
+import { sendEmailUntracked as sendEmail } from '../email';
 import {
   DOB_REQUEST_SUBJECT, MINOR_BLOCKED_SUBJECT, dateOfBirthRequestTemplate, minorBlockedTemplate,
 } from '../email/templates/age-review';
@@ -7,7 +7,6 @@ import { addressFor } from '../email-campaign/sender';
 import { remainingToday, startOfDaySaoPaulo } from '../email-campaign/quota';
 import { normalizeEmail } from '../email-campaign/token';
 import { adultCutoff, ageOn, isMinorDate } from '../../utils/age';
-import { maskEmail } from '../../utils/mask-email';
 import { clearUserCache } from '../../utils/auth';
 
 // REA-36: age review of the Hub admin (/admin/usuarios, admin only).
@@ -21,10 +20,11 @@ import { clearUserCache } from '../../utils/auth';
 //   (config/cron-tasks.ts) blocks it if no date arrives in 7 days, and a valid date sent in the
 //   meantime ends the request. Nothing is sent nor blocked without the admin's action.
 //
-// E-mails share the Mailgun budget of the campaigns (EMAIL_CAMPAIGN_DAILY_LIMIT, 70 a day): each
-// one is recorded as an `email-campaign-delivery` (campaign_document_id "age-review-…"), so the
-// campaign queue sees it in its daily count and leaves the rest of the 100 a day to transactional
-// e-mails. What does not fit today is not sent: the admin sends the rest on the next days.
+// E-mails share the campaigns' share of the Mailgun plan (EMAIL_DAILY_LIMIT - EMAIL_DAILY_RESERVE,
+// REA-26): each one is recorded as an `email-campaign-delivery` (campaign_document_id
+// "age-review-…") and counted with every other e-mail of the day, so the reserve stays for login
+// codes and transactional e-mails. What does not fit today is not sent: the admin sends the rest on
+// the next days.
 
 export const DOB_REQUEST_DAYS = 7;
 export const MAX_IDS_PER_REQUEST = 50;
@@ -126,22 +126,8 @@ const idsArg = (userIds) => {
   return ids;
 };
 
-/** Where the person updates the date: the complete-profile page, or the set-password link first. */
-const actionLinkFor = async (integration, user, env) => {
-  const email = normalizeEmail(user.email);
-  try {
-    const [status] = await integration.accountStatus([email]);
-    if (status?.pending) {
-      const setup = await integration.accountSetup({ email, name: user.name || undefined });
-      if (setup?.token) {
-        return { url: `${frontendUrl(env)}/criar-senha?code=${encodeURIComponent(setup.token)}`, needsPassword: true };
-      }
-    }
-  } catch (err) {
-    console.error(`[age-review] account status of ${maskEmail(email)} failed: ${err.message}`);
-  }
-  return { url: `${frontendUrl(env)}/completar-cadastro`, needsPassword: false };
-};
+/** Where the person updates the date: the complete-profile page (REA-26: it opens the login by code). */
+const actionLinkFor = (env) => ({ url: `${frontendUrl(env)}/completar-cadastro` });
 
 const MESSAGES = {
   sent: 'E-mail enviado.',
@@ -177,7 +163,7 @@ export const requestDateOfBirth = async ({
       else if (user.age_review_status === 'dob_requested') outcome = 'already-requested';
       else {
         // eslint-disable-next-line no-await-in-loop
-        const link = await actionLinkFor(integration, user, env);
+        const link = actionLinkFor(env);
         // eslint-disable-next-line no-await-in-loop
         outcome = await deliverOnce({
           integration,
@@ -186,7 +172,7 @@ export const requestDateOfBirth = async ({
           email: normalizeEmail(user.email),
           subject: DOB_REQUEST_SUBJECT,
           html: dateOfBirthRequestTemplate({
-            userName: user.name || user.username, deadline, actionUrl: link.url, needsPassword: link.needsPassword,
+            userName: user.name || user.username, deadline, actionUrl: link.url,
           }),
           env,
           now,

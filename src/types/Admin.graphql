@@ -115,7 +115,7 @@ type AgeReviewPage {
   total: Int!
   page: Int!
   pageSize: Int!
-  "E-mails left today in the budget shared with the campaigns (EMAIL_CAMPAIGN_DAILY_LIMIT)."
+  "E-mails left today for campaigns and age review: EMAIL_DAILY_LIMIT - EMAIL_DAILY_RESERVE - every e-mail sent today (REA-26)."
   emailsLeftToday: Int!
 }
 

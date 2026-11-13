@@ -27,6 +27,7 @@ import getResolvers from './resolvers';
 import dataSources from './dataSources';
 import { mountOpaPingouWebhook, startOpaPingouSweep } from './routes/opapingou-webhook';
 import { startEmailCampaignSweep } from './services/email-campaign/sender';
+import { setDeliveryRecorder } from './services/email';
 
 const startServer = async () => {
   const typeDefs = await getTypes();
@@ -95,6 +96,9 @@ const startServer = async () => {
   startOpaPingouSweep(opaPingou);
   // E-mail campaigns of the events (REA-29): daily-quota queue, off unless EMAIL_CAMPAIGNS_ENABLED=true.
   startEmailCampaignSweep(dataSources);
+  // REA-26: every transactional e-mail (login codes included) enters the day's count, so the
+  // campaigns leave the reserve (EMAIL_DAILY_RESERVE) to them.
+  setDeliveryRecorder((row) => dataSources({ 'accept-language': 'pt-br' }).managerIntegration.createEmailDelivery(row));
 
   // File upload endpoint - proxies to Strapi upload API
   const upload = multer({

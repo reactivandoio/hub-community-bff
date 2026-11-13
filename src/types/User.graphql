@@ -48,19 +48,6 @@ input UserSort {
   updatedAt: SortOrder
 }
 
-# User input for signup
-input UserInput {
-  username: String!
-  email: String!
-  password: String!
-  name: String!
-  phone: String
-  "Checkbox 'quero receber novidades' of the signup form (REA-29). Only recorded."
-  marketing_opt_in: Boolean
-  "Checkbox 'Declaro que tenho 18 anos ou mais' (REA-36). Required: must be true."
-  adult_declaration: Boolean
-}
-
 # Paginated User response
 type PaginatedUsers {
   data: [User]
@@ -90,6 +77,8 @@ input ProfileInput {
   date_of_birth: String
   "Checkbox 'Declaro que tenho 18 anos ou mais' (REA-36). Required with date_of_birth while the account has not declared it."
   adult_declaration: Boolean
+  "Checkbox 'quero receber novidades' of the complete-profile form (REA-29/REA-26). Only true is recorded; false is ignored, so an opt-in is never taken back here."
+  marketing_opt_in: Boolean
   avatar: String
   cover_photo: String
   twitter: String
@@ -99,11 +88,19 @@ input ProfileInput {
   instagram: String
 }
 
+# REA-26: the login is only by a code sent to the e-mail (no password).
+type LoginCodeRequest {
+  "Always true when it answers: the same answer whether the account exists or not."
+  sent: Boolean!
+  "Seconds before another code can be asked for."
+  resendIn: Int!
+}
+
 extend type Mutation {
-  signIn(identifier: String!, password: String!): User
-  signUp(input: UserInput!): User
-  forwardPassword(email: String!): Boolean
-  resetPassword(code: String!, password: String!, passwordConfirmation: String!): Boolean
+  "E-mails a 6-digit code, valid for 10 minutes. Errors: LOGIN_CODE_COOLDOWN (retryAfter), LOGIN_CODE_LIMIT, LOGIN_CODE_NOT_SENT (retryAfter), RATE_LIMITED."
+  requestLoginCode(email: String!): LoginCodeRequest!
+  "Checks the code and returns the user with its session token; an unknown e-mail gets its account now. Errors: LOGIN_CODE_INVALID (attemptsLeft), LOGIN_CODE_EXPIRED, ACCOUNT_BLOCKED, RATE_LIMITED."
+  verifyLoginCode(email: String!, code: String!): User!
   updateUserPhone(email: String!, phone: String!): User
   updateProfile(input: ProfileInput!): User
 }

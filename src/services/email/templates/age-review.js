@@ -75,20 +75,17 @@ export const minorBlockedTemplate = ({ userName }) => layout({
  * @param {Object} params
  * @param {string} [params.userName]
  * @param {string} params.deadline - "dd/mm/aaaa", 7 days after this e-mail
- * @param {string} params.actionUrl - where to update the data (or create the password first)
- * @param {boolean} [params.needsPassword] - the account has no password yet (created at a signup)
+ * @param {string} params.actionUrl - where to update the data (the login by code opens there, REA-26)
  */
-export const dateOfBirthRequestTemplate = ({ userName, deadline, actionUrl, needsPassword = false }) => layout({
+export const dateOfBirthRequestTemplate = ({ userName, deadline, actionUrl }) => layout({
   title: DOB_REQUEST_SUBJECT,
   heading: 'Atualize sua data de nascimento',
   body: [
     paragraph(greeting(userName), 0),
     paragraph('O Hub Community é só para pessoas com 18 anos ou mais, e a sua conta ainda não tem data de nascimento.'),
-    paragraph(needsPassword
-      ? `Para manter sua conta ativa, crie sua senha pelo botão abaixo, entre na plataforma e informe sua data de nascimento até <strong style="color:#ffffff;">${escapeHtml(deadline)}</strong>.`
-      : `Para manter sua conta ativa, entre na plataforma e informe sua data de nascimento até <strong style="color:#ffffff;">${escapeHtml(deadline)}</strong>.`),
+    paragraph(`Para manter sua conta ativa, entre na plataforma com este email (você recebe um código de acesso, sem senha) e informe sua data de nascimento até <strong style="color:#ffffff;">${escapeHtml(deadline)}</strong>.`),
     paragraph('Se a data não for informada até lá, sua conta será desativada.'),
-    button(actionUrl, needsPassword ? 'Criar senha e atualizar meus dados' : 'Atualizar meus dados'),
+    button(actionUrl, 'Atualizar meus dados'),
     `<p style="margin:20px 0 0;font-size:13px;color:#9ca3af;">Se tiver alguma dúvida, é só responder este email.</p>`,
   ].join('\n              '),
 });

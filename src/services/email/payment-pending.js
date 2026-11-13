@@ -20,6 +20,7 @@ export const sendPaymentPending = async ({ email, name, eventTitle, eventSlug, s
   if (!email || !signupId) return { success: false, error: 'no e-mail or signup' };
   try {
     return await sendEmail({
+      kind: 'payment-pending',
       to: email,
       subject: `⏳ Finalize sua inscrição — ${eventTitle || 'evento'}`,
       html: paymentPendingTemplate({

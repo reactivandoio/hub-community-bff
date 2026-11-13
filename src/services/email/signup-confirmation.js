@@ -2,6 +2,7 @@ import QRCode from 'qrcode';
 import { sendEmail } from './index';
 import { signupConfirmationTemplate } from './templates/signup-confirmation';
 import { saveMissingCpf } from '../../utils/signup-cpf';
+import { completeRegistrationUrlFor } from './complete-registration';
 
 const TICKET_QR_CID = 'ticket-qr';
 const BATCH_CONCURRENCY = 5;
@@ -12,9 +13,6 @@ const frontendUrl = () => process.env.FRONTEND_URL || 'https://hubcommunity.io';
 // signup page on a phone, while the check-in kiosk only reads `?ticket=`.
 export const ticketUrlFor = (baseUrl, eventSlug, signupId) =>
   `${baseUrl.replace(/\/$/, '')}/events/${encodeURIComponent(eventSlug)}/signup?ticket=${encodeURIComponent(signupId)}`;
-
-const setPasswordUrlFor = (baseUrl, token) =>
-  `${baseUrl.replace(/\/$/, '')}/criar-senha?code=${encodeURIComponent(token)}`;
 
 /**
  * Everything the e-mail shows about the event, shared by every signup of it.
@@ -92,10 +90,10 @@ export const loadSignupEventDetails = async ({ dataSources, eventSlug, eventando
 const setUpAccount = async (dataSources, { email, name, phone }) => {
   try {
     const result = await dataSources.managerIntegration.accountSetup({ email, name, phone });
-    return { created: Boolean(result?.created), token: result?.token || null };
+    return { created: Boolean(result?.created), pending: result?.pending === true };
   } catch (err) {
     console.error(`[Email] account-setup failed for ${email}:`, err.message);
-    return { created: false, token: null };
+    return { created: false, pending: false };
   }
 };
 
@@ -112,8 +110,8 @@ const ticketQrAttachment = async (ticketUrl) => {
 /**
  * The single "Inscrição confirmada" e-mail: event info, the ticket QR (in-person,
  * when free or when the payment is already confirmed — `isPaid`, sent by the Opa
- * Pingou webhook) and, while the account
- * has no password of its own, the "Crie sua senha" link.
+ * Pingou webhook) and, while the registration
+ * is not finished (REA-26: never logged in with a code), the "Conclua seu cadastro" link.
  *
  * `account` skips the account-setup call when the caller already made it;
  * `eventDetails` skips the event lookup (see sendSignupConfirmationBatch).
@@ -138,7 +136,7 @@ export const sendSignupConfirmation = async ({
   if (!email) return { success: false, error: 'no e-mail' };
 
   try {
-    const { token } = account || (await setUpAccount(dataSources, { email, name, phone }));
+    const { pending } = account || (await setUpAccount(dataSources, { email, name, phone }));
     // The account exists now: keep the CPF from the sheet on it (never overwrites one).
     if (cpf) await saveMissingCpf(dataSources, email, cpf);
     const details = eventDetails
@@ -165,10 +163,11 @@ export const sendSignupConfirmation = async ({
       baseUrl,
       ticketUrl,
       ticketQrCid: qr ? TICKET_QR_CID : null,
-      setPasswordUrl: token ? setPasswordUrlFor(baseUrl, token) : null,
+      completeRegistrationUrl: pending ? completeRegistrationUrlFor(baseUrl) : null,
     });
 
     return await sendEmail({
+      kind: 'signup-confirmation',
       to: email,
       subject: `✅ Inscrição Confirmada — ${details.title}`,
       html,

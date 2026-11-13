@@ -16,6 +16,7 @@ import authz from './authz';
 import voting from './voting';
 import adminUsers from './admin-users';
 import emailCampaigns from './email-campaigns';
+import loginCode from './login-code';
 import shareArt from './share-art';
 
 const managerIntegration = ({ headers }) => ({
@@ -37,6 +38,7 @@ const managerIntegration = ({ headers }) => ({
   ...voting({ headers }),
   ...adminUsers({ headers }),
   ...emailCampaigns({ headers }),
+  ...loginCode({ headers }),
   ...shareArt({ headers }),
 });
 

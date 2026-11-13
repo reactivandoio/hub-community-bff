@@ -9,7 +9,7 @@ não estiver, avisa e para sem gravar nada. Nenhum script imprime o valor do sec
 
 | Script | O que faz |
 |---|---|
-| `configurar.sh [--rotate] [--deploy]` | Uma vez só: gera o `EMAIL_UNSUBSCRIBE_SECRET` com openssl (não troca um que já existe, salvo com `--rotate`, que invalida os links de descadastro já enviados), grava `EMAIL_CAMPAIGNS_ENABLED=false`, `EMAIL_CAMPAIGN_DAILY_LIMIT=70` e o redirect vazio. |
+| `configurar.sh [--rotate] [--deploy]` | Uma vez só: gera o `EMAIL_UNSUBSCRIBE_SECRET` com openssl (não troca um que já existe, salvo com `--rotate`, que invalida os links de descadastro já enviados), grava `EMAIL_CAMPAIGNS_ENABLED=false`, o redirect vazio e, se ainda não existirem, `EMAIL_DAILY_LIMIT=100` e `EMAIL_DAILY_RESERVE=30` (REA-26: as campanhas usam no máximo limite − reserva, contando todo e-mail do dia). |
 | `ensaio.sh <e-mail> [--deploy]` | Liga as campanhas com todo e-mail redirecionado para `<e-mail>`. |
 | `desligar.sh [--deploy]` | Desliga as campanhas e esvazia o redirect. |
 

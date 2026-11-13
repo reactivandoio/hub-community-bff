@@ -1,4 +1,4 @@
-import { sendEmail } from '../email';
+import { sendEmailUntracked as sendEmail } from '../email';
 import { loadSignupEventDetails } from '../email/signup-confirmation';
 import { deliveryKey, loadCandidates, loadEventSignups, screenCandidates } from './audience';
 import { remainingToday, startOfDaySaoPaulo } from './quota';

@@ -14,7 +14,7 @@ import {
   createExpressErrorHandler,
 } from '../utils/error-handling';
 
-const typeDefs = 'type Query { ok: String, boom: String, userError: String }';
+const typeDefs = 'type Query { ok: String, boom: String, userError: String, cooldown: String, leaky: String }';
 const resolvers = {
   Query: {
     ok: () => 'ok',
@@ -23,6 +23,12 @@ const resolvers = {
     },
     userError: () => {
       throw new GraphQLError('Cupom inválido.', { extensions: { code: 'BAD_USER_INPUT', http: { status: 400 } } });
+    },
+    cooldown: () => {
+      throw new GraphQLError('Espere.', { extensions: { code: 'LOGIN_CODE_COOLDOWN', retryAfter: 42 } });
+    },
+    leaky: () => {
+      throw Object.assign(new Error('falhou'), { extensions: { retryAfter: 1, response: { url: 'http://interno' } } });
     },
   },
 };
@@ -97,6 +103,20 @@ describe('error answers in production (no EXPOSE_ERROR_DETAILS)', () => {
     const { errors } = await res.json();
     expect(errors[0].message).toBe('Cupom inválido.');
     expect(errors[0].extensions).toEqual({ code: 'BAD_USER_INPUT' });
+  });
+
+  it('business errors keep the public extensions the page acts on (REA-26 retryAfter, REA-22 missing…)', async () => {
+    const url = await startApp({ expose: false });
+    const { errors } = await (await gql(url, JSON.stringify({ query: '{ cooldown }' }))).json();
+    expect(errors[0].extensions).toEqual({ code: 'LOGIN_CODE_COOLDOWN', retryAfter: 42 });
+  });
+
+  it('an internal error never carries extensions, public names included', async () => {
+    const url = await startApp({ expose: false });
+    const res = await gql(url, JSON.stringify({ query: '{ leaky }' }));
+    const text = await res.text();
+    expect(JSON.parse(text).errors[0].extensions).toEqual({ code: 'INTERNAL_SERVER_ERROR' });
+    expect(text).not.toMatch(/interno/);
   });
 
   it('bad JSON: 400 in JSON, without the HTML page holding the stack', async () => {

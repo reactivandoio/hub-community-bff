@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Certificate from './index';
+import { sendCompleteRegistration } from '../../services/email/complete-registration';
 
 vi.mock('../../services/email/complete-registration', () => ({
   sendCompleteRegistration: vi.fn().mockResolvedValue({ success: true }),
@@ -19,7 +20,7 @@ const makeDataSources = ({ pending = false, account = ANA } = {}) => ({
     findUserByCpf: vi.fn(async (cpf) => (cpf === '52998224725' ? account : null)),
     findUserByEmail: vi.fn().mockResolvedValue(null),
     accountStatus: vi.fn().mockResolvedValue([{ email: 'ana@x.io', pending }]),
-    accountSetup: vi.fn().mockResolvedValue({ token: 't' }),
+    accountSetup: vi.fn().mockResolvedValue({ created: false, pending: true }),
   },
 });
 
@@ -32,13 +33,14 @@ const request = { eventId: 'e1', name: 'Ana', identifier: '529.982.247-25', emai
 const rejection = (promise) => promise.then(() => null, (e) => e);
 
 describe('certificado só com o cadastro concluído (REA-22, regra 6)', () => {
-  it('autoatendimento com senha pendente: recusa, explica e reenvia o link', async () => {
+  it('autoatendimento com cadastro pendente: recusa, explica e reenvia o "conclua seu cadastro"', async () => {
     const ds = makeDataSources({ pending: true });
     const err = await rejection(Certificate.Mutation.requestCertificate(null, request, { dataSources: ds }));
     expect(err.message).toMatch(/conclua seu cadastro/);
     expect(err.extensions.code).toBe('REGISTRATION_INCOMPLETE');
     expect(ds.managerIntegration.createCertificate).not.toHaveBeenCalled();
-    expect(ds.managerIntegration.accountSetup).toHaveBeenCalled();
+    expect(err.message).toMatch(/código de acesso/);
+    expect(sendCompleteRegistration).toHaveBeenCalledWith(expect.objectContaining({ email: 'ana@x.io', eventTitle: 'Meetup' }));
   });
 
   for (const [field, label] of [['cpf', 'CPF'], ['date_of_birth', 'data de nascimento'], ['phone', 'WhatsApp']]) {
