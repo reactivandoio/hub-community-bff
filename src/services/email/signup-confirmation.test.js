@@ -11,7 +11,7 @@ const PNG = Buffer.from('png');
 
 const makeDataSources = ({ managerEvent = { slug: 'meetup', title: 'Meetup', is_online: false } } = {}) => ({
   managerIntegration: {
-    accountSetup: vi.fn().mockResolvedValue({ created: true, token: 'tok' }),
+    accountSetup: vi.fn().mockResolvedValue({ created: true, pending: true }),
     findEventBySlug: vi.fn().mockResolvedValue({ data: managerEvent ? [managerEvent] : [] }),
   },
 });
@@ -75,7 +75,8 @@ describe('sendSignupConfirmation', () => {
       expect.objectContaining({ cid: 'ticket-qr', content: PNG, contentType: 'image/png' }),
     ]);
     expect(mail.html).toContain('cid:ticket-qr');
-    expect(mail.html).toContain('https://hub.test/criar-senha?code=tok');
+    expect(mail.html).toContain('https://hub.test/completar-cadastro');
+    expect(mail.kind).toBe('signup-confirmation');
   });
 
   it('has no QR for an online event', async () => {
@@ -91,7 +92,7 @@ describe('sendSignupConfirmation', () => {
     await sendSignupConfirmation(args(makeDataSources(), { isFree: false }));
     expect(QRCode.toBuffer).not.toHaveBeenCalled();
     expect(sentMail().attachments).toBeUndefined();
-    expect(sentMail().html).toContain('criar-senha?code=tok');
+    expect(sentMail().html).toContain('completar-cadastro');
   });
 
   it('attaches the ticket QR for a paid signup already confirmed (isPaid)', async () => {
@@ -106,26 +107,26 @@ describe('sendSignupConfirmation', () => {
     expect(sentMail().attachments).toBeUndefined();
   });
 
-  it('has no set-password link when the account already has a password', async () => {
+  it('has no complete-registration link when the registration is finished', async () => {
     const dataSources = makeDataSources();
-    dataSources.managerIntegration.accountSetup.mockResolvedValue({ created: false, token: null });
+    dataSources.managerIntegration.accountSetup.mockResolvedValue({ created: false, pending: false });
     await sendSignupConfirmation(args(dataSources));
-    expect(sentMail().html).not.toContain('criar-senha');
+    expect(sentMail().html).not.toContain('completar-cadastro');
   });
 
   it('reuses an account already set up by the caller instead of asking again', async () => {
     const dataSources = makeDataSources();
-    await sendSignupConfirmation(args(dataSources, { account: { created: true, token: 'pre' } }));
+    await sendSignupConfirmation(args(dataSources, { account: { created: true, pending: true } }));
     expect(dataSources.managerIntegration.accountSetup).not.toHaveBeenCalled();
-    expect(sentMail().html).toContain('criar-senha?code=pre');
+    expect(sentMail().html).toContain('completar-cadastro');
   });
 
-  it('still sends, without the set-password link, when account-setup fails', async () => {
+  it('still sends, without the complete-registration link, when account-setup fails', async () => {
     const dataSources = makeDataSources();
     dataSources.managerIntegration.accountSetup.mockRejectedValue(new Error('Not Found'));
     const out = await sendSignupConfirmation(args(dataSources));
     expect(out.success).toBe(true);
-    expect(sentMail().html).not.toContain('criar-senha');
+    expect(sentMail().html).not.toContain('completar-cadastro');
     expect(sentMail().attachments).toHaveLength(1);
   });
 

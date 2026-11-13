@@ -6,7 +6,7 @@ import {
   incompleteMessage,
   missingProfile,
   registrationGap,
-  remindPassword,
+  remindCompleteRegistration,
   REGISTRATION_INCOMPLETE,
 } from '.';
 import { createRateLimiter } from '../rate-limit';
@@ -22,7 +22,7 @@ const integration = ({ account = COMPLETE, pending = false, ...overrides } = {})
     findUserByCpf: vi.fn().mockResolvedValue(account),
     findUserByEmail: vi.fn().mockResolvedValue(null),
     accountStatus: vi.fn().mockResolvedValue(account ? [{ email: account.email, pending }] : []),
-    accountSetup: vi.fn().mockResolvedValue({ created: false, token: 'tok' }),
+    accountSetup: vi.fn().mockResolvedValue({ created: false, pending: true }),
     ...overrides,
   },
 });
@@ -118,20 +118,21 @@ describe('mensagem e erro', () => {
 
   it('no admin, a linha diz o que falta', () => {
     expect(adminIncompleteReason({ passwordPending: true, missing: ['phone'] }))
-      .toBe('cadastro incompleto: senha não criada (enviamos o link de novo); falta WhatsApp');
+      .toBe('cadastro incompleto: a pessoa nunca entrou com o código do e-mail (enviamos o lembrete de novo); falta WhatsApp');
     expect(adminIncompleteReason({ passwordPending: false, missing: ['cpf', 'date_of_birth'] }))
       .toBe('cadastro incompleto: falta CPF e data de nascimento');
   });
 });
 
-describe('remindPassword', () => {
-  it('reenvia o link de criar senha uma vez na janela', async () => {
+describe('remindCompleteRegistration', () => {
+  it('reenvia o "conclua seu cadastro" (login por código) uma vez na janela', async () => {
     const ds = integration();
     const reminders = createRateLimiter({ limit: 1, windowMs: 60000 });
-    const account = { email: 'glad.pedro@gmail.com', name: 'Pedro' };
-    await remindPassword(ds, account, 'Meetup', { reminders });
-    await remindPassword(ds, account, 'Meetup', { reminders });
-    expect(ds.managerIntegration.accountSetup).toHaveBeenCalledTimes(1);
-    expect(sendCompleteRegistration).toHaveBeenCalledWith(expect.objectContaining({ email: 'glad.pedro@gmail.com', token: 'tok' }));
+    const account = { email: 'ana@example.com', name: 'Ana' };
+    await remindCompleteRegistration(ds, account, 'Meetup', { reminders });
+    await remindCompleteRegistration(ds, account, 'Meetup', { reminders });
+    expect(ds.managerIntegration.accountSetup).not.toHaveBeenCalled();
+    expect(sendCompleteRegistration).toHaveBeenCalledTimes(1);
+    expect(sendCompleteRegistration).toHaveBeenCalledWith({ email: 'ana@example.com', name: 'Ana', eventTitle: 'Meetup' });
   });
 });

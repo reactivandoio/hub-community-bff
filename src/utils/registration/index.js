@@ -1,7 +1,8 @@
 // REA-22, rule 6 (Pedro): the certificate only goes out once the registration is
-// finished — for every account, old ones included. Finished = the password was
-// created (password_pending, read through the manager's integration-only
-// /account-status) AND the profile has CPF, date of birth and WhatsApp.
+// finished — for every account, old ones included. Finished = the e-mail was
+// verified (REA-26: the person logged in with a code sent to it — or, before
+// REA-26, created a password; `password_pending`, read through the manager's
+// integration-only /account-status) AND the profile has CPF, date of birth and WhatsApp.
 // People without an account (external lists, request forms) are not affected.
 
 import crypto from 'crypto';
@@ -63,19 +64,12 @@ export const registrationGap = async (dataSources, { cpf, email } = {}) => {
   }
 };
 
-/** Sends the set-password link again (rate limited). Never throws. */
-export const remindPassword = async (dataSources, account, eventTitle, { reminders = defaultReminders } = {}) => {
+/** Sends the "conclua seu cadastro" e-mail (login by code) again (rate limited). Never throws. */
+export const remindCompleteRegistration = async (dataSources, account, eventTitle, { reminders = defaultReminders } = {}) => {
   const email = normalizeEmail(account.email);
   if (!reminders.hit(crypto.createHash('sha256').update(email).digest('hex'))) return;
-  try {
-    const { token } = (await dataSources.managerIntegration.accountSetup({ email })) || {};
-    if (token) {
-      sendCompleteRegistration({ email, name: account.name || account.username, eventTitle, token })
-        .catch((err) => console.error('[registration] reminder failed:', err.message));
-    }
-  } catch (err) {
-    console.error('[registration] account setup failed:', err.message);
-  }
+  sendCompleteRegistration({ email, name: account.name || account.username, eventTitle })
+    .catch((err) => console.error('[registration] reminder failed:', err.message));
 };
 
 /**
@@ -86,7 +80,7 @@ export const remindPassword = async (dataSources, account, eventTitle, { reminde
 export const incompleteMessage = ({ account, passwordPending, missing }, { isOwner }) => {
   const masked = maskEmail(account.email);
   if (passwordPending) {
-    const link = `Para receber o certificado, conclua seu cadastro: enviamos para ${masked} o link para criar sua senha.`;
+    const link = `Para receber o certificado, conclua seu cadastro: entre com o e-mail ${masked} (enviamos um código de acesso, sem senha).`;
     if (isOwner) return missing.length ? `${link} Depois, preencha ${labelsOf(missing)} no seu perfil.` : link;
     return `${link} Depois, entre e confira se ${ALL_LABELS} estão no seu perfil.`;
   }
@@ -97,12 +91,12 @@ export const incompleteMessage = ({ account, passwordPending, missing }, { isOwn
 
 /**
  * Throws the certificate-page error when the registration is not finished; sends the
- * set-password link again when that is what is missing. `viewer` is ctx.user.
+ * "conclua seu cadastro" e-mail again when the e-mail was never verified. `viewer` is ctx.user.
  */
 export const assertRegistrationComplete = async (dataSources, { cpf, email, viewer, eventTitle }) => {
   const gap = await registrationGap(dataSources, { cpf, email });
   if (!gap) return;
-  if (gap.passwordPending) await remindPassword(dataSources, gap.account, eventTitle);
+  if (gap.passwordPending) await remindCompleteRegistration(dataSources, gap.account, eventTitle);
   const isOwner = Boolean(viewer?.email) && normalizeEmail(viewer.email) === normalizeEmail(gap.account.email);
   throw new GraphQLError(incompleteMessage(gap, { isOwner }), {
     extensions: {
@@ -116,7 +110,7 @@ export const assertRegistrationComplete = async (dataSources, { cpf, email, view
 /** One line of the admin's issue result (organizers may see what is missing). */
 export const adminIncompleteReason = ({ passwordPending, missing }) => {
   const parts = [];
-  if (passwordPending) parts.push('senha não criada (enviamos o link de novo)');
+  if (passwordPending) parts.push('a pessoa nunca entrou com o código do e-mail (enviamos o lembrete de novo)');
   if (missing.length) parts.push(`falta ${labelsOf(missing)}`);
   return `cadastro incompleto: ${parts.join('; ')}`;
 };

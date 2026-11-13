@@ -18,7 +18,7 @@ const makeIntegration = ({ users = {}, sentToday = 0, pending = [] } = {}) => {
     adminCountAgeReviewUsers: vi.fn().mockResolvedValue(Object.keys(users).length),
     adminUpdateUserFields: vi.fn().mockResolvedValue({}),
     accountStatus: vi.fn(async ([email]) => [{ email, pending: pending.includes(email) }]),
-    accountSetup: vi.fn().mockResolvedValue({ created: false, token: 'tok' }),
+    accountSetup: vi.fn().mockResolvedValue({ created: false, pending: true }),
     createEmailDelivery: vi.fn(async (data) => {
       if (keys.has(data.key)) throw new Error('This attribute must be unique');
       keys.add(data.key);
@@ -99,10 +99,14 @@ describe('requestDateOfBirth', () => {
     expect(integration.adminUpdateUserFields).not.toHaveBeenCalled();
   });
 
-  it('sends the set-password link to an account that has no password yet', async () => {
+  it('sends the complete-profile link (login by code) even to a never-logged-in account (REA-26)', async () => {
     const integration = makeIntegration({ users, pending: ['ana@x.io'] });
     await requestDateOfBirth({ integration, userIds: ['10'], actor: ADMIN, env, now, send });
-    expect(send.mock.calls[0][0].html).toContain('https://hub.io/criar-senha?code=tok');
+    const { html } = send.mock.calls[0][0];
+    expect(html).toContain('https://hub.io/completar-cadastro');
+    expect(html).not.toContain('criar-senha');
+    expect(html).toContain('código de acesso');
+    expect(integration.accountSetup).not.toHaveBeenCalled();
   });
 
   it('honors the redirect address of tests and staging', async () => {

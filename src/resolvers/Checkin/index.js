@@ -469,16 +469,16 @@ const Checkin = {
         }
         const email = normalizeEmail(user?.email) || normalizeEmail(input.email);
 
-        // 1. Set up the account (creates it when there is none; while it has no
-        //    password, returns the set-password token). Never blocks the signup.
-        let account = { created: false, token: null };
+        // 1. Set up the account (creates it when there is none; says whether its
+        //    registration is still pending — REA-26). Never blocks the signup.
+        let account = { created: false, pending: false };
         try {
           const result = await dataSources.managerIntegration.accountSetup({
             email,
             name: input.name,
             phone: input.phone_number || undefined,
           });
-          account = { created: Boolean(result?.created), token: result?.token || null };
+          account = { created: Boolean(result?.created), pending: result?.pending === true };
         } catch (err) {
           console.error('[ManualSignup] Account setup error (non-blocking):', err.message);
         }
@@ -502,7 +502,7 @@ const Checkin = {
           };
         }
 
-        // The account set up above is reused, so its token is the one e-mailed.
+        // The account set up above is reused (no second account-setup call).
         const confirm = (signup) =>
           sendSignupConfirmation({
             dataSources,
@@ -516,12 +516,11 @@ const Checkin = {
             account,
           }).catch((err) => console.error('[Email] Error sending confirmation:', err.message));
         const completeRegistration = () => {
-          if (!accountCreated || !account.token) return;
+          if (!accountCreated || !account.pending) return;
           sendCompleteRegistration({
             email,
             name: input.name,
             eventTitle: eventTitleOf(event),
-            token: account.token,
           }).catch((err) => console.error('[Email] Error sending complete-registration:', err.message));
         };
         const respond = async (message, raw) => ({
@@ -535,8 +534,8 @@ const Checkin = {
         // 3. Already signed up, under the account e-mail or the one typed?
         const existingSignup = await findEventSignup(dataSources, event.id, [email, input.email]);
         if (existingSignup) {
-          // E-mail again only if the account still needs its password.
-          if (account.token) confirm(existingSignup);
+          // E-mail again only if the account still has its registration pending.
+          if (account.pending) confirm(existingSignup);
           completeRegistration();
           return respond(
             accountCreated
@@ -605,9 +604,8 @@ const Checkin = {
       }
     },
 
-    // Re-sends the confirmation (ticket QR + set-password link) to everyone imported
-    // into the event. Nothing records "already sent": each run sets up the accounts
-    // again, so a pending account gets a new token and the previous link stops working.
+    // Re-sends the confirmation (ticket QR + "conclua seu cadastro" link while pending) to
+    // everyone imported into the event. Nothing records "already sent".
     sendImportedSignupConfirmations: async (_, { eventSlug }, ctx) => {
       await requireEventOrganizer(ctx, eventSlug);
       const { dataSources } = ctx;

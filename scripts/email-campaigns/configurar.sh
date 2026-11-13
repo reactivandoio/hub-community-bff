@@ -2,8 +2,10 @@
 # Configuração inicial do e-mail marketing (REA-29), uma vez só.
 #
 # Gera o EMAIL_UNSUBSCRIBE_SECRET nesta máquina com openssl e grava direto no GitHub, sem mostrar
-# o valor. Também grava EMAIL_CAMPAIGNS_ENABLED=false, EMAIL_CAMPAIGN_DAILY_LIMIT=70 e
-# EMAIL_CAMPAIGN_REDIRECT_TO vazio: depois disto o BFF tem tudo, mas não envia nenhuma campanha.
+# o valor. Também grava EMAIL_CAMPAIGNS_ENABLED=false e EMAIL_CAMPAIGN_REDIRECT_TO vazio e, só se
+# ainda não existirem, a cota do Mailgun (REA-26): EMAIL_DAILY_LIMIT=100 (plano free) e
+# EMAIL_DAILY_RESERVE=30 (para códigos de login e e-mails transacionais). Depois disto o BFF tem
+# tudo, mas não envia nenhuma campanha.
 #
 # Se o secret já existir, não troca: trocar invalida os links de descadastro já enviados.
 # Para trocar mesmo assim, use --rotate.
@@ -37,8 +39,15 @@ else
 fi
 
 set_secret EMAIL_CAMPAIGNS_ENABLED false
-set_secret EMAIL_CAMPAIGN_DAILY_LIMIT 70
 set_secret EMAIL_CAMPAIGN_REDIRECT_TO ""
+# A cota muda com o plano do Mailgun: um valor já gravado (ex.: plano pago) é mantido.
+for pair in EMAIL_DAILY_LIMIT=100 EMAIL_DAILY_RESERVE=30; do
+  if has_secret "${pair%%=*}"; then
+    echo "  ${pair%%=*} já existe: mantido."
+  else
+    set_secret "${pair%%=*}" "${pair#*=}"
+  fi
+done
 
 echo "Campanhas desligadas. Para o ensaio: scripts/email-campaigns/ensaio.sh <seu e-mail>"
 deploy_or_explain

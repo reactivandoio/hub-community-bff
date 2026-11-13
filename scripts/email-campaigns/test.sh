@@ -44,15 +44,19 @@ check "configurar: sai com 0" '[ $code -eq 0 ]'
 check "configurar: grava o secret gerado, sem quebra de linha" '[ "$(val EMAIL_UNSUBSCRIBE_SECRET)" = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef ]'
 check "configurar: nunca mostra o secret" '! printf "%s" "$out" | grep -q 0123456789abcdef'
 check "configurar: campanhas desligadas" '[ "$(val EMAIL_CAMPAIGNS_ENABLED)" = false ]'
-check "configurar: limite 70" '[ "$(val EMAIL_CAMPAIGN_DAILY_LIMIT)" = 70 ]'
+check "configurar: cota do plano free (100/dia)" '[ "$(val EMAIL_DAILY_LIMIT)" = 100 ]'
+check "configurar: reserva de 30 para códigos e transacionais" '[ "$(val EMAIL_DAILY_RESERVE)" = 30 ]'
+check "configurar: não grava mais o limite antigo" '[ -z "$(val EMAIL_CAMPAIGN_DAILY_LIMIT)" ]'
 check "configurar: redirect vazio como \"\"" '[ "$(val EMAIL_CAMPAIGN_REDIRECT_TO)" = "\"\"" ]'
 check "configurar: Environment production do repo do BFF" 'grep -q "secret set EMAIL_CAMPAIGNS_ENABLED --env production -R reactivandoio/hub-community-bff" "$GH_STATE/args"'
 check "configurar: sem --deploy não dispara deploy" '! grep -q "workflow run" "$GH_STATE/args"'
 check "configurar: diz como fazer o deploy" 'printf "%s" "$out" | grep -q "gh workflow run deploy.yml"'
 
 printf 'antigo' > "$GH_STATE/EMAIL_UNSUBSCRIBE_SECRET"
+printf '5000' > "$GH_STATE/EMAIL_DAILY_LIMIT"
 /bin/bash "$DIR/configurar.sh" >/dev/null 2>&1
 check "configurar: não troca um secret que já existe" '[ "$(val EMAIL_UNSUBSCRIBE_SECRET)" = antigo ]'
+check "configurar: mantém a cota de um plano já gravado" '[ "$(val EMAIL_DAILY_LIMIT)" = 5000 ]'
 /bin/bash "$DIR/configurar.sh" --rotate >/dev/null 2>&1
 check "configurar --rotate: troca" '[ "$(val EMAIL_UNSUBSCRIBE_SECRET)" != antigo ]'
 

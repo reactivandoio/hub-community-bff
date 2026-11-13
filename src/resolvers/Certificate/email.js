@@ -11,6 +11,7 @@ export const sendCertificateEmail = async ({ certificate, event, baseUrl }) => {
     baseUrl: base,
   });
   return sendEmail({
+    kind: 'certificate',
     to: certificate.email,
     subject: `🎓 Seu certificado — ${event.title}`,
     html,
