@@ -151,3 +151,33 @@ describe('linkSpeaker', () => {
     await expect(linkSpeaker(ds, { documentId: 'u8', email: 'nova@x.io' })).resolves.toBeUndefined();
   });
 });
+
+// REA-48: a pending invite of the e-mail becomes access on the login.
+describe('verifyLoginCode — pending invites (REA-48)', () => {
+  it('accepts the pending invites of the e-mail that just logged in', async () => {
+    const ds = makeDataSources();
+    Object.assign(ds.managerIntegration, {
+      findManagementInvites: vi.fn().mockResolvedValue([{
+        documentId: 'inv-1', kind: 'event_manager', email: 'ana@x.io', event: { documentId: 'ev-1' },
+      }]),
+      adminFindUser: vi.fn().mockResolvedValue({ id: 7, documentId: 'u7', email: 'ana@x.io', role: { type: 'authenticated' } }),
+      addEventManager: vi.fn().mockResolvedValue({}),
+      updateManagementInvite: vi.fn().mockResolvedValue({}),
+      adminFindRoles: vi.fn().mockResolvedValue([{ id: 11, type: 'event-manager' }]),
+      adminSetUserRoleId: vi.fn().mockResolvedValue({}),
+      adminCreateRoleChange: vi.fn().mockResolvedValue({}),
+    });
+    const user = await verifyLoginCode({ dataSources: ds, email: 'ana@x.io', code: '012345', limiters: freshLimits() });
+    expect(user.token).toBe('jwt1');
+    expect(ds.managerIntegration.findManagementInvites).toHaveBeenCalledWith(expect.objectContaining({ email: { eq: 'ana@x.io' } }));
+    expect(ds.managerIntegration.addEventManager).toHaveBeenCalledWith('ev-1', 'u7');
+    expect(ds.managerIntegration.adminSetUserRoleId).toHaveBeenCalledWith('7', 11);
+  });
+
+  it('logs in even when the invites cannot be read', async () => {
+    const ds = makeDataSources();
+    ds.managerIntegration.findManagementInvites = vi.fn().mockRejectedValue(new Error('down'));
+    const user = await verifyLoginCode({ dataSources: ds, email: 'ana@x.io', code: '012345', limiters: freshLimits() });
+    expect(user.token).toBe('jwt1');
+  });
+});

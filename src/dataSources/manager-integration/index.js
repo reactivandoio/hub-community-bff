@@ -18,6 +18,7 @@ import adminUsers from './admin-users';
 import emailCampaigns from './email-campaigns';
 import loginCode from './login-code';
 import shareArt from './share-art';
+import management from './management';
 
 const managerIntegration = ({ headers }) => ({
   ...analyticsEvents({ headers }),
@@ -40,6 +41,7 @@ const managerIntegration = ({ headers }) => ({
   ...emailCampaigns({ headers }),
   ...loginCode({ headers }),
   ...shareArt({ headers }),
+  ...management({ headers }),
 });
 
 export default managerIntegration;

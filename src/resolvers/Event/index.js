@@ -5,8 +5,10 @@ import { guestSignupToEvent } from '../../services/guest-signup';
 import { ADULT_DECLARATION_REQUIRED } from '../../utils/age';
 import { signupIdOf } from '../../utils/signup-id';
 import {
+  isEventOwner,
   requireCommunitiesOrganizer,
   requireEventOrganizer,
+  requireEventOwner,
   requireOrganizerOfNewCommunities,
   requireUser,
 } from '../../utils/auth';
@@ -375,8 +377,12 @@ const Event = {
       }
     },
 
-    updateEvent: async (_, { id, data }, ctx) => {
+    updateEvent: async (_, { id, data: input }, ctx) => {
       await requireEventOrganizer(ctx, id);
+      // REA-48: a manager of the event edits it but never moves it to (or out of) a community: the
+      // communities it sends are ignored and the event keeps the ones it has.
+      const data = { ...input };
+      if (!(await isEventOwner(ctx, id))) delete data.communities;
       await requireOrganizerOfNewCommunities(ctx, id, data.communities);
       const { dataSources } = ctx;
       try {
@@ -672,7 +678,8 @@ const Event = {
     },
 
     deleteEvent: async (_, { id }, ctx) => {
-      await requireEventOrganizer(ctx, id);
+      // REA-48: the event's managers do not delete it; its owners do.
+      await requireEventOwner(ctx, id);
       const { dataSources } = ctx;
       try {
         // Find current event to get the slug for orchestration

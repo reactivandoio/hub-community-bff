@@ -1,6 +1,6 @@
 import { GraphQLError } from 'graphql';
 import {
-  requireEventOrganizer, requireUser, isAdmin, isCommunityManager, organizerIdsOfEvent,
+  requireEventOrganizer, requireEventOwner, requireUser, isAdmin, isCommunityManager, organizerIdsOfEvent,
 } from '../../utils/auth';
 import {
   createOpaPingouEventando, OpaPingouConnectionError,
@@ -101,8 +101,11 @@ const accountOf = async (ctx, eventando, uuid, current) => {
   };
 };
 
-const withEvent = (fn) => async (_, args, ctx) => {
-  await requireEventOrganizer(ctx, args.eventId);
+// REA-48: an event's managers see its payment account, but only its owners (admin, organizers of
+// its community) connect, swap or remove it — the account is where the ticket money goes.
+const withEvent = (fn, { ownerOnly = false } = {}) => async (_, args, ctx) => {
+  if (ownerOnly) await requireEventOwner(ctx, args.eventId);
+  else await requireEventOrganizer(ctx, args.eventId);
   const eventando = ctx.opaPingouEventando || createOpaPingouEventando();
   try {
     const uuid = await eventUuidOf(ctx, args.eventId);
@@ -126,7 +129,7 @@ export default {
         createdByName: user.name || user.username || null,
       });
       return accountOf(ctx, eventando, uuid, { connection, legacy: false });
-    }),
+    }, { ownerOnly: true }),
 
     useOpaPingouConnection: withEvent(async ({ args, ctx, eventando, uuid }) => {
       const allowed = await reusableFor(ctx, await eventando.listConnections());
@@ -135,11 +138,11 @@ export default {
       }
       const connection = await eventando.attach(uuid, args.connectionId);
       return accountOf(ctx, eventando, uuid, { connection, legacy: false });
-    }),
+    }, { ownerOnly: true }),
 
     disconnectEventOpaPingou: withEvent(async ({ ctx, eventando, uuid }) => {
       const state = await eventando.detach(uuid);
       return accountOf(ctx, eventando, uuid, state);
-    }),
+    }, { ownerOnly: true }),
   },
 };

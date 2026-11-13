@@ -257,3 +257,49 @@ describe('requireAuthorOrAdmin', () => {
     await expectCode(() => requireAuthorOrAdmin(ctxOf(BIA), undefined), 'FORBIDDEN');
   });
 });
+
+// ─── REA-48: event managers ─────────────────────────────────────────────────────────────────
+import { isEventOwner, isEventManager, requireEventOwner, roleRank } from './index';
+
+describe('event managers (REA-48)', () => {
+  const EVA = { id: 7, documentId: 'u-eva', email: 'eva@x.io', role: { type: 'event-manager' } };
+  // Listed as manager, but without the role: that alone grants nothing, as with organizers.
+  const DAN = { id: 8, documentId: 'u-dan', email: 'dan@x.io', role: { type: 'authenticated' } };
+  // A community-manager of another community, invited as manager of this event.
+  const LIA = { id: 9, documentId: 'u-lia', email: 'lia@x.io', role: { type: 'community-manager' } };
+  const MANAGED = {
+    ...EVENT,
+    managers: [{ documentId: 'u-eva' }, { documentId: 'u-dan' }, { documentId: 'u-lia' }],
+  };
+  const ctx = (user) => ctxOf(user, makeDataSources({ user, event: MANAGED }));
+
+  it('lets the event-manager in the admin, the role alone', () => {
+    expect(isEventManager(EVA)).toBe(true);
+    expect(canAccessAdmin(EVA)).toBe(true);
+  });
+
+  it('makes a manager with the role an organizer of that event only', async () => {
+    expect(await isEventOrganizer(ctx(EVA), 'meetup')).toBe(true);
+    expect(await isEventOrganizer(ctx(LIA), 'meetup')).toBe(true);
+    expect(await isEventOrganizer(ctxOf(EVA, makeDataSources({ user: EVA, event: EVENT })), 'meetup')).toBe(false);
+  });
+
+  it('grants nothing to someone listed as manager without the role', async () => {
+    expect(await isEventOrganizer(ctx(DAN), 'meetup')).toBe(false);
+  });
+
+  it('does not make a manager an owner of the event (invites, communities, deletion)', async () => {
+    expect(await isEventOwner(ctx(EVA), 'meetup')).toBe(false);
+    expect(await isEventOwner(ctx(LIA), 'meetup')).toBe(false);
+    expect(await isEventOwner(ctx(ANA), 'meetup')).toBe(true);
+    expect(await isEventOwner(ctx(ADMIN), 'meetup')).toBe(true);
+    await expectCode(() => requireEventOwner(ctx(EVA), 'meetup'), 'FORBIDDEN');
+  });
+
+  it('ranks the roles, so an invite never lowers one', () => {
+    expect(roleRank('authenticated')).toBeLessThan(roleRank('event-manager'));
+    expect(roleRank('event-manager')).toBeLessThan(roleRank('community-manager'));
+    expect(roleRank('community-manager')).toBeLessThan(roleRank('admin'));
+    expect(roleRank(undefined)).toBe(0);
+  });
+});
