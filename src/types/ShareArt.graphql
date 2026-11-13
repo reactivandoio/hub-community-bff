@@ -1,0 +1,59 @@
+# REA-43 — arte "eu vou" personalizada por evento.
+# A área da foto é guardada em frações da imagem de fundo (0 a 1), não em pixels.
+
+"Where the participant's photo goes, in fractions of the background (0 to 1)."
+type ShareArtPhotoArea {
+  x: Float!
+  y: Float!
+  width: Float!
+  height: Float!
+  "0 = square corners, 1 = circle (when the area is square): radius × half of the smaller side."
+  radius: Float!
+}
+
+"One format of the art; only returned when it has both a background and a photo area."
+type ShareArtFormatConfig {
+  background: String!   # URL absoluta
+  background_id: String!
+  background_width: Int
+  background_height: Int
+  photo_area: ShareArtPhotoArea!
+}
+
+type ShareArtConfig {
+  id: String
+  "Stories, 9:16. Null → the participant gets the default art in this format."
+  story: ShareArtFormatConfig
+  "Feed, 1:1. Null → the participant gets the default art in this format."
+  feed: ShareArtFormatConfig
+}
+
+input ShareArtPhotoAreaInput {
+  x: Float!
+  y: Float!
+  width: Float!
+  height: Float!
+  radius: Float!
+}
+
+input ShareArtFormatInput {
+  "Media id of the background (from the upload)."
+  background: String!
+  photo_area: ShareArtPhotoAreaInput!
+}
+
+"A format left out is kept as it is; a format sent as null goes back to the default art."
+input ShareArtConfigInput {
+  story: ShareArtFormatInput
+  feed: ShareArtFormatInput
+}
+
+type Query {
+  "Public: the participant's art page reads it. eventId is the slug or the documentId."
+  shareArtConfig(eventId: String!): ShareArtConfig
+}
+
+type Mutation {
+  "Admin or organizer of the event."
+  upsertShareArtConfig(eventId: String!, data: ShareArtConfigInput!): ShareArtConfig
+}

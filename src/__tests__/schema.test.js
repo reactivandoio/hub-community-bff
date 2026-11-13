@@ -73,4 +73,15 @@ describe('graphql schema', () => {
     expect(schema.getMutationType().getFields().signupToEvent.args.map((a) => a.name)).toContain('is_student');
     expect(schema.getQueryType().getFields().previewCoupon.args.map((a) => a.name)).toContain('isStudent');
   });
+
+  it('exposes the REA-43 custom share art (public read, organizer write)', () => {
+    const query = schema.getQueryType().getFields();
+    const mutation = schema.getMutationType().getFields();
+    const argsOf = (field) => field.args.map((a) => `${a.name}: ${a.type}`);
+    expect(argsOf(query.shareArtConfig)).toEqual(['eventId: String!']);
+    expect(argsOf(mutation.upsertShareArtConfig)).toEqual(['eventId: String!', 'data: ShareArtConfigInput!']);
+    expect(Object.keys(schema.getType('ShareArtConfig').getFields())).toEqual(['id', 'story', 'feed']);
+    expect(Object.keys(schema.getType('ShareArtPhotoArea').getFields()))
+      .toEqual(['x', 'y', 'width', 'height', 'radius']);
+  });
 });
