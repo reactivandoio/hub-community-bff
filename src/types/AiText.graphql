@@ -1,0 +1,65 @@
+"REA-51: the admin user's termhub credential. The token itself never comes back."
+type TermhubSettings {
+  configured: Boolean!
+  "Last 4 characters of the saved token (e.g. …ab12)."
+  token_hint: String
+  "termhub project (id or key, e.g. TER) the runs are created in."
+  project: String
+  "Last time termhub accepted the token on that project."
+  verified_at: String
+  "False while this server has no TERMHUB_TOKEN_KEY (nothing can be saved)."
+  server_ready: Boolean!
+  base_url: String!
+}
+
+input TermhubSettingsInput {
+  "Personal termhub token with the runs scope. Empty keeps the saved one (to change only the project)."
+  token: String
+  project: String!
+}
+
+"REA-51: an AI draft of an e-mail campaign's subject and message (one termhub run). Nothing is sent."
+type AiTextGeneration {
+  id: ID!
+  campaign_type: EmailCampaignType!
+  "queued | running | succeeded | failed | cancelled"
+  status: String!
+  "Text produced so far while running (raw model output)."
+  preview: String
+  subject: String
+  message: String
+  error_code: String
+  error_message: String
+  created_at: String
+  finished_at: String
+}
+
+input GenerateEmailCampaignTextInput {
+  "Slug or documentId of the Hub event."
+  eventSlug: String!
+  type: EmailCampaignType!
+  "The current draft, if any, for the AI to improve."
+  subject: String
+  message: String
+  "Optional wish of the organizer about the text (tone, what to highlight), up to 500 characters."
+  instructions: String
+  "Random id made by the page per click: repeating the mutation returns the same generation."
+  requestId: String
+}
+
+extend type Query {
+  "Signed-in admin user (any admin role)."
+  termhubSettings: TermhubSettings!
+  "Only whoever started it. Polled by the page while it runs."
+  aiTextGeneration(id: ID!): AiTextGeneration!
+}
+
+extend type Mutation {
+  "Tests the token on the project (no run spent) and saves it encrypted."
+  saveTermhubSettings(input: TermhubSettingsInput!): TermhubSettings!
+  testTermhubSettings: TermhubSettings!
+  deleteTermhubSettings: TermhubSettings!
+  "Starts an AI draft for a campaign. Same access as the campaign (invite is admin only)."
+  generateEmailCampaignText(input: GenerateEmailCampaignTextInput!): AiTextGeneration!
+  cancelAiTextGeneration(id: ID!): AiTextGeneration!
+}
