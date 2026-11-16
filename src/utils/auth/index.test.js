@@ -239,6 +239,40 @@ describe('requireOrganizerOfNewCommunities', () => {
     const dataSources = makeDataSources({ community: { documentId: 'c-9', organizers: [] } });
     await expectCode(requireOrganizerOfNewCommunities(ctxOf(ANA, dataSources), 'meetup', ['c-1', 'c-9']), 'FORBIDDEN');
   });
+
+  // REA-55: an event with several communities.
+  const SHARED = {
+    documentId: 'ev-2',
+    slug: 'shared',
+    communities: [
+      { documentId: 'c-1', title: 'Uma', organizers: [{ documentId: 'u-ana' }] },
+      { documentId: 'c-2', title: 'Outra', organizers: [{ documentId: 'u-leo' }] },
+    ],
+  };
+
+  it('lets an organizer add a community they organize, keeping the others', async () => {
+    const dataSources = makeDataSources({ event: SHARED, community: { documentId: 'c-3', organizers: [{ documentId: 'u-ana' }] } });
+    await expect(requireOrganizerOfNewCommunities(ctxOf(ANA, dataSources), 'shared', ['c-1', 'c-2', 'c-3']))
+      .resolves.toBeUndefined();
+  });
+
+  it('lets an organizer remove a community they organize', async () => {
+    const dataSources = makeDataSources({ event: SHARED });
+    await expect(requireOrganizerOfNewCommunities(ctxOf(ANA, dataSources), 'shared', ['c-2'])).resolves.toBeUndefined();
+  });
+
+  it('refuses removing a community the user does not organize', async () => {
+    const dataSources = makeDataSources({ event: SHARED });
+    await expect(requireOrganizerOfNewCommunities(ctxOf(ANA, dataSources), 'shared', ['c-1']))
+      .rejects.toThrow('Só o admin ou quem organiza "Outra" pode tirar o evento dela.');
+  });
+
+  it('refuses leaving the event without a community, except for the admin', async () => {
+    const dataSources = makeDataSources({ event: SHARED });
+    await expect(requireOrganizerOfNewCommunities(ctxOf(ANA, dataSources), 'shared', []))
+      .rejects.toThrow('O evento precisa de pelo menos uma comunidade.');
+    await expect(requireOrganizerOfNewCommunities(ctxOf(ADMIN, dataSources), 'shared', [])).resolves.toBeUndefined();
+  });
 });
 
 describe('requireTalkOrganizer', () => {
