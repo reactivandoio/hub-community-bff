@@ -1,0 +1,68 @@
+"REA-59: e-mails of today and of the month, all kinds together, and what campaigns may still send today."
+type AdminEmailUsage {
+  sent_today: Int!
+  sent_this_month: Int!
+  "EMAIL_DAILY_LIMIT: every e-mail of the day."
+  daily_limit: Int!
+  "EMAIL_MONTHLY_LIMIT; null when there is none."
+  monthly_limit: Int
+  "EMAIL_DAILY_RESERVE: kept for login codes and transactional e-mails."
+  reserve: Int!
+  campaigns_left_today: Int!
+}
+
+"REA-59: a campaign still in the queue (sending or paused)."
+type AdminQueuedCampaign {
+  "documentId (what updateEmailCampaignStatus takes)."
+  id: ID!
+  event_slug: String
+  event_title: String
+  type: EmailCampaignType!
+  subject: String!
+  "sending | paused"
+  status: String!
+  "Audience when it started (approximate for invite)."
+  total: Int!
+  sent: Int!
+  failed: Int!
+  remaining: Int!
+  created_by_email: String
+  started_at: String
+  createdAt: String
+  "Forecast day it finishes (YYYY-MM-DD, São Paulo); null when paused, off or beyond the forecast."
+  finish_date: String
+}
+
+type AdminScheduledPart {
+  "Campaign documentId."
+  id: ID!
+  count: Int!
+}
+
+"REA-59: one day of the forecast."
+type AdminScheduledDay {
+  "YYYY-MM-DD (São Paulo)."
+  date: String!
+  count: Int!
+  campaigns: [AdminScheduledPart!]!
+}
+
+type AdminEmailQueue {
+  "False while the campaign queue is off on this server (EMAIL_CAMPAIGNS_ENABLED)."
+  sending_enabled: Boolean!
+  redirect_to: String
+  usage: AdminEmailUsage!
+  "Oldest first: the order the queue sends them."
+  campaigns: [AdminQueuedCampaign!]!
+  "Today and the next days, what the queue sends each day (forecast, up to 120 days)."
+  schedule: [AdminScheduledDay!]!
+  "Something is still left after the forecast's last day."
+  schedule_truncated: Boolean!
+  "Date of birth requested by e-mail, waiting for the answer (blocked after 7 days). Null when it could not be read."
+  dob_requests: AgeReviewPage
+}
+
+extend type Query {
+  "REA-59, admin only: every e-mail the Hub still has scheduled."
+  adminEmailQueue: AdminEmailQueue!
+}
