@@ -228,3 +228,35 @@ describe('REA-52: user page', () => {
       .toBe('BAD_USER_INPUT');
   });
 });
+
+describe('REA-59: adminEmailQueue', () => {
+  const queueDs = () => ({
+    managerIntegration: {
+      findQueuedEmailCampaigns: vi.fn().mockResolvedValue([
+        { documentId: 'c1', type: 'reminder', subject: 'Lembrete', status: 'sending', total: 50, sent: 10, failed: 0, event_slug: 'meetup', event_title: 'Meetup' },
+        { documentId: 'c2', type: 'invite', subject: 'Convite', status: 'paused', total: 900, sent: 100, failed: 5, event_slug: 'sw', event_title: 'SW' },
+      ]),
+      countEmailDeliveriesSince: vi.fn().mockResolvedValue(0),
+      adminFindAgeReviewUsers: vi.fn().mockResolvedValue([]),
+      adminCountAgeReviewUsers: vi.fn().mockResolvedValue(0),
+    },
+  });
+
+  it('is admin only', async () => {
+    for (const user of [MANAGER, MEMBER]) {
+      const dataSources = queueDs();
+      expect(await codeOf(() => Query.adminEmailQueue(null, {}, { user, dataSources }))).toBe('FORBIDDEN');
+      expect(dataSources.managerIntegration.findQueuedEmailCampaigns).not.toHaveBeenCalled();
+    }
+  });
+
+  it('lists every queued campaign with what is left, the forecast and the usage', async () => {
+    const out = await Query.adminEmailQueue(null, {}, { user: ADMIN, dataSources: queueDs() });
+    expect(out.campaigns.map((c) => [c.id, c.event_title, c.status, c.remaining])).toEqual([
+      ['c1', 'Meetup', 'sending', 40],
+      ['c2', 'SW', 'paused', 795],
+    ]);
+    expect(out.usage).toMatchObject({ sent_today: 0, sent_this_month: 0 });
+    expect(out.dob_requests).toMatchObject({ total: 0, items: [] });
+  });
+});

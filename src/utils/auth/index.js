@@ -241,15 +241,28 @@ export const requireTalkOrganizer = async (ctx, talkId) => {
 };
 
 /**
- * Linking an event to communities: an organizer of the event may keep the communities
- * it already has, but only adds the ones they organize too. Call after
- * requireEventOrganizer.
+ * Linking an event to communities (REA-55: an event may have several). The admin picks any. An
+ * owner of the event adds only communities they organize too and removes only those they
+ * organize; the event keeps at least one. Call after requireEventOrganizer.
  */
 export const requireOrganizerOfNewCommunities = async (ctx, eventIdOrSlug, communityIds) => {
-  if (isAdmin(requireUser(ctx)) || !Array.isArray(communityIds)) return;
+  const user = requireUser(ctx);
+  if (isAdmin(user) || !Array.isArray(communityIds)) return;
+  const wanted = new Set(communityIds.filter(Boolean));
+  if (wanted.size === 0) {
+    throw forbiddenError('O evento precisa de pelo menos uma comunidade.');
+  }
   const event = await loadEvent(ctx, eventIdOrSlug);
-  const current = new Set((event?.communities || []).map((c) => c?.documentId).filter(Boolean));
-  const added = communityIds.filter((id) => id && !current.has(id));
+  const current = (event?.communities || []).filter((c) => c?.documentId);
+  const removed = current.filter((c) => !wanted.has(c.documentId));
+  const notMine = removed.find((c) => !idsOf(c.organizers).includes(user.documentId));
+  if (notMine) {
+    throw forbiddenError(
+      `Só o admin ou quem organiza "${notMine.title || 'a comunidade'}" pode tirar o evento dela.`,
+    );
+  }
+  const currentIds = new Set(current.map((c) => c.documentId));
+  const added = [...wanted].filter((id) => !currentIds.has(id));
   if (added.length > 0) await requireCommunitiesOrganizer(ctx, added);
 };
 

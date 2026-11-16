@@ -116,8 +116,77 @@ describe('screenCandidates: only adults (REA-36)', () => {
       ]),
     });
     const candidates = ['ok@x.io', 'nodate@x.io', 'minor@x.io', 'blocked@x.io', 'noaccount@x.io'].map((email) => ({ email }));
+    // REA-57: a signup-based campaign no longer asks for the date — only deactivated accounts are skipped.
     const out = await screenCandidates({ dataSources: ds, campaign: { documentId: 'c1', type: 'share' }, candidates, signups: [] });
-    expect(out.map((c) => c.skip)).toEqual([null, 'no-birth-date', 'no-birth-date', 'no-birth-date', 'no-birth-date']);
+    expect(out.map((c) => c.skip)).toEqual([null, null, null, 'blocked', null]);
+  });
+});
+
+describe('share and reminder go to every confirmed signup (REA-57)', () => {
+  const accounts = [
+    { email: 'ok@x.io', date_of_birth: '1990-01-01' },
+    { email: 'nodate@x.io', date_of_birth: null },
+    { email: 'minor@x.io', date_of_birth: '2015-01-01' },
+    { email: 'blocked@x.io', date_of_birth: null, blocked: true },
+  ];
+  const emails = ['ok@x.io', 'nodate@x.io', 'minor@x.io', 'blocked@x.io', 'noaccount@x.io', 'gone@x.io'];
+
+  it('sends without asking for a date of birth or an account; deactivated and unsubscribed stay out', async () => {
+    const ds = makeDataSources({
+      findUsersByEmails: vi.fn().mockResolvedValue(accounts),
+      findSuppressedEmails: vi.fn().mockResolvedValue(new Set(['gone@x.io'])),
+    });
+    const out = await screenCandidates({
+      dataSources: ds, campaign: { documentId: 'c1', type: 'reminder' }, candidates: emails.map((email) => ({ email })), signups: [],
+    });
+    expect(out.map((c) => [c.email, c.skip])).toEqual([
+      ['ok@x.io', null],
+      ['nodate@x.io', null],
+      ['minor@x.io', null],
+      ['blocked@x.io', 'blocked'],
+      ['noaccount@x.io', null],
+      ['gone@x.io', 'unsubscribed'],
+    ]);
+  });
+
+  it('share follows the same rule as the reminder', async () => {
+    const ds = makeDataSources({ findUsersByEmails: vi.fn().mockResolvedValue(accounts) });
+    const out = await screenCandidates({
+      dataSources: ds, campaign: { documentId: 'c1', type: 'share' }, candidates: emails.slice(0, 5).map((email) => ({ email })), signups: [],
+    });
+    expect(out.filter((c) => !c.skip).map((c) => c.email)).toEqual(['ok@x.io', 'nodate@x.io', 'minor@x.io', 'noaccount@x.io']);
+  });
+
+  it('the invite to the base keeps the 18+ filter', async () => {
+    const ds = makeDataSources();
+    const out = await screenCandidates({
+      dataSources: ds,
+      campaign: { documentId: 'c1', type: 'invite' },
+      candidates: [{ email: 'a@x.io', adult: true }, { email: 'b@x.io', adult: false }],
+      signups: [],
+    });
+    expect(out.map((c) => c.skip)).toEqual([null, 'no-birth-date']);
+  });
+
+  it('never twice: an e-mail this reminder already reached is skipped', async () => {
+    const ds = makeDataSources({ findEmailDeliveriesByKeys: vi.fn().mockResolvedValue([{ email: 'nodate@x.io' }]) });
+    const out = await screenCandidates({
+      dataSources: ds, campaign: { documentId: 'c1', type: 'reminder' }, candidates: [{ email: 'nodate@x.io' }], signups: [],
+    });
+    expect(out[0].skip).toBe('delivered');
+  });
+
+  it('counts every confirmed signup but the deactivated and the unsubscribed, for share and reminder', async () => {
+    // signups: ana (free), bia (paid) hold a place; caio (pending) and duda (expired) do not.
+    const ds = makeDataSources({ findUsersByEmails: vi.fn().mockResolvedValue([]) });
+    expect(await countAudience({ dataSources: ds, eventSlug: 'm', type: 'reminder' })).toEqual({ total: 2, approximate: false });
+    expect(await countAudience({ dataSources: ds, eventSlug: 'm', type: 'share' })).toEqual({ total: 2, approximate: false });
+
+    const some = makeDataSources({
+      findUsersByEmails: vi.fn().mockResolvedValue([{ email: 'bia@x.io', blocked: true }]),
+      findSuppressedEmails: vi.fn().mockResolvedValue(new Set(['ana@x.io'])),
+    });
+    expect(await countAudience({ dataSources: some, eventSlug: 'm', type: 'reminder' })).toEqual({ total: 0, approximate: false });
   });
 });
 
@@ -133,9 +202,9 @@ describe('countAudience', () => {
     expect(ds.managerIntegration.countReachableUsers).toHaveBeenCalledWith(expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
   });
 
-  it('REA-36: counts only signups whose account is an adult', async () => {
+  it('REA-57: counts the share signups with or without an account (no 18+ date asked)', async () => {
     const ds = makeDataSources({ findUsersByEmails: vi.fn().mockResolvedValue([{ email: 'ana@x.io', date_of_birth: '1990-01-01' }]) });
-    expect(await countAudience({ dataSources: ds, eventSlug: 'm', type: 'share' })).toEqual({ total: 1, approximate: false });
+    expect(await countAudience({ dataSources: ds, eventSlug: 'm', type: 'share' })).toEqual({ total: 2, approximate: false });
   });
 
   it('counts the signups exactly, without the unsubscribed', async () => {

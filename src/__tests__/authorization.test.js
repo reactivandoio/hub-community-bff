@@ -250,6 +250,58 @@ describe('checkinSignup / updateSignup', () => {
   });
 });
 
+// REA-58: the mobile app's door (check-in, walk-in, kiosk) runs these with the signed-in user's
+// token. Only who manages *that* event gets through — a manager of another event or of another
+// community is refused like anyone else, and being listed as manager without the role grants nothing.
+describe('door operations used by the mobile app (REA-58)', () => {
+  const EVA = { id: 4, documentId: 'u-eva', email: 'eva@x.io', role: { type: 'event-manager' } };
+  const EDU = { id: 5, documentId: 'u-edu', email: 'edu@x.io', role: { type: 'event-manager' } };
+  const CARLA = { id: 6, documentId: 'u-carla', email: 'carla@x.io', role: { type: 'community-manager' } };
+  const LIA = { id: 7, documentId: 'u-lia', email: 'lia@x.io', role: { type: 'authenticated' } };
+
+  // ev-1 belongs to c-1 (organized by Ana) and lists Eva and Lia as managers. Edu manages
+  // another event and Carla organizes another community: neither appears here.
+  const doorDataSources = () => {
+    const dataSources = authzDataSources();
+    dataSources.managerIntegration.findEventWithOrganizers
+      .mockResolvedValue({ ...EVENT, managers: [{ documentId: 'u-eva' }, { documentId: 'u-lia' }] });
+    return dataSources;
+  };
+
+  const DOOR = [
+    ['Query', 'eventSignups', ev],
+    ['Mutation', 'checkinSignup', { ...ev, signupId: 's1' }],
+    ['Mutation', 'manualSignup', { ...ev, batchId: '1', input: { name: 'x', email: 'x@x.io' } }],
+    ['Mutation', 'updateSignup', { ...ev, signupId: 's1', input: {} }],
+    ['Subscription', 'credentialCheckedIn', ev],
+  ];
+  const DENIED = ['FORBIDDEN', 'UNAUTHENTICATED'];
+  const codeAs = (user, [type, name, args]) =>
+    codeOf(() => call(type, name, args, { user, dataSources: doorDataSources() }));
+
+  it.each(DOOR)('%s.%s refuses an event-manager of another event', async (...op) => {
+    expect(await codeAs(EDU, op)).toBe('FORBIDDEN');
+  });
+
+  it.each(DOOR)('%s.%s refuses a community-manager of another community', async (...op) => {
+    expect(await codeAs(CARLA, op)).toBe('FORBIDDEN');
+  });
+
+  it.each(DOOR)('%s.%s refuses somebody listed as manager without the role', async (...op) => {
+    expect(await codeAs(LIA, op)).toBe('FORBIDDEN');
+  });
+
+  // Past the authorization the call reaches data sources this test does not stub, so any outcome
+  // other than FORBIDDEN/UNAUTHENTICATED means the check let the user through.
+  it.each(DOOR)('%s.%s lets the event-manager of the event through', async (...op) => {
+    expect(DENIED).not.toContain(await codeAs(EVA, op));
+  });
+
+  it.each(DOOR)("%s.%s lets the community-manager of the event's community through", async (...op) => {
+    expect(DENIED).not.toContain(await codeAs(ANA, op));
+  });
+});
+
 describe('credentialCheckedIn', () => {
   it('subscribes an organizer', async () => {
     expect(await call('Subscription', 'credentialCheckedIn', ev, { user: ANA, dataSources: authzDataSources() }))

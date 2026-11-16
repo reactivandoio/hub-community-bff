@@ -13,6 +13,7 @@ import {
   ageReviewSummary, blockMinor, listAgeReview, requestDateOfBirth,
 } from '../../services/age-review';
 import { loadUserProfile, toUserEmail } from '../../services/admin-user-profile';
+import { loadEmailQueue } from '../../services/email-queue';
 
 // Users and roles of the Hub admin (REA-10). Everything but adminAccess is admin only and
 // runs with the integration token after requireAdmin.
@@ -206,6 +207,12 @@ const Admin = {
       if (!user?.email) return { items: [], total: 0, page, pageSize };
       const { items, total } = await integration.findEmailDeliveriesByEmail(user.email, { page, pageSize });
       return { items: items.map(toUserEmail), total, page, pageSize };
+    },
+
+    // REA-59: every e-mail still scheduled — campaign queue with forecast, birth date requests, usage.
+    adminEmailQueue: (_, __, ctx) => {
+      requireAdmin(ctx);
+      return loadEmailQueue({ integration: ctx.dataSources.managerIntegration, env: process.env, now: new Date() });
     },
 
     adminRoles: (_, __, ctx) => {

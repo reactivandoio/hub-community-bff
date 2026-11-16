@@ -3,6 +3,7 @@ import {
   requireAdmin,
   requireCommunityOrganizer,
 } from '../../utils/auth';
+import { withoutPersonalFilters } from '../../utils/personal-filters';
 
 dotenv.config();
 
@@ -70,7 +71,8 @@ const Community = {
     ) => {
       try {
         const response = await dataSources.managerIntegration.findCommunities({
-          filters,
+          // REA-56: no filtering on the organizers' personal data.
+          filters: withoutPersonalFilters(filters),
           sort,
           pagination,
           search,

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  blockMinor, formatDateBr, listAgeReview, requestDateOfBirth, toAgeReviewUser,
+  ageReviewSummary, blockMinor, formatDateBr, listAgeReview, requestDateOfBirth, toAgeReviewUser,
 } from '.';
 
 vi.mock('../../utils/auth', () => ({ clearUserCache: vi.fn() }));
@@ -52,9 +52,23 @@ describe('listAgeReview', () => {
     expect(integration.adminFindAgeReviewUsers).toHaveBeenCalledWith(expect.objectContaining({ kind: 'MINOR', cutoff: '2008-11-12' }));
     expect(out).toMatchObject({ total: 1, emailsLeftToday: 20 });
   });
+  it('filters by pending update (REA-60)', async () => {
+    const integration = makeIntegration();
+    await listAgeReview({ integration, kind: 'NO_BIRTH_DATE', status: 'dob_update_required', page: 1, pageSize: 20, env, now });
+    expect(integration.adminFindAgeReviewUsers).toHaveBeenCalledWith(expect.objectContaining({ status: 'dob_update_required' }));
+  });
   it('refuses an unknown list or status', async () => {
     await expect(listAgeReview({ integration: makeIntegration(), kind: 'X', page: 1, pageSize: 20, env, now })).rejects.toThrow('Lista inválida.');
     await expect(listAgeReview({ integration: makeIntegration(), kind: 'MINOR', status: 'x', page: 1, pageSize: 20, env, now })).rejects.toThrow('Situação inválida.');
+  });
+});
+
+describe('ageReviewSummary', () => {
+  it('counts the accounts pending update apart (REA-60)', async () => {
+    const integration = makeIntegration();
+    integration.adminCountAgeReviewUsers.mockImplementation(async ({ status }) => ({ dob_update_required: 4 }[status] ?? 1));
+    const out = await ageReviewSummary({ integration, env, now });
+    expect(out).toMatchObject({ pendingUpdate: 4, requested: 1 });
   });
 });
 
@@ -65,7 +79,25 @@ describe('requestDateOfBirth', () => {
     12: { id: 12, email: 'caio@x.io', date_of_birth: null, blocked: true },
     13: { id: 13, email: 'duda@x.io', date_of_birth: null, age_review_status: 'dob_requested' },
     14: { id: 14, email: 'eva@x.io', date_of_birth: null },
+    15: { id: 15, email: 'fabi@x.io', date_of_birth: null, age_review_status: 'dob_update_required' },
   };
+
+  it('does not e-mail an account already pending update (REA-60)', async () => {
+    const integration = makeIntegration({ users });
+    const out = await requestDateOfBirth({ integration, userIds: ['15'], actor: ADMIN, env, now, send });
+    expect(out.results[0]).toMatchObject({ outcome: 'pending-update' });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('says in the e-mail that the account is not deactivated, only asked to update (REA-60)', async () => {
+    const integration = makeIntegration({ users });
+    await requestDateOfBirth({ integration, userIds: ['10'], actor: ADMIN, env, now, send });
+    const { subject, html } = send.mock.calls[0][0];
+    expect(subject).toBe('Informe sua data de nascimento no Hub Community');
+    expect(html).toContain('pendente de atualização');
+    expect(html).toContain('continua entrando normalmente com o código');
+    expect(html).not.toMatch(/desativad/);
+  });
 
   it('e-mails only accounts without a date, then marks them dob_requested from now', async () => {
     const integration = makeIntegration({ users });

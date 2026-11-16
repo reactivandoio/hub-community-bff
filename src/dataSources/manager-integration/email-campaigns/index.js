@@ -36,7 +36,8 @@ const findIn = async (route, field, values, headers, fields = [], extra = {}) =>
       const response = await fetch(`${route}?${params.toString()}`, 'GET', headers);
       const rows = response?.data || [];
       results.push(...rows);
-      const pageCount = Number(response?.meta?.pagination?.pageCount) || 1;
+      // The shared fetch already hands back `meta` as Strapi's pagination object.
+      const pageCount = Number(response?.meta?.pageCount) || 1;
       if (rows.length < 100 || page >= pageCount) break;
     }
   }
@@ -58,6 +59,18 @@ const findEmailCampaign = async (documentId, headers) => {
 const findSendingEmailCampaigns = async (headers) => {
   const query = buildQuery({ status: { eq: 'sending' } }, [{ createdAt: 'asc' }], { pageSize: 10 });
   const response = await fetch(`/email-campaigns?${query}`, 'GET', headers);
+  return response?.data || [];
+};
+
+// REA-59: every campaign still in the queue (sending or paused), of every event, oldest first — the
+// order the queue sends them.
+const findQueuedEmailCampaigns = async (headers) => {
+  const params = new URLSearchParams();
+  params.append('filters[status][$in][0]', 'sending');
+  params.append('filters[status][$in][1]', 'paused');
+  params.append('sort[0]', 'createdAt:asc');
+  params.append('pagination[pageSize]', '100');
+  const response = await fetch(`/email-campaigns?${params.toString()}`, 'GET', headers);
   return response?.data || [];
 };
 
@@ -111,7 +124,8 @@ const findEmailDeliveriesByEmail = async (email, { page, pageSize }, headers) =>
   const response = await fetch(`/email-campaign-deliveries?${query}`, 'GET', headers);
   return {
     items: response?.data || [],
-    total: Number(response?.meta?.pagination?.total) || 0,
+    // `meta` is already the pagination object (utils/network/strapi createStrapiFetch).
+    total: Number(response?.meta?.total) || 0,
   };
 };
 
@@ -179,6 +193,7 @@ const emailCampaigns = ({ headers }) => ({
   findEmailCampaignsByEvent: (eventDocumentId) => findEmailCampaignsByEvent(eventDocumentId, headers),
   findEmailCampaign: (documentId) => findEmailCampaign(documentId, headers),
   findSendingEmailCampaigns: () => findSendingEmailCampaigns(headers),
+  findQueuedEmailCampaigns: () => findQueuedEmailCampaigns(headers),
   createEmailCampaign: (data) => createEmailCampaign(data, headers),
   updateEmailCampaign: (documentId, data) => updateEmailCampaign(documentId, data, headers),
   countEmailDeliveriesSince: (date) => countEmailDeliveriesSince(date, headers),
