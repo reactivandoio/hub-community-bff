@@ -7,6 +7,19 @@ import { withoutPersonalFilters } from '../../utils/personal-filters';
 
 dotenv.config();
 
+// REA-54: a person's photo is the avatar of their speaker profile (Speaker.avatar resolves the
+// media to a URL). Without `organizers.speaker.avatar` the community page has no photo to show.
+export const COMMUNITY_POPULATE = [
+  'events',
+  'tags',
+  'location',
+  'organizers',
+  'organizers.speaker',
+  'organizers.speaker.avatar',
+  'images',
+  'links',
+];
+
 const Community = {
   Community: {
     id: ({ documentId }) => documentId,
@@ -63,14 +76,7 @@ const Community = {
           sort,
           pagination,
           search,
-          populate: [
-            'events',
-            'tags',
-            'location',
-            'organizers',
-            'images',
-            'links',
-          ],
+          populate: COMMUNITY_POPULATE,
         });
         return response;
       } catch (err) {
@@ -82,7 +88,7 @@ const Community = {
       try {
         const response = await dataSources.managerIntegration.findCommunityById(
           id,
-          ['events', 'tags', 'location', 'organizers', 'images', 'links'],
+          COMMUNITY_POPULATE,
         );
         return response.data;
       } catch (err) {
@@ -101,14 +107,7 @@ const Community = {
             ],
           },
           pagination: { pageSize: 1 },
-          populate: [
-            'events',
-            'tags',
-            'location',
-            'organizers',
-            'images',
-            'links',
-          ],
+          populate: COMMUNITY_POPULATE,
         });
 
         if (!response?.data || response.data.length === 0) {
@@ -129,7 +128,7 @@ const Community = {
       try {
         const response = await dataSources.managerIntegration.createCommunity(
           data,
-          ['events', 'tags', 'location', 'organizers', 'images', 'links'],
+          COMMUNITY_POPULATE,
         );
         return response.data;
       } catch (err) {
@@ -143,7 +142,7 @@ const Community = {
         const response = await dataSources.managerIntegration.updateCommunity(
           id,
           data,
-          ['events', 'tags', 'location', 'organizers', 'images', 'links'],
+          COMMUNITY_POPULATE,
         );
         return response.data;
       } catch (err) {
