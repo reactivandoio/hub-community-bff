@@ -1,6 +1,7 @@
 // REA-36: the two e-mails of the age review in /admin/usuarios (Hub is 18+ only).
 // - minorBlocked: the account was deactivated because the date of birth is under 18.
 // - dateOfBirthRequest: the account has no date of birth; it is asked for, with a 7-day deadline.
+//   REA-60: past it the account is not deactivated; the date is asked for before using the site.
 
 const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
@@ -57,7 +58,7 @@ const greeting = (userName) => {
 };
 
 export const MINOR_BLOCKED_SUBJECT = 'Sua conta no Hub Community foi desativada';
-export const DOB_REQUEST_SUBJECT = 'Informe sua data de nascimento para manter sua conta no Hub Community';
+export const DOB_REQUEST_SUBJECT = 'Informe sua data de nascimento no Hub Community';
 
 /** @param {{ userName?: string }} params */
 export const minorBlockedTemplate = ({ userName }) => layout({
@@ -83,8 +84,8 @@ export const dateOfBirthRequestTemplate = ({ userName, deadline, actionUrl }) =>
   body: [
     paragraph(greeting(userName), 0),
     paragraph('O Hub Community é só para pessoas com 18 anos ou mais, e a sua conta ainda não tem data de nascimento.'),
-    paragraph(`Para manter sua conta ativa, entre na plataforma com este email (você recebe um código de acesso, sem senha) e informe sua data de nascimento até <strong style="color:#ffffff;">${escapeHtml(deadline)}</strong>.`),
-    paragraph('Se a data não for informada até lá, sua conta será desativada.'),
+    paragraph(`Entre na plataforma com este email (você recebe um código de acesso, sem senha) e informe sua data de nascimento até <strong style="color:#ffffff;">${escapeHtml(deadline)}</strong>. Leva menos de um minuto.`),
+    paragraph('Depois dessa data, sua conta fica pendente de atualização: você continua entrando normalmente com o código, mas só volta a usar a plataforma depois de informar a data de nascimento e confirmar que tem 18 anos ou mais.'),
     button(actionUrl, 'Atualizar meus dados'),
     `<p style="margin:20px 0 0;font-size:13px;color:#9ca3af;">Se tiver alguma dúvida, é só responder este email.</p>`,
   ].join('\n              '),

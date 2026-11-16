@@ -114,11 +114,11 @@ type AgeReviewUser {
   age: Int
   "When the account last ticked 'Declaro que tenho 18 anos ou mais'."
   adultDeclaredAt: String
-  "null | dob_requested | dob_blocked | minor_blocked"
+  "null | dob_requested | dob_update_required (REA-60: pendente de atualização, not blocked) | dob_blocked (legacy) | minor_blocked"
   status: String
   "When the date-of-birth request e-mail was sent (the 7 days count from here)."
   requestedAt: String
-  "requestedAt + 7 days: without a date by then, the account is deactivated by the backend."
+  "requestedAt + 7 days: without a date by then, the account becomes pending update (REA-60): it still logs in, but has to fill the date first."
   deadline: String
   blockedAt: String
 }
@@ -136,8 +136,10 @@ type AgeReviewSummary {
   noBirthDate: Int!
   "Without a date and not e-mailed yet."
   notRequested: Int!
-  "E-mailed, waiting for the date (inside the 7 days or about to be deactivated)."
+  "E-mailed, waiting for the date (inside the 7 days)."
   requested: Int!
+  "REA-60: past the 7 days without a date. Not blocked: the date is asked for on the next access."
+  pendingUpdate: Int!
   minors: Int!
   minorsBlocked: Int!
   emailsLeftToday: Int!
@@ -145,7 +147,7 @@ type AgeReviewSummary {
 
 type AgeReviewRequestResult {
   userId: ID!
-  "sent | failed | quota | not-found | blocked | has-birth-date | already-requested"
+  "sent | failed | quota | not-found | blocked | has-birth-date | already-requested | pending-update"
   outcome: String!
   message: String
 }
@@ -168,7 +170,7 @@ type AgeReviewBlockResult {
 extend type Query {
   """
   Admin only (REA-36). Accounts without a date of birth or under 18. status narrows the list:
-  NONE (no action yet) | dob_requested | dob_blocked | minor_blocked. pageSize: 1–50 (default 20).
+  NONE (no action yet) | dob_requested | dob_update_required | dob_blocked | minor_blocked. pageSize: 1–50 (default 20).
   """
   adminAgeReview(kind: AgeReviewKind!, status: String, page: Int, pageSize: Int): AgeReviewPage!
   "Admin only (REA-36). Counts for the age review menu."
