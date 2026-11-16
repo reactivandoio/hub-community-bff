@@ -14,6 +14,7 @@ import { makeExecutableSchema } from '@graphql-tools/schema';
 import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/lib/use/ws';
 import { createAuthContext } from './utils/auth';
+import { profileUpdateRequiredPlugin } from './utils/profile-update-required';
 import { clientIpOf } from './utils/client-ip';
 import {
   exposeErrorDetails,
@@ -76,6 +77,9 @@ const startServer = async () => {
     plugins: [
       // Proper shutdown for the HTTP server.
       ApolloServerPluginDrainHttpServer({ httpServer }),
+
+      // REA-60: accounts pending the date-of-birth update may only log in and update the profile.
+      profileUpdateRequiredPlugin(),
 
       // Proper shutdown for the WebSocket server.
       {

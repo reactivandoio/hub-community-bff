@@ -16,9 +16,13 @@ import { clearUserCache } from '../../utils/auth';
 //   the auth cache is cleared at once) and the person gets an e-mail with the reason. Signups
 //   already made are kept as they are.
 // - No date of birth: the admin sends an e-mail asking for it. The account becomes
-//   `dob_requested` with `age_review_requested_at` = when the e-mail went; the backend
-//   (config/cron-tasks.ts) blocks it if no date arrives in 7 days, and a valid date sent in the
-//   meantime ends the request. Nothing is sent nor blocked without the admin's action.
+//   `dob_requested` with `age_review_requested_at` = when the e-mail went; if no date arrives in
+//   7 days the backend (config/cron-tasks.ts) makes it `dob_update_required` ("pendente de
+//   atualização", REA-60). It is NOT blocked: the person still gets the login code, and once logged
+//   in has to fill the date of birth (18+) and the declaration before using the site (the
+//   CompleteProfileModal of the frontend; in the bff, utils/profile-update-required refuses every
+//   other mutation). A valid date ends the review. Nothing is sent without the admin's action.
+//   Only minors are blocked for real.
 //
 // E-mails share the campaigns' share of the Mailgun plan (EMAIL_DAILY_LIMIT - EMAIL_DAILY_RESERVE,
 // REA-26): each one is recorded as an `email-campaign-delivery` (campaign_document_id
@@ -66,7 +70,7 @@ export const toAgeReviewUser = (user, now = new Date()) => ({
 // Today's and this month's limits (REA-50), the reserve kept out.
 export const emailsLeftToday = (integration, { env, now }) => emailsLeftNow(integration, { env, now });
 
-const STATUS_FILTERS = new Set(['NONE', 'dob_requested', 'dob_blocked', 'minor_blocked']);
+const STATUS_FILTERS = new Set(['NONE', 'dob_requested', 'dob_update_required', 'dob_blocked', 'minor_blocked']);
 
 export const listAgeReview = async ({ integration, kind, status, page, pageSize, env, now }) => {
   if (!KINDS[kind]) throw badInput('Lista inválida.');
@@ -83,15 +87,16 @@ export const listAgeReview = async ({ integration, kind, status, page, pageSize,
 export const ageReviewSummary = async ({ integration, env, now }) => {
   const cutoff = adultCutoff(now);
   const countOf = (kind, status) => integration.adminCountAgeReviewUsers({ kind, cutoff, status });
-  const [noBirthDate, notRequested, requested, minors, minorsBlocked, left] = await Promise.all([
+  const [noBirthDate, notRequested, requested, pendingUpdate, minors, minorsBlocked, left] = await Promise.all([
     countOf(KINDS.NO_BIRTH_DATE),
     countOf(KINDS.NO_BIRTH_DATE, 'NONE'),
     countOf(KINDS.NO_BIRTH_DATE, 'dob_requested'),
+    countOf(KINDS.NO_BIRTH_DATE, 'dob_update_required'),
     countOf(KINDS.MINOR),
     countOf(KINDS.MINOR, 'minor_blocked'),
     emailsLeftToday(integration, { env, now }),
   ]);
-  return { noBirthDate, notRequested, requested, minors, minorsBlocked, emailsLeftToday: left };
+  return { noBirthDate, notRequested, requested, pendingUpdate, minors, minorsBlocked, emailsLeftToday: left };
 };
 
 /** Records the e-mail (shared daily budget, once per key) and sends it. */
@@ -140,6 +145,7 @@ const MESSAGES = {
   blocked: 'A conta já está desativada.',
   'has-birth-date': 'A conta já tem data de nascimento.',
   'already-requested': 'O pedido já foi enviado para esta conta.',
+  'pending-update': 'A conta já está pendente de atualização: o cadastro é pedido no próximo acesso.',
   failed: 'O envio do e-mail falhou.',
 };
 
@@ -165,6 +171,7 @@ export const requestDateOfBirth = async ({
       else if (user.blocked) outcome = 'blocked';
       else if (user.date_of_birth) outcome = 'has-birth-date';
       else if (user.age_review_status === 'dob_requested') outcome = 'already-requested';
+      else if (user.age_review_status === 'dob_update_required') outcome = 'pending-update';
       else {
         // eslint-disable-next-line no-await-in-loop
         const link = actionLinkFor(env);
