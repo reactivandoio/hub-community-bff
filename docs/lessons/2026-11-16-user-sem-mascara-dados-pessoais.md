@@ -3,6 +3,7 @@ symptom: "communityBySlugOrId { organizers { email phone cpf date_of_birth } } d
 tags: [seguranca, lgpd, graphql, user, certificado, filtros]
 evidence: fixed
 card: REA-56
+pr: https://github.com/reactivandoio/hub-community-bff/pull/68
 agent: claude
 date: 2026-11-16
 ---
