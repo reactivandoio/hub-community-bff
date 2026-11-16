@@ -1,7 +1,7 @@
 import { sendEmailUntracked as sendEmail } from '../email';
 import { loadSignupEventDetails } from '../email/signup-confirmation';
 import { deliveryKey, loadCandidates, loadEventSignups, screenCandidates } from './audience';
-import { remainingToday, startOfDaySaoPaulo } from './quota';
+import { emailsLeftNow } from './quota';
 import { buildCampaignEmail } from './render';
 
 // REA-29: the campaign queue. Every minute it sends what today's quota allows (at most
@@ -92,8 +92,9 @@ export const runTick = async ({
 }) => {
   if (!isEnabled(env)) return { sent: 0 };
   const integration = dataSources.managerIntegration;
-  const sentToday = await integration.countEmailDeliveriesSince(startOfDaySaoPaulo(now));
-  let budget = Math.min(remainingToday({ sentToday, env }), maxPerTick);
+  // Today's and this month's limits, the reserve kept out (quota). MAX_PER_TICK a minute stays far
+  // under Mailgun's 300 a minute.
+  let budget = Math.min(await emailsLeftNow(integration, { env, now }), maxPerTick);
   if (budget <= 0) return { sent: 0 };
   const campaigns = await integration.findSendingEmailCampaigns();
   let total = 0;
