@@ -9,6 +9,10 @@ type Speaker {
   avatar: String
   talks: [Talk]
   user: User
+  "Admin only (REA-53): null for everyone else."
+  email: String
+  "Admin only (REA-53): the account this speaker is. Null when unlinked, and for everyone else."
+  account: SpeakerAccount
   createdAt: String
   updatedAt: String
 }
@@ -64,4 +68,61 @@ extend type Mutation {
   createSpeaker(data: SpeakerInput!): Speaker
   updateSpeaker(id: String!, data: SpeakerInput!): Speaker
   deleteSpeaker(id: String!): Speaker
+}
+
+"REA-53: the account a speaker is linked to."
+type SpeakerAccount {
+  "Numeric users-permissions id (what adminUsers answers)."
+  id: ID
+  documentId: String!
+  name: String
+  email: String
+  username: String
+}
+
+type SpeakerLinkResult {
+  speaker: Speaker!
+  "Names of the empty speakers of that account (made at its first login) joined into this one."
+  joined: [String!]!
+}
+
+"EMAIL: the speaker's e-mail is the account's. NAME: the same name as exactly one account."
+enum SpeakerLinkReason {
+  EMAIL
+  NAME
+}
+
+type SpeakerLinkSuggestion {
+  reason: SpeakerLinkReason!
+  speakerId: String!
+  speakerName: String
+  talks: Int!
+  account: SpeakerAccount!
+}
+
+type SpeakerAccountReview {
+  "Speakers not deleted."
+  total: Int!
+  withAccount: Int!
+  withoutAccount: Int!
+  "Without an account and with talks: what the move of talks to accounts would leave behind."
+  withoutAccountWithTalks: Int!
+  "At most 100; nothing is linked until the admin confirms."
+  suggestions: [SpeakerLinkSuggestion!]!
+}
+
+extend type Query {
+  "Admin only (REA-53). How many speakers have an account, and suggested links."
+  speakerAccountReview: SpeakerAccountReview!
+}
+
+extend type Mutation {
+  """
+  Admin only (REA-53). Links the speaker to an account (userId: numeric users-permissions id).
+  Refused when the speaker is another account's or the account is already a speaker with talks;
+  the account's empty speakers are joined into this one.
+  """
+  linkSpeakerAccount(speakerId: String!, userId: ID!): SpeakerLinkResult!
+  "Admin only (REA-53). Unlinks the account; the speaker and its talks stay."
+  unlinkSpeakerAccount(speakerId: String!): Speaker!
 }
