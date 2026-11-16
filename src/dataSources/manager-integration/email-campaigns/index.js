@@ -36,7 +36,8 @@ const findIn = async (route, field, values, headers, fields = [], extra = {}) =>
       const response = await fetch(`${route}?${params.toString()}`, 'GET', headers);
       const rows = response?.data || [];
       results.push(...rows);
-      const pageCount = Number(response?.meta?.pagination?.pageCount) || 1;
+      // The shared fetch already hands back `meta` as Strapi's pagination object.
+      const pageCount = Number(response?.meta?.pageCount) || 1;
       if (rows.length < 100 || page >= pageCount) break;
     }
   }
@@ -111,7 +112,8 @@ const findEmailDeliveriesByEmail = async (email, { page, pageSize }, headers) =>
   const response = await fetch(`/email-campaign-deliveries?${query}`, 'GET', headers);
   return {
     items: response?.data || [],
-    total: Number(response?.meta?.pagination?.total) || 0,
+    // `meta` is already the pagination object (utils/network/strapi createStrapiFetch).
+    total: Number(response?.meta?.total) || 0,
   };
 };
 
