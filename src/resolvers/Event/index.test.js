@@ -260,6 +260,24 @@ describe('updateEvent / deleteEvent — event managers (REA-48)', () => {
     expect(dataSources.managerIntegration.updateEvent.mock.calls[0][1].communities).toEqual(['c-1']);
   });
 
+  it('saves every community the admin picks (REA-55)', async () => {
+    const dataSources = makeUpdate();
+    const ADMIN = { id: 1, documentId: 'u-admin', role: { type: 'admin' } };
+    await Event.Mutation.updateEvent(null, { id: 'ev1', data: { ...base, communities: ['c-1', 'c-2', 'c-3'] } }, { dataSources, user: ADMIN });
+    expect(dataSources.managerIntegration.updateEvent.mock.calls[0][1].communities).toEqual(['c-1', 'c-2', 'c-3']);
+  });
+
+  it('refuses an owner taking the event out of a community they do not organize (REA-55)', async () => {
+    const dataSources = makeUpdate();
+    dataSources.managerIntegration.findEventWithOrganizers.mockResolvedValue({
+      ...MANAGED,
+      communities: [...MANAGED.communities, { documentId: 'c-2', title: 'Outra', organizers: [{ documentId: 'u-leo' }] }],
+    });
+    await expect(Event.Mutation.updateEvent(null, { id: 'ev1', data: { ...base, communities: ['c-1'] } }, { dataSources, user: ANA_CM }))
+      .rejects.toThrow(/Outra/);
+    expect(dataSources.managerIntegration.updateEvent).not.toHaveBeenCalled();
+  });
+
   it('does not let the manager delete the event', async () => {
     const dataSources = makeUpdate();
     let code = null;
