@@ -26,6 +26,7 @@ import getResolvers from './resolvers';
 
 import dataSources from './dataSources';
 import { mountOpaPingouWebhook, startOpaPingouSweep } from './routes/opapingou-webhook';
+import { mountMailgunWebhook } from './routes/mailgun-webhook';
 import { startEmailCampaignSweep } from './services/email-campaign/sender';
 import { setDeliveryRecorder } from './services/email';
 
@@ -94,6 +95,8 @@ const startServer = async () => {
   // Opa Pingou webhook: raw body, so it comes before any JSON parser (404 with the flag off).
   const opaPingou = mountOpaPingouWebhook(app, { makeDataSources: dataSources });
   startOpaPingouSweep(opaPingou);
+  // REA-52: Mailgun's delivery events update each e-mail's record (off without the signing key).
+  mountMailgunWebhook(app, { makeDataSources: dataSources });
   // E-mail campaigns of the events (REA-29): daily-quota queue, off unless EMAIL_CAMPAIGNS_ENABLED=true.
   startEmailCampaignSweep(dataSources);
   // REA-26: every transactional e-mail (login codes included) enters the day's count, so the

@@ -12,6 +12,7 @@ import {
 import {
   ageReviewSummary, blockMinor, listAgeReview, requestDateOfBirth,
 } from '../../services/age-review';
+import { loadUserProfile, toUserEmail } from '../../services/admin-user-profile';
 
 // Users and roles of the Hub admin (REA-10). Everything but adminAccess is admin only and
 // runs with the integration token after requireAdmin.
@@ -184,6 +185,27 @@ const Admin = {
         ds.adminCountUsers({ search, roleType }),
       ]);
       return { items: users.map(toUser), total, page, pageSize };
+    },
+
+    // REA-52: one user's page (profile tab).
+    adminUserProfile: async (_, { userId }, ctx) => {
+      requireAdmin(ctx);
+      const id = userIdArg(userId);
+      const user = await ctx.dataSources.managerIntegration.adminFindUserProfile(id);
+      if (!user) return null;
+      return loadUserProfile({ user, dataSources: ctx.dataSources, toUser });
+    },
+
+    // REA-52: every e-mail sent to the user, newest first, with Mailgun's events.
+    adminUserEmails: async (_, args, ctx) => {
+      requireAdmin(ctx);
+      const id = userIdArg(args.userId);
+      const { page, pageSize } = pageArgs(args);
+      const integration = ctx.dataSources.managerIntegration;
+      const user = await integration.adminFindUser(id);
+      if (!user?.email) return { items: [], total: 0, page, pageSize };
+      const { items, total } = await integration.findEmailDeliveriesByEmail(user.email, { page, pageSize });
+      return { items: items.map(toUserEmail), total, page, pageSize };
     },
 
     adminRoles: (_, __, ctx) => {

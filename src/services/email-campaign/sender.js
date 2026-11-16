@@ -1,4 +1,4 @@
-import { sendEmailUntracked as sendEmail } from '../email';
+import { messageIdOf, sendEmailUntracked as sendEmail } from '../email';
 import { loadSignupEventDetails } from '../email/signup-confirmation';
 import { deliveryKey, loadCandidates, loadEventSignups, screenCandidates } from './audience';
 import { emailsLeftNow } from './quota';
@@ -43,8 +43,14 @@ const deliver = async ({ dataSources, campaign, event, recipient, env, now, send
   const result = await send({ to, subject, html: email.html, headers: email.headers });
   const status = result?.success ? 'sent' : 'failed';
   try {
+    // REA-52: the whole record — kind, subject (as the person got it) and Mailgun's message id.
     await integration.updateEmailDelivery(delivery.documentId, {
-      status, error: result?.success ? null : String(result?.error || 'erro'), sent_at: now.toISOString(),
+      status,
+      error: result?.success ? null : String(result?.error || 'erro'),
+      sent_at: now.toISOString(),
+      kind: 'campaign',
+      subject: String(email.subject || '').slice(0, 255) || null,
+      message_id: result?.success ? messageIdOf(result) : null,
     });
   } catch (err) {
     console.error(`[email-campaign] could not record delivery ${delivery.documentId}: ${err.message}`);
