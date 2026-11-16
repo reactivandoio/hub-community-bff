@@ -3,6 +3,8 @@ import { resolveUsers, withUserNames } from '../../utils/signup-names';
 import { checkinMetrics, eventDays, signupOrigin } from '../../utils/checkin-analytics';
 import { withCpf } from '../../utils/signup-cpf';
 import { requireEventOrganizer } from '../../utils/auth';
+import { signupIdOf } from '../../utils/signup-id';
+import { CONFIRMATION_KINDS, confirmationStatusBySignup } from '../../services/email/confirmation-status';
 import {
   CONFIRMED, EXPIRED, PENDING, effectiveStatus, isManuallyApproved, manualApproverOf,
 } from '../../utils/payment-status';
@@ -206,7 +208,7 @@ const Analytics = {
         //    one (older signups stored the username as name) and the CPF from the account
         //    or the Startup Weekend form; this feeds the CSV export.
         const signupEmails = allSignups.map((s) => s.email);
-        const [users, swForms] = await Promise.all([
+        const [users, swForms, confirmationRows] = await Promise.all([
           resolveUsers(dataSources, signupEmails),
           // A missing CPF source must never cost the whole dashboard.
           Promise.resolve()
@@ -215,7 +217,16 @@ const Analytics = {
               console.error('[Analytics] Error fetching sw-forms:', err.message);
               return [];
             }),
+          // REA-50: the "Inscrição confirmada" e-mail of each signup (sent, failed, resent).
+          Promise.resolve()
+            .then(() => dataSources.managerIntegration.findTransactionalDeliveries(signupEmails, CONFIRMATION_KINDS))
+            .catch((err) => {
+              console.error('[Analytics] Error fetching confirmation e-mails:', err.message);
+              return [];
+            }),
         ]);
+        const confirmations = confirmationStatusBySignup(confirmationRows, allSignups.map(signupIdOf));
+        const confirmationOf = (signup) => confirmations.get(signupIdOf(signup)) || {};
         const allSignupsMapped = withCpf(withUserNames(
           allSignups.map((signup) => ({
             // O id que approveSignupManually aceita (o numérico do Eventando).
@@ -234,6 +245,10 @@ const Analytics = {
             manual_approved: isManual(signup),
             manual_approved_at: signup.payment?.manual_approved_at || null,
             manual_approved_by: manualApproverOf(signup.payment),
+            confirmation_email_status: confirmationOf(signup).status || null,
+            confirmation_email_at: confirmationOf(signup).at || null,
+            confirmation_email_error: confirmationOf(signup).error || null,
+            confirmation_resent_at: confirmationOf(signup).resent_at || null,
           })),
           users,
         ), users, swForms);

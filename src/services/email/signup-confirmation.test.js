@@ -44,6 +44,14 @@ describe('ticketUrlFor', () => {
 });
 
 describe('sendSignupConfirmation', () => {
+  it('REA-50: records the send against the signup, as a first send or a resend', async () => {
+    await sendSignupConfirmation(args(makeDataSources()));
+    expect(sentMail()).toMatchObject({ kind: 'signup-confirmation', ref: 'sc:s1' });
+    sendEmail.mockClear();
+    await sendSignupConfirmation(args(makeDataSources(), { kind: 'signup-confirmation-resend' }));
+    expect(sentMail()).toMatchObject({ kind: 'signup-confirmation-resend', ref: 'sc:s1' });
+  });
+
   it('saves the CPF on the account once it is set up, and still e-mails when that fails', async () => {
     const dataSources = makeDataSources();
     dataSources.managerIntegration.findUserByEmail = vi.fn().mockResolvedValue({ id: 3, cpf: null });

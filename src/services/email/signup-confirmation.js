@@ -3,6 +3,8 @@ import { sendEmail } from './index';
 import { signupConfirmationTemplate } from './templates/signup-confirmation';
 import { saveMissingCpf } from '../../utils/signup-cpf';
 import { completeRegistrationUrlFor } from './complete-registration';
+// REA-50: the record of each send points at its signup (see confirmation-status).
+import { SIGNUP_CONFIRMATION_KIND, signupConfirmationRef } from './confirmation-status';
 
 const TICKET_QR_CID = 'ticket-qr';
 const BATCH_CONCURRENCY = 5;
@@ -132,6 +134,7 @@ export const sendSignupConfirmation = async ({
   isPaid = false,
   account,
   eventDetails,
+  kind = SIGNUP_CONFIRMATION_KIND,
 }) => {
   if (!email) return { success: false, error: 'no e-mail' };
 
@@ -167,7 +170,8 @@ export const sendSignupConfirmation = async ({
     });
 
     return await sendEmail({
-      kind: 'signup-confirmation',
+      kind,
+      ref: signupConfirmationRef(signupId),
       to: email,
       subject: `✅ Inscrição Confirmada — ${details.title}`,
       html,
