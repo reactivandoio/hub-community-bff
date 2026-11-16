@@ -24,7 +24,12 @@ import {
 } from './categories';
 import { sendCertificateEmail } from './email';
 import { adminIncompleteReason, assertRegistrationComplete, registrationGap, remindCompleteRegistration } from '../../utils/registration';
-import { requireEventOrganizer, requireUser as requireAuthenticated } from '../../utils/auth';
+import { isAdmin, requireEventOrganizer, requireUser as requireAuthenticated } from '../../utils/auth';
+
+// REA-56: the public certificate page (lookup by CPF, self-request) answers anybody who types a
+// CPF, so the certificate goes back without the stored e-mail and CPF, like the QR page. The page
+// does not use them: the PDF comes from certificateByCode.
+const forViewer = (certificate, viewer) => (isAdmin(viewer) ? certificate : maskPublicCertificate(certificate));
 
 export const requireUser = (user) => {
   if (!user) throw new Error('Não autenticado.');
@@ -233,7 +238,7 @@ const Certificate = {
       const existingCertificate = pickDefaultCategory(existing?.data);
       if (existingCertificate) {
         return {
-          certificate: mapCertificate(existingCertificate),
+          certificate: forViewer(mapCertificate(existingCertificate), viewer),
           eligible_by_attendance: true,
           self_request_allowed: selfRequestAllowed,
           event_ended: eventEnded,
@@ -272,7 +277,7 @@ const Certificate = {
           category: DEFAULT_CATEGORY,
           users_permissions_user: user.documentId,
         });
-        certificate = mapCertificate(created?.data);
+        certificate = forViewer(mapCertificate(created?.data), viewer);
       }
 
       return {
@@ -365,7 +370,7 @@ const Certificate = {
       const existingCertificate = pickDefaultCategory(existing?.data);
       if (existingCertificate) {
         if (existingCertificate.revoked_at) throw new Error(REVOKED_MESSAGE);
-        return mapCertificate(existingCertificate);
+        return forViewer(mapCertificate(existingCertificate), viewer);
       }
 
       // REA-22: no certificate while the registration is not finished.
@@ -379,7 +384,7 @@ const Certificate = {
         source: 'SELF_REQUEST',
         category: DEFAULT_CATEGORY,
       });
-      return mapCertificate(created?.data);
+      return forViewer(mapCertificate(created?.data), viewer);
     },
 
     issueCertificates: async (
