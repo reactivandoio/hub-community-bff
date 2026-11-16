@@ -6,15 +6,15 @@ import { adultCutoff, isAdultDate } from '../../utils/age';
 // invite: every Hub user who is not blocked, walked by id (campaign.cursor), minus the event's signups.
 // share / reminder: the event's signups that hold a place (free, or paid), one per e-mail.
 // Everyone in the suppression list (unsubscribed) is left out, and nobody gets a campaign twice.
-// REA-36: invite and share only go to adults — a Hub account, not blocked, with a date of birth of
-// someone aged 18+. Without a date of birth (or without an account) the person is skipped as
-// 'no-birth-date'.
-// REA-57: the reminder goes to every confirmed signup of the event, with or without a date of birth
-// or an account: signing up they accepted the event's terms and declared themselves 18+. Still left
-// out: deactivated accounts ('blocked', e.g. by the age review), the unsubscribed and who already got it.
+// REA-36: the invite to the base only goes to adults — a Hub account, not blocked, with a date of
+// birth of someone aged 18+. Without a date of birth the person is skipped as 'no-birth-date'.
+// REA-57: share and reminder go to the event's signups, so to every confirmed signup, with or
+// without a date of birth or an account: signing up they accepted the event's terms and declared
+// themselves 18+. Still left out: deactivated accounts ('blocked', e.g. by the age review), the
+// unsubscribed and who already got that campaign.
 
-/** Whether this campaign type needs a date of birth of an adult on the account. */
-export const requiresAdultDate = (type) => type !== 'reminder';
+/** Whether this campaign type needs a date of birth of an adult on the account (invite only). */
+export const requiresAdultDate = (type) => type === 'invite';
 
 export const USERS_PAGE = 50;
 
