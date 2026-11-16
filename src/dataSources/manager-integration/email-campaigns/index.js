@@ -62,6 +62,18 @@ const findSendingEmailCampaigns = async (headers) => {
   return response?.data || [];
 };
 
+// REA-59: every campaign still in the queue (sending or paused), of every event, oldest first — the
+// order the queue sends them.
+const findQueuedEmailCampaigns = async (headers) => {
+  const params = new URLSearchParams();
+  params.append('filters[status][$in][0]', 'sending');
+  params.append('filters[status][$in][1]', 'paused');
+  params.append('sort[0]', 'createdAt:asc');
+  params.append('pagination[pageSize]', '100');
+  const response = await fetch(`/email-campaigns?${params.toString()}`, 'GET', headers);
+  return response?.data || [];
+};
+
 const createEmailCampaign = async (data, headers) => {
   const response = await fetch('/email-campaigns', 'POST', headers, { data });
   return response?.data || null;
@@ -181,6 +193,7 @@ const emailCampaigns = ({ headers }) => ({
   findEmailCampaignsByEvent: (eventDocumentId) => findEmailCampaignsByEvent(eventDocumentId, headers),
   findEmailCampaign: (documentId) => findEmailCampaign(documentId, headers),
   findSendingEmailCampaigns: () => findSendingEmailCampaigns(headers),
+  findQueuedEmailCampaigns: () => findQueuedEmailCampaigns(headers),
   createEmailCampaign: (data) => createEmailCampaign(data, headers),
   updateEmailCampaign: (documentId, data) => updateEmailCampaign(documentId, data, headers),
   countEmailDeliveriesSince: (date) => countEmailDeliveriesSince(date, headers),
