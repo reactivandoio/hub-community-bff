@@ -185,3 +185,46 @@ describe('setUserRole', () => {
     expect(admins).toBe(1);
   });
 });
+
+describe('REA-52: user page', () => {
+  const profileDs = () => ({
+    managerIntegration: {
+      adminFindUserProfile: vi.fn().mockResolvedValue({ id: 9, documentId: 'u9', email: 'ana@x.io', cpf: '52998224725' }),
+      adminFindUser: vi.fn().mockResolvedValue({ id: 9, email: 'ana@x.io' }),
+      adminFindUserCertificates: vi.fn().mockResolvedValue([]),
+      adminFindUserAttendances: vi.fn().mockResolvedValue([]),
+      accountStatus: vi.fn().mockResolvedValue([]),
+      findEmailDeliveriesByEmail: vi.fn().mockResolvedValue({
+        items: [{ documentId: 'd1', kind: 'login-code', status: 'sent', events: [] }], total: 1,
+      }),
+    },
+    eventandoIntegration: { findSignupsByEmail: vi.fn().mockResolvedValue([]) },
+  });
+
+  it('only an admin opens it', async () => {
+    for (const user of [MANAGER, MEMBER]) {
+      const dataSources = profileDs();
+      expect(await codeOf(() => Query.adminUserProfile(null, { userId: '9' }, { user, dataSources }))).toBe('FORBIDDEN');
+      expect(await codeOf(() => Query.adminUserEmails(null, { userId: '9' }, { user, dataSources }))).toBe('FORBIDDEN');
+      expect(dataSources.managerIntegration.adminFindUserProfile).not.toHaveBeenCalled();
+    }
+  });
+
+  it('brings the profile with the CPF masked', async () => {
+    const out = await Query.adminUserProfile(null, { userId: '9' }, { user: ADMIN, dataSources: profileDs() });
+    expect(out).toMatchObject({ id: '9', email: 'ana@x.io', cpf_masked: '***.982.247-**' });
+    expect(out.cpf).toBeUndefined();
+  });
+
+  it('lists the e-mails of the user\'s address, a page at a time', async () => {
+    const dataSources = profileDs();
+    const out = await Query.adminUserEmails(null, { userId: '9', page: 2, pageSize: 500 }, { user: ADMIN, dataSources });
+    expect(dataSources.managerIntegration.findEmailDeliveriesByEmail).toHaveBeenCalledWith('ana@x.io', { page: 2, pageSize: 50 });
+    expect(out).toMatchObject({ total: 1, page: 2, pageSize: 50, items: [{ id: 'd1', kind: 'login-code' }] });
+  });
+
+  it('refuses an invalid id', async () => {
+    expect(await codeOf(() => Query.adminUserProfile(null, { userId: 'x' }, { user: ADMIN, dataSources: profileDs() })))
+      .toBe('BAD_USER_INPUT');
+  });
+});

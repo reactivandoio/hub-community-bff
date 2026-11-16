@@ -1,0 +1,115 @@
+"REA-52: an event, as the admin's user page links it."
+type AdminUserEventRef {
+  "Hub event documentId (the Eventando uuid)."
+  id: ID!
+  title: String
+  slug: String
+}
+
+"REA-52: a signup of the user (Eventando), in any event."
+type AdminUserSignup {
+  id: ID!
+  event: AdminUserEventRef
+  created_at: String
+  product_name: String
+  "PEDING_PAYMENT | CONFIRMED | EXPIRED | CANCELED | REFUND; null without payment (free, imported, manual)."
+  payment_status: String
+  "Cents actually paid; 0 when approved by hand; null when nothing was paid."
+  paid_cents: Int
+  manual_approved: Boolean
+  checked_in: Boolean
+  checked_in_at: String
+}
+
+type AdminUserCertificate {
+  id: ID!
+  code: String
+  category: String
+  event: AdminUserEventRef
+  issued_at: String
+  sent_at: String
+  revoked_at: String
+}
+
+type AdminUserAttendance {
+  id: ID!
+  event: AdminUserEventRef
+  created_at: String
+}
+
+"REA-52: the admin's page of one user. A null list means that source could not be read."
+type AdminUserProfile {
+  id: ID!
+  documentId: String
+  username: String
+  email: String
+  name: String
+  phone: String
+  "Masked (***.456.789-**): the page never shows it whole."
+  cpf_masked: String
+  date_of_birth: String
+  blocked: Boolean
+  confirmed: Boolean
+  "REA-26: never logged in with a code sent to the e-mail. Null when unknown."
+  registration_pending: Boolean
+  created_at: String
+  role: AdminRole
+  communities: [AdminCommunity!]!
+  events: [AdminEvent!]!
+  adult_declaration: Boolean
+  adult_declaration_at: String
+  marketing_opt_in: Boolean
+  marketing_opt_in_at: String
+  age_review_status: String
+  age_review_requested_at: String
+  age_review_blocked_at: String
+  signups: [AdminUserSignup!]
+  certificates: [AdminUserCertificate!]
+  attendances: [AdminUserAttendance!]
+  "How many e-mails were sent to the user (see adminUserEmails)."
+  email_count: Int
+}
+
+"REA-52: one Mailgun event of an e-mail."
+type AdminEmailEvent {
+  "accepted | delivered | opened | clicked | failed | complained | unsubscribed"
+  event: String!
+  at: String
+  "failed only: temporary | permanent."
+  severity: String
+  reason: String
+  "failed only: the receiving server's answer."
+  message: String
+  "clicked only."
+  url: String
+}
+
+"REA-52: one e-mail sent to the user."
+type AdminUserEmail {
+  id: ID!
+  "login-code, signup-confirmation, signup-confirmation-resend, certificate, campaign, age-review, sw-form…"
+  kind: String
+  subject: String
+  "sent (Mailgun took it) | failed (refused) | sending."
+  status: String
+  error: String
+  sent_at: String
+  message_id: String
+  last_event: String
+  last_event_at: String
+  events: [AdminEmailEvent!]!
+}
+
+type AdminUserEmailPage {
+  items: [AdminUserEmail!]!
+  total: Int!
+  page: Int!
+  pageSize: Int!
+}
+
+extend type Query {
+  "REA-52, admin only: everything about one user (numeric users-permissions id)."
+  adminUserProfile(userId: ID!): AdminUserProfile
+  "REA-52, admin only: the e-mails sent to the user, newest first."
+  adminUserEmails(userId: ID!, page: Int, pageSize: Int): AdminUserEmailPage!
+}

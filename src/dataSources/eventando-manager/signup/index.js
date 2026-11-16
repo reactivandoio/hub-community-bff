@@ -16,6 +16,20 @@ const findSignupByEmail = (eventId, email, headers) => {
   return fetch(route, 'GET', headers);
 };
 
+// REA-52: every signup of an e-mail, in any event, newest first (the admin's user page).
+const findSignupsByEmail = async (email, headers) => {
+  if (!email) return [];
+  const query = buildQuery(
+    { email: { eqi: email } },
+    [{ createdAt: 'desc' }],
+    { pageSize: 100 },
+    '',
+    ['payment', 'payment.batch.product', 'event'],
+  );
+  const response = await fetch(`/signups?${query}`, 'GET', headers);
+  return response?.data || [];
+};
+
 const findSignupsByEvent = async (eventId, headers) => {
   let allSignups = [];
   let page = 1;
@@ -102,6 +116,7 @@ const signupDataSource = ({ headers }) => ({
     findSignupByEmail(eventId, email, headers),
   findSignupsByEvent: (eventId) => findSignupsByEvent(eventId, headers),
   findSignupById: (signupId) => findSignupById(signupId, headers),
+  findSignupsByEmail: (email) => findSignupsByEmail(email, headers),
   findSignupWithPayment: (signupId) => findSignupWithPayment(signupId, headers),
   updateSignup: (signupId, data) => updateSignup(signupId, data, headers),
   createSignupDirect: (data) => createSignupDirect(data, headers),
