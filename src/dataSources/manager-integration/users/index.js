@@ -57,7 +57,32 @@ const findUserByCpf = async (digits, headers) => {
   return response?.data?.[0] ?? null;
 };
 
+// REA-56: the user queries of the API (users, user, userByUsername) read with the integration token,
+// because the Strapi Public role no longer reads users. What leaves the BFF is decided by the User
+// field resolvers (resolvers/User/personal-data).
+const USER_POPULATE = ['communities', 'speaker', 'speaker.avatar', 'agenda', 'agenda.event'];
+
+const findPublicUsers = async (filters, sort, pagination, search, headers) => {
+  const query = buildQuery(filters, sort, pagination, search, USER_POPULATE);
+  return fetch(`/users${query ? `?${query}` : ''}`, 'GET', headers);
+};
+
+const findPublicUserById = async (id, headers) => {
+  const query = buildQuery({}, [], {}, '', USER_POPULATE);
+  return fetch(`/users/${id}${query ? `?${query}` : ''}`, 'GET', headers);
+};
+
+const findPublicUserByUsername = async (username, headers) => {
+  const query = buildQuery({ username: { eq: username } }, [], { pageSize: 1 }, '', USER_POPULATE);
+  const response = await fetch(`/users${query ? `?${query}` : ''}`, 'GET', headers);
+  return response?.data?.[0] ?? null;
+};
+
 const users = ({ headers }) => ({
+  findPublicUsers: (filters = {}, sort = [], pagination = {}, search = '') =>
+    findPublicUsers(filters, sort, pagination, search, headers),
+  findPublicUserById: (id) => findPublicUserById(id, headers),
+  findPublicUserByUsername: (username) => findPublicUserByUsername(username, headers),
   updateUser: (id, data) => updateUser(id, data, headers),
   findUserByIdIntegration: (id) => findUserById(id, headers),
   findUserByEmail: (email) => findUserByEmail(email, headers),

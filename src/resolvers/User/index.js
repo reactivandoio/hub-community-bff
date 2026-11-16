@@ -4,12 +4,14 @@ import { isValidCpf, normalizeIdentifier } from '../Certificate/eligibility';
 import { requireAdmin } from '../../utils/auth';
 import { adultDateOfBirth, requireAdultDeclaration } from '../../utils/age';
 import { requestLoginCode, verifyLoginCode } from '../../services/login-code';
+import { personalFieldResolvers } from './personal-data';
 
 dotenv.config();
 
 const User = {
   User: {
     id: ({ documentId }) => documentId,
+    ...personalFieldResolvers,
 
     agenda: async (parent, _, { dataSources }) => {
       if (!parent?.documentId) {
@@ -46,7 +48,7 @@ const User = {
       requireAdmin(ctx);
       const { dataSources } = ctx;
       try {
-        const response = await dataSources.manager.findUsers(
+        const response = await dataSources.managerIntegration.findPublicUsers(
           filters,
           sort,
           pagination,
@@ -60,7 +62,7 @@ const User = {
 
     user: async (_, { id }, { dataSources }) => {
       try {
-        const response = await dataSources.manager.findUserById(id);
+        const response = await dataSources.managerIntegration.findPublicUserById(id);
         return response.data;
       } catch (err) {
         throw new Error(`Error fetching user: ${err.message}`);
@@ -78,7 +80,7 @@ const User = {
 
     userByUsername: async (_, { username }, { dataSources }) => {
       try {
-        return await dataSources.manager.findUserByUsername(username);
+        return await dataSources.managerIntegration.findPublicUserByUsername(username);
       } catch (err) {
         throw new Error(`Error fetching user by username: ${err.message}`);
       }

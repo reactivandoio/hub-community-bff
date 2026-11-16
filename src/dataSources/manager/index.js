@@ -184,44 +184,8 @@ const findTagById = async (id) => {
   return fetch(route, 'GET');
 };
 
-// User methods
-// Strapi User: agenda = oneToMany relation with Agenda
-const userPopulate = [
-  'communities',
-  'speaker',
-  'speaker.avatar',
-  'agenda',
-  'agenda.event',
-];
-
-const findUsers = async (
-  filters = {},
-  sort = [],
-  pagination = {},
-  search = '',
-) => {
-  const query = buildQuery(filters, sort, pagination, search, userPopulate);
-  const route = `/users${query ? `?${query}` : ''}`;
-
-  return fetch(route, 'GET');
-};
-
-const findUserById = async (id) => {
-  const query = buildQuery({}, [], {}, '', userPopulate);
-  const route = `/users/${id}${query ? `?${query}` : ''}`;
-
-  return fetch(route, 'GET');
-};
-
-const findUserByUsername = async (username) => {
-  const filters = { username: { eq: username } };
-  const pagination = { pageSize: 1 };
-  const query = buildQuery(filters, [], pagination, '', userPopulate);
-  const route = `/users${query ? `?${query}` : ''}`;
-  const response = await fetch(route, 'GET');
-  const first = response?.data?.[0] ?? null;
-  return first;
-};
+// User methods: REA-56 — read with the integration token (manager-integration/users), the
+// Strapi Public role no longer reads users.
 
 // Comment methods
 const findComments = async (
@@ -384,9 +348,6 @@ const managerRequest = () => ({
   findTags,
   findTagById,
   // Users
-  findUsers,
-  findUserById,
-  findUserByUsername,
   // Comments
   findComments,
   findCommentById,

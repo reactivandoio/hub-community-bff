@@ -1,5 +1,10 @@
 import dotenv from 'dotenv';
 import { requireAuthorOrAdmin, requireUser } from '../../utils/auth';
+import { withoutPersonalFilters } from '../../utils/personal-filters';
+
+// REA-56: the comments are read with the integration token, so the caller only chooses among
+// these relations (the authors go through the User type, which hides their personal data).
+export const COMMENT_POPULATE = ['talk', 'event', 'user_creator', 'users_tagged'];
 
 dotenv.config();
 
@@ -16,11 +21,11 @@ const Comment = {
     ) => {
       try {
         const response = await dataSources.managerIntegration.findComments({
-          filters,
+          filters: withoutPersonalFilters(filters),
           sort,
           pagination,
           search,
-          populate,
+          populate: (populate || []).filter((item) => COMMENT_POPULATE.includes(item)),
         });
         return response;
       } catch (err) {
