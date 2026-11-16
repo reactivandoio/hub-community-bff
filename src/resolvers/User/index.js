@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
 import { GraphQLError } from 'graphql';
 import { isValidCpf, normalizeIdentifier } from '../Certificate/eligibility';
-import { requireAdmin } from '../../utils/auth';
+import { clearUserCache, requireAdmin } from '../../utils/auth';
+import { mustUpdateProfile } from '../../utils/profile-update-required';
 import { adultDateOfBirth, requireAdultDeclaration } from '../../utils/age';
 import { requestLoginCode, verifyLoginCode } from '../../services/login-code';
 import { personalFieldResolvers } from './personal-data';
@@ -149,6 +150,9 @@ const User = {
             userUpdate,
           );
           updatedUser = response.data || updatedUser;
+          // REA-60: the date ends the pending update in the backend; drop the cached session user
+          // so the next request is not refused by utils/profile-update-required.
+          if (dateOfBirth && mustUpdateProfile(user)) clearUserCache();
         }
 
         // REA-26: an account created by a login code gets its speaker without a name; the
