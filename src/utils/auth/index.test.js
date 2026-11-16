@@ -104,6 +104,17 @@ describe('authenticate', () => {
     expect(await authenticate(sign({ id: 99 }), makeDataSources())).toBeNull();
   });
 
+  // REA-63: changing the e-mail in the admin ends every session opened before it.
+  it('is anonymous for a token issued before the sessions were revoked, not for a newer one', async () => {
+    const iat = Math.floor(Date.parse('2026-11-16T12:00:00.000Z') / 1000);
+    const revoked = { ...ANA, sessions_revoked_at: '2026-11-16T12:00:00.000Z' };
+    const signAt = (seconds) => `Bearer ${jsonwebtoken.sign({ id: 1, iat: seconds }, SECRET, { expiresIn: '3650d' })}`;
+    expect(await authenticate(signAt(iat - 1), makeDataSources({ user: revoked }))).toBeNull();
+    expect(await authenticate(signAt(iat), makeDataSources({ user: revoked }))).toEqual(revoked);
+    expect(await authenticate(signAt(iat - 60), makeDataSources({ user: { ...ANA, sessions_revoked_at: null } })))
+      .toEqual({ ...ANA, sessions_revoked_at: null });
+  });
+
   it('is anonymous (and not cached) when Strapi fails', async () => {
     const dataSources = makeDataSources();
     dataSources.managerIntegration.findUserWithRole

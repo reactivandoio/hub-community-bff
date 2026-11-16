@@ -37,3 +37,25 @@ describe('admin users list', () => {
     expect(url).not.toContain('pagination');
   });
 });
+
+describe('REA-63: duplicates and the audit trail', () => {
+  beforeEach(() => fetchMock.mockReset().mockResolvedValue({ data: [{ id: 7 }] }));
+
+  it('looks an e-mail up case-insensitively, ids only', async () => {
+    expect(await adminUsers({ headers: {} }).adminFindUserIdsByEmail('ana@x.io')).toEqual([{ id: 7 }]);
+    expect(decodeURIComponent(fetchMock.mock.calls[0][0]))
+      .toBe('/users?filters[email][$eqi]=ana@x.io&fields[0]=id&limit=5');
+  });
+
+  it('looks a CPF up in both spellings', async () => {
+    await adminUsers({ headers: {} }).adminFindUserIdsByCpf('52998224725');
+    expect(decodeURIComponent(fetchMock.mock.calls[0][0]))
+      .toBe('/users?filters[cpf][$in][0]=52998224725&filters[cpf][$in][1]=529.982.247-25&fields[0]=id&limit=5');
+  });
+
+  it('writes the correction record', async () => {
+    const data = { actor: 'u-1', target: 'u-2', fields: ['email'] };
+    await adminUsers({ headers: { a: 1 } }).adminCreateUserChange(data);
+    expect(fetchMock).toHaveBeenCalledWith('/user-changes', 'POST', { a: 1 }, { data });
+  });
+});

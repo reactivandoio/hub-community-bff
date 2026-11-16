@@ -13,6 +13,7 @@ import {
   ageReviewSummary, blockMinor, listAgeReview, requestDateOfBirth,
 } from '../../services/age-review';
 import { loadUserProfile, toUserEmail } from '../../services/admin-user-profile';
+import { checkUserEmail, updateUserData } from '../../services/admin-user-edit';
 import { loadEmailQueue } from '../../services/email-queue';
 
 // Users and roles of the Hub admin (REA-10). Everything but adminAccess is admin only and
@@ -197,6 +198,17 @@ const Admin = {
       return loadUserProfile({ user, dataSources: ctx.dataSources, toUser });
     },
 
+    // REA-63: before changing the e-mail.
+    adminCheckUserEmail: (_, args, ctx) => {
+      requireAdmin(ctx);
+      return checkUserEmail({
+        integration: ctx.dataSources.managerIntegration,
+        eventando: ctx.dataSources.eventandoIntegration,
+        userId: userIdArg(args.userId),
+        email: args.email,
+      });
+    },
+
     // REA-52: every e-mail sent to the user, newest first, with Mailgun's events.
     adminUserEmails: async (_, args, ctx) => {
       requireAdmin(ctx);
@@ -259,6 +271,24 @@ const Admin = {
     adminBlockMinor: (_, args, ctx) => {
       requireAdmin(ctx);
       return blockMinor({ integration: ctx.dataSources.managerIntegration, userId: args.userId, actor: ctx.user });
+    },
+
+    // REA-63: corrects the account data (services/admin-user-edit).
+    adminUpdateUser: async (_, args, ctx) => {
+      requireAdmin(ctx);
+      const userId = userIdArg(args.userId);
+      const integration = ctx.dataSources.managerIntegration;
+      const result = await updateUserData({
+        integration,
+        eventando: ctx.dataSources.eventandoIntegration,
+        actor: ctx.user,
+        userId,
+        input: args.input || {},
+        moveSignups: args.moveSignups !== false,
+      });
+      const user = await integration.adminFindUserProfile(userId);
+      const profile = user ? await loadUserProfile({ user, dataSources: ctx.dataSources, toUser }) : null;
+      return { ...result, profile };
     },
 
     setUserRole: async (_, args, ctx) => {
