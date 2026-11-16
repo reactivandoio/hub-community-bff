@@ -107,9 +107,60 @@ type AdminUserEmailPage {
   pageSize: Int!
 }
 
+"""
+REA-63: the account data the admin may correct. A field left out (or null) stays as it is; an empty
+cpf or phone clears it. dateOfBirth: YYYY-MM-DD, 18 or more.
+"""
+input AdminUserInput {
+  name: String
+  email: String
+  cpf: String
+  dateOfBirth: String
+  "WhatsApp."
+  phone: String
+  marketingOptIn: Boolean
+}
+
+"REA-63: what changing the e-mail to this address would do."
+type AdminEmailCheck {
+  "False when another account already has it."
+  available: Boolean!
+  message: String
+  "Signups of the current e-mail that would move to the new one."
+  signupsToMove: Int!
+  "Signups that stay: the new e-mail already has a signup in the same event."
+  signupConflicts: Int!
+}
+
+type AdminUserUpdateResult {
+  "The page after the change."
+  profile: AdminUserProfile
+  "name | email | cpf | date_of_birth | phone | marketing_opt_in — what really changed."
+  changedFields: [String!]!
+  signupsMoved: Int!
+  signupsKept: Int!
+  "Eventando refused them: they stay on the old e-mail."
+  signupsFailed: Int!
+  "True when the e-mail changed: every session of the account ended."
+  sessionsRevoked: Boolean!
+  message: String!
+}
+
 extend type Query {
+  "REA-63, admin only: before changing a user's e-mail — is it free, and what happens to the signups."
+  adminCheckUserEmail(userId: ID!, email: String!): AdminEmailCheck!
   "REA-52, admin only: everything about one user (numeric users-permissions id)."
   adminUserProfile(userId: ID!): AdminUserProfile
   "REA-52, admin only: the e-mails sent to the user, newest first."
   adminUserEmails(userId: ID!, page: Int, pageSize: Int): AdminUserEmailPage!
+}
+
+extend type Mutation {
+  """
+  REA-63, admin only: corrects a user's account data. Refuses an e-mail or CPF of another account
+  and anyone under 18. Changing the e-mail ends every session of the account and, with moveSignups
+  (default true), moves the Eventando signups of the old e-mail to the new one (except where the new
+  one already has a signup in that event). Every correction is recorded (fields, never values).
+  """
+  adminUpdateUser(userId: ID!, input: AdminUserInput!, moveSignups: Boolean): AdminUserUpdateResult!
 }

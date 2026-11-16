@@ -36,6 +36,14 @@ const pruneExpired = (now) => {
 
 export const clearUserCache = () => userCache.clear();
 
+/** True when the token was issued before the user's sessions were revoked (iat has whole seconds). */
+export const isRevokedToken = (payload, revokedAt) => {
+  if (!revokedAt) return false;
+  const revokedSeconds = Math.floor(new Date(revokedAt).getTime() / 1000);
+  if (!Number.isFinite(revokedSeconds)) return false;
+  return typeof payload?.iat !== 'number' || payload.iat < revokedSeconds;
+};
+
 /**
  * Returns the Strapi user (with `role`) behind a verified token, or null for anything
  * else: no token, bad signature, expired, unknown or blocked user, Strapi unreachable.
@@ -61,6 +69,9 @@ export const authenticate = async (authorization, dataSources) => {
   }
 
   if (!user || user.blocked || String(user.id) !== String(payload.id)) user = null;
+  // REA-63: a session opened before the admin changed the e-mail is over (the backend checks the
+  // same, hub-community-backend src/roles/session-revocation.ts).
+  if (user && isRevokedToken(payload, user.sessions_revoked_at)) user = null;
 
   pruneExpired(now);
   userCache.set(key, { user, expiresAt: now + USER_TTL_MS });

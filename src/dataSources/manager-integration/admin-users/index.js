@@ -200,11 +200,38 @@ const findUserAttendances = async (documentId, headers) => {
 
 const updateUserFields = (id, data, headers) => fetch(`/users/${encodeURIComponent(id)}`, 'PUT', headers, data);
 
+// REA-63: who already has an e-mail (case-insensitive, like the login by code) or a CPF (as 11
+// digits or formatted, the two spellings stored) — only the ids, to refuse a duplicate.
+const findUserIdsByEmail = async (email, headers) => {
+  const params = new URLSearchParams();
+  params.append('filters[email][$eqi]', email);
+  params.append('fields[0]', 'id');
+  params.append('limit', '5');
+  const response = await fetch(`/users?${params.toString()}`, 'GET', headers);
+  return response?.data || [];
+};
+
+const findUserIdsByCpf = async (digits, headers) => {
+  const formatted = digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  const params = new URLSearchParams();
+  [digits, formatted].forEach((cpf, index) => params.append(`filters[cpf][$in][${index}]`, cpf));
+  params.append('fields[0]', 'id');
+  params.append('limit', '5');
+  const response = await fetch(`/users?${params.toString()}`, 'GET', headers);
+  return response?.data || [];
+};
+
+// REA-63: audit trail of the corrections (backend api::user-change; no values, only field names).
+const createUserChange = (data, headers) => fetch('/user-changes', 'POST', headers, { data });
+
 const adminUsers = ({ headers }) => ({
   adminFindAgeReviewUsers: (args) => findAgeReviewUsers(args, headers),
   adminCountAgeReviewUsers: (args) => countAgeReviewUsers(args, headers),
   adminFindAgeReviewUser: (id) => findAgeReviewUser(id, headers),
   adminUpdateUserFields: (id, data) => updateUserFields(id, data, headers),
+  adminFindUserIdsByEmail: (email) => findUserIdsByEmail(email, headers),
+  adminFindUserIdsByCpf: (digits) => findUserIdsByCpf(digits, headers),
+  adminCreateUserChange: (data) => createUserChange(data, headers),
   adminFindUsers: (args) => findUsers(args, headers),
   adminFindUserProfile: (id) => findUserProfile(id, headers),
   adminFindUserCertificates: (args) => findUserCertificates(args, headers),

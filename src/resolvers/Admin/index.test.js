@@ -228,3 +228,50 @@ describe('REA-52: user page', () => {
       .toBe('BAD_USER_INPUT');
   });
 });
+
+describe('REA-63: correcting the account data', () => {
+  const PROFILE = { id: 620, documentId: 'u-620', email: 'joao@errado.com', name: 'João', role: { type: 'authenticated' } };
+  const editDs = () => ({
+    managerIntegration: {
+      adminFindUserProfile: vi.fn().mockResolvedValue(PROFILE),
+      adminFindUserIdsByEmail: vi.fn().mockResolvedValue([]),
+      adminFindUserIdsByCpf: vi.fn().mockResolvedValue([]),
+      adminUpdateUserFields: vi.fn().mockResolvedValue({}),
+      adminCreateUserChange: vi.fn().mockResolvedValue({}),
+      adminFindUserCertificates: vi.fn().mockResolvedValue([]),
+      adminFindUserAttendances: vi.fn().mockResolvedValue([]),
+      accountStatus: vi.fn().mockResolvedValue([]),
+      findEmailDeliveriesByEmail: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    },
+    eventandoIntegration: {
+      findSignupsByEmail: vi.fn().mockResolvedValue([]),
+      updateSignup: vi.fn().mockResolvedValue({}),
+    },
+  });
+
+  it('only an admin checks an e-mail or corrects the data', async () => {
+    for (const user of [MANAGER, MEMBER, undefined]) {
+      const dataSources = editDs();
+      const ctx = { user, dataSources };
+      expect(await codeOf(() => Query.adminCheckUserEmail(null, { userId: '620', email: 'a@b.io' }, ctx)))
+        .toMatch(/FORBIDDEN|UNAUTHENTICATED/);
+      expect(await codeOf(() => Mutation.adminUpdateUser(null, { userId: '620', input: { name: 'X' } }, ctx)))
+        .toMatch(/FORBIDDEN|UNAUTHENTICATED/);
+      expect(dataSources.managerIntegration.adminUpdateUserFields).not.toHaveBeenCalled();
+    }
+  });
+
+  it('validates the user id', async () => {
+    const ctx = { user: ADMIN, dataSources: editDs() };
+    expect(await codeOf(() => Mutation.adminUpdateUser(null, { userId: 'u-620', input: { name: 'X' } }, ctx)))
+      .toBe('BAD_USER_INPUT');
+  });
+
+  it('corrects the e-mail and answers with the page', async () => {
+    const dataSources = editDs();
+    const out = await Mutation.adminUpdateUser(null, { userId: '620', input: { email: 'joao@certo.com' } }, { user: ADMIN, dataSources });
+    expect(dataSources.managerIntegration.adminUpdateUserFields)
+      .toHaveBeenCalledWith('620', expect.objectContaining({ email: 'joao@certo.com', sessions_revoked_at: expect.any(String) }));
+    expect(out).toMatchObject({ changedFields: ['email'], sessionsRevoked: true, profile: { id: '620' } });
+  });
+});
