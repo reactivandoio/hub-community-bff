@@ -124,4 +124,16 @@ describe('graphql schema', () => {
     expect(schema.getType('Event').getFields().share_art_open.type.toString()).toBe('Boolean');
     expect(schema.getType('EventInput').getFields().share_art_open.type.toString()).toBe('Boolean');
   });
+
+  it('exposes the REA-53 speaker accounts (admin only: link, unlink, review)', () => {
+    const query = schema.getQueryType().getFields();
+    const mutation = schema.getMutationType().getFields();
+    const argsOf = (field) => field.args.map((a) => `${a.name}: ${a.type}`);
+    expect(argsOf(mutation.linkSpeakerAccount)).toEqual(['speakerId: String!', 'userId: ID!']);
+    expect(argsOf(mutation.unlinkSpeakerAccount)).toEqual(['speakerId: String!']);
+    expect(query.speakerAccountReview.type.toString()).toBe('SpeakerAccountReview!');
+    const speaker = schema.getType('Speaker').getFields();
+    expect(speaker.account.type.toString()).toBe('SpeakerAccount');
+    expect(speaker.email.type.toString()).toBe('String');
+  });
 });

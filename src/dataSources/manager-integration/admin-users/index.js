@@ -148,6 +148,56 @@ const findAgeReviewUser = async (id, headers) => {
   return response?.data || null;
 };
 
+// REA-52: the admin's user page — the whole (non-private) user with role, organized communities
+// and managed events.
+const PROFILE_FIELDS = [
+  'id', 'documentId', 'username', 'email', 'name', 'phone', 'cpf', 'date_of_birth', 'blocked',
+  'confirmed', 'provider', 'createdAt', 'updatedAt', 'adult_declaration', 'adult_declaration_at',
+  'marketing_opt_in', 'marketing_opt_in_at', 'age_review_status', 'age_review_requested_at',
+  'age_review_blocked_at',
+];
+
+const findUserProfile = async (id, headers) => {
+  const params = new URLSearchParams();
+  PROFILE_FIELDS.forEach((field, index) => params.append(`fields[${index}]`, field));
+  params.append('populate[role][fields][0]', 'type');
+  params.append('populate[role][fields][1]', 'name');
+  ['documentId', 'title', 'slug'].forEach((field, index) => {
+    params.append(`populate[communities][fields][${index}]`, field);
+    params.append(`populate[managed_events][fields][${index}]`, field);
+  });
+  params.append('populate[managed_events][fields][3]', 'deleted_at');
+  const response = await fetch(`/users/${encodeURIComponent(id)}?${params.toString()}`, 'GET', headers);
+  return response?.data || null;
+};
+
+// REA-52: certificates of the person — by account, by e-mail or by CPF (they are issued by CPF).
+const findUserCertificates = async ({ documentId, email, cpf }, headers) => {
+  const params = new URLSearchParams();
+  let i = 0;
+  if (documentId) { params.append(`filters[$or][${i}][users_permissions_user][documentId][$eq]`, documentId); i += 1; }
+  if (email) { params.append(`filters[$or][${i}][email][$eqi]`, email); i += 1; }
+  if (cpf) { params.append(`filters[$or][${i}][identifier][$eq]`, cpf); i += 1; }
+  if (i === 0) return [];
+  params.append('pagination[pageSize]', '100');
+  params.append('sort[0]', 'issued_at:desc');
+  ['documentId', 'title', 'slug'].forEach((field, index) => params.append(`populate[event][fields][${index}]`, field));
+  const response = await fetch(`/certificates?${params.toString()}`, 'GET', headers);
+  return response?.data || [];
+};
+
+// REA-52: attendance lists the person signed.
+const findUserAttendances = async (documentId, headers) => {
+  if (!documentId) return [];
+  const params = new URLSearchParams();
+  params.append('filters[users_permissions_user][documentId][$eq]', documentId);
+  params.append('pagination[pageSize]', '100');
+  params.append('sort[0]', 'createdAt:desc');
+  ['documentId', 'title', 'slug', 'start_date'].forEach((field, index) => params.append(`populate[event][fields][${index}]`, field));
+  const response = await fetch(`/attendances?${params.toString()}`, 'GET', headers);
+  return response?.data || [];
+};
+
 const updateUserFields = (id, data, headers) => fetch(`/users/${encodeURIComponent(id)}`, 'PUT', headers, data);
 
 const adminUsers = ({ headers }) => ({
@@ -156,6 +206,9 @@ const adminUsers = ({ headers }) => ({
   adminFindAgeReviewUser: (id) => findAgeReviewUser(id, headers),
   adminUpdateUserFields: (id, data) => updateUserFields(id, data, headers),
   adminFindUsers: (args) => findUsers(args, headers),
+  adminFindUserProfile: (id) => findUserProfile(id, headers),
+  adminFindUserCertificates: (args) => findUserCertificates(args, headers),
+  adminFindUserAttendances: (documentId) => findUserAttendances(documentId, headers),
   adminCountUsers: (args) => countUsers(args, headers),
   adminCountActiveAdmins: () => countActiveAdmins(headers),
   adminFindUser: (id) => findUser(id, headers),

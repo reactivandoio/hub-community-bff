@@ -93,6 +93,14 @@ describe('daily count of every e-mail (REA-26)', () => {
     expect(odd.key).toMatch(/^tx:sc:42:/);
   });
 
+  it('REA-52: records kind, subject and the bare Mailgun message id', () => {
+    const row = transactionalDelivery({
+      kind: 'certificate', to: ' Ana@X.io ', subject: 'Seu certificado', result: { success: true, messageId: '<m1@mg.hub>' },
+    });
+    expect(row).toMatchObject({ kind: 'certificate', email: 'ana@x.io', subject: 'Seu certificado', message_id: 'm1@mg.hub' });
+    expect(transactionalDelivery({ to: 'a@x.io', result: { success: false, error: 'x' } }).message_id).toBeNull();
+  });
+
   it('passes the ref of sendEmail to the record', async () => {
     const recorder = vi.fn();
     setDeliveryRecorder(recorder);

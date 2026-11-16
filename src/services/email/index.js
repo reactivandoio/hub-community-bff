@@ -29,20 +29,35 @@ export const setDeliveryRecorder = (recorder) => {
 // It goes in the key, which stays unique with the uuid. Only [A-Za-z0-9_-:] is kept.
 const safeRef = (ref) => String(ref || '').replace(/[^A-Za-z0-9_:-]/g, '').slice(0, 120);
 
-export const transactionalDelivery = ({ kind, ref, to, result, now = new Date() }) => ({
+/**
+ * REA-52: Mailgun's events name the message by its Message-Id without the angle brackets; nodemailer
+ * gives it with them. The record keeps it bare so the webhook (routes/mailgun-webhook) finds it.
+ */
+export const messageIdOf = (result) => {
+  const id = String(result?.messageId || '').trim().replace(/^<|>$/g, '');
+  return id || null;
+};
+
+// REA-52: the row is the e-mail's whole record for the admin: who, what (kind, subject), when,
+// whether Mailgun took it, and its message id for the delivery events.
+export const transactionalDelivery = ({ kind, ref, to, subject, result, now = new Date() }) => ({
   key: safeRef(ref) ? `tx:${safeRef(ref)}:${crypto.randomUUID()}` : `tx:${crypto.randomUUID()}`,
   campaign_document_id: `transactional:${kind || 'email'}`,
-  email: String(to || ''),
+  kind: kind || 'email',
+  ref: safeRef(ref) || null,
+  email: String(to || '').trim().toLowerCase(),
+  subject: subject ? String(subject).slice(0, 255) : null,
   status: result?.success ? 'sent' : 'failed',
   error: result?.success ? null : String(result?.error || 'erro'),
+  message_id: result?.success ? messageIdOf(result) : null,
   sent_at: now.toISOString(),
 });
 
 // Never delays nor fails the e-mail: a lost record only makes the count a bit low.
-const recordDelivery = (kind, ref, to, result) => {
+const recordDelivery = (kind, ref, to, subject, result) => {
   if (!deliveryRecorder) return;
   try {
-    Promise.resolve(deliveryRecorder(transactionalDelivery({ kind, ref, to, result })))
+    Promise.resolve(deliveryRecorder(transactionalDelivery({ kind, ref, to, subject, result })))
       .catch((err) => console.error(`[Email] could not record delivery (${kind || 'email'}): ${err.message}`));
   } catch (err) {
     console.error(`[Email] could not record delivery (${kind || 'email'}): ${err.message}`);
@@ -78,7 +93,7 @@ export const sendEmailUntracked = async ({ to, subject, html, from, replyTo, att
  */
 export const sendEmail = async ({ kind, ref, ...message }) => {
   const result = await sendEmailUntracked(message);
-  recordDelivery(kind, ref, message.to, result);
+  recordDelivery(kind, ref, message.to, message.subject, result);
   return result;
 };
 
