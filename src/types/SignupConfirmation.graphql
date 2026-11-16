@@ -1,0 +1,15 @@
+"REA-50: result of resending the \"Inscrição confirmada\" e-mail from the participants list."
+type ResendSignupConfirmationResult {
+  success: Boolean!
+  "For the admin, in Portuguese: the address it went to, or why it did not go (e.g. the day's e-mail quota is over)."
+  message: String
+  "When it went out (ISO), on success."
+  sent_at: String
+  "Seconds to wait before resending this signup again, when it was resent a moment ago."
+  retry_after: Int
+}
+
+extend type Mutation {
+  "REA-50: e-mails the \"Inscrição confirmada\" (with the ticket) again. Admin and the event's organizers and managers; confirmed signups only (free, paid or approved by hand); one a minute per signup."
+  resendSignupConfirmation(event: String!, signup_id: ID!): ResendSignupConfirmationResult!
+}

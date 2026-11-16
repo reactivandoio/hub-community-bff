@@ -128,7 +128,7 @@ type AgeReviewPage {
   total: Int!
   page: Int!
   pageSize: Int!
-  "E-mails left today for campaigns and age review: EMAIL_DAILY_LIMIT - EMAIL_DAILY_RESERVE - every e-mail sent today (REA-26)."
+  "E-mails left today for campaigns and age review: EMAIL_DAILY_LIMIT - EMAIL_DAILY_RESERVE - every e-mail sent today (REA-26), and never past EMAIL_MONTHLY_LIMIT - EMAIL_DAILY_RESERVE - every e-mail of the month (REA-50)."
   emailsLeftToday: Int!
 }
 

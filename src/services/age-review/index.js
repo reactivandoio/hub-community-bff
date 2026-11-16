@@ -4,7 +4,7 @@ import {
   DOB_REQUEST_SUBJECT, MINOR_BLOCKED_SUBJECT, dateOfBirthRequestTemplate, minorBlockedTemplate,
 } from '../email/templates/age-review';
 import { addressFor } from '../email-campaign/sender';
-import { remainingToday, startOfDaySaoPaulo } from '../email-campaign/quota';
+import { emailsLeftNow } from '../email-campaign/quota';
 import { normalizeEmail } from '../email-campaign/token';
 import { adultCutoff, ageOn, isMinorDate } from '../../utils/age';
 import { clearUserCache } from '../../utils/auth';
@@ -63,10 +63,8 @@ export const toAgeReviewUser = (user, now = new Date()) => ({
   blockedAt: user.age_review_blocked_at ?? null,
 });
 
-export const emailsLeftToday = async (integration, { env, now }) => {
-  const sentToday = await integration.countEmailDeliveriesSince(startOfDaySaoPaulo(now));
-  return remainingToday({ sentToday, env });
-};
+// Today's and this month's limits (REA-50), the reserve kept out.
+export const emailsLeftToday = (integration, { env, now }) => emailsLeftNow(integration, { env, now });
 
 const STATUS_FILTERS = new Set(['NONE', 'dob_requested', 'dob_blocked', 'minor_blocked']);
 

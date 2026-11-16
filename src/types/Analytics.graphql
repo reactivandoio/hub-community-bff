@@ -111,6 +111,14 @@ type SignupEntry {
   manual_approved_at: String
   "Name (or e-mail) of the admin who approved it."
   manual_approved_by: String
+  "REA-50: the last \"Inscrição confirmada\" e-mail of this signup — sent or failed; null when unknown (sent before REA-50, or never)."
+  confirmation_email_status: String
+  "When that last e-mail was tried (ISO)."
+  confirmation_email_at: String
+  "Why it failed (provider's message), when it failed."
+  confirmation_email_error: String
+  "When it was last resent from the participants list (ISO)."
+  confirmation_resent_at: String
 }
 
 type Query {

@@ -85,6 +85,21 @@ describe('daily count of every e-mail (REA-26)', () => {
     expect(recorder).not.toHaveBeenCalled();
   });
 
+  it('REA-50: puts the ref in the key, still unique, and drops odd characters', () => {
+    const a = transactionalDelivery({ kind: 'signup-confirmation', ref: 'sc:42', to: 'a@x.io', result: { success: true } });
+    expect(a.key).toMatch(/^tx:sc:42:[0-9a-f-]{36}$/);
+    expect(a.campaign_document_id).toBe('transactional:signup-confirmation');
+    const odd = transactionalDelivery({ ref: 'sc:4 2/?', to: 'a@x.io', result: { success: true } });
+    expect(odd.key).toMatch(/^tx:sc:42:/);
+  });
+
+  it('passes the ref of sendEmail to the record', async () => {
+    const recorder = vi.fn();
+    setDeliveryRecorder(recorder);
+    await sendEmail({ kind: 'signup-confirmation', ref: 'sc:7', to: 'ana@x.io', subject: 'Oi', html: '<p/>' });
+    expect(recorder.mock.calls[0][0].key).toMatch(/^tx:sc:7:/);
+  });
+
   it('builds unique keys', () => {
     const a = transactionalDelivery({ to: 'a@x.io', result: { success: true } });
     const b = transactionalDelivery({ to: 'a@x.io', result: { success: true } });

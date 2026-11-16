@@ -24,8 +24,13 @@ export const setDeliveryRecorder = (recorder) => {
   deliveryRecorder = typeof recorder === 'function' ? recorder : null;
 };
 
-export const transactionalDelivery = ({ kind, to, result, now = new Date() }) => ({
-  key: `tx:${crypto.randomUUID()}`,
+// REA-50: `ref` ties the record to what the e-mail was about (`sc:<signupId>` for a signup
+// confirmation), so the participants list can tell which confirmations failed or were resent.
+// It goes in the key, which stays unique with the uuid. Only [A-Za-z0-9_-:] is kept.
+const safeRef = (ref) => String(ref || '').replace(/[^A-Za-z0-9_:-]/g, '').slice(0, 120);
+
+export const transactionalDelivery = ({ kind, ref, to, result, now = new Date() }) => ({
+  key: safeRef(ref) ? `tx:${safeRef(ref)}:${crypto.randomUUID()}` : `tx:${crypto.randomUUID()}`,
   campaign_document_id: `transactional:${kind || 'email'}`,
   email: String(to || ''),
   status: result?.success ? 'sent' : 'failed',
@@ -34,10 +39,10 @@ export const transactionalDelivery = ({ kind, to, result, now = new Date() }) =>
 });
 
 // Never delays nor fails the e-mail: a lost record only makes the count a bit low.
-const recordDelivery = (kind, to, result) => {
+const recordDelivery = (kind, ref, to, result) => {
   if (!deliveryRecorder) return;
   try {
-    Promise.resolve(deliveryRecorder(transactionalDelivery({ kind, to, result })))
+    Promise.resolve(deliveryRecorder(transactionalDelivery({ kind, ref, to, result })))
       .catch((err) => console.error(`[Email] could not record delivery (${kind || 'email'}): ${err.message}`));
   } catch (err) {
     console.error(`[Email] could not record delivery (${kind || 'email'}): ${err.message}`);
@@ -69,11 +74,11 @@ export const sendEmailUntracked = async ({ to, subject, html, from, replyTo, att
 
 /**
  * Sends a transactional e-mail and records it in the day's count. `kind` names it in the record
- * ("login-code", "signup-confirmation"…). Never throws: resolves { success, messageId?, error? }.
+ * ("login-code", "signup-confirmation"…), `ref` what it was about (see transactionalDelivery). Never throws: resolves { success, messageId?, error? }.
  */
-export const sendEmail = async ({ kind, ...message }) => {
+export const sendEmail = async ({ kind, ref, ...message }) => {
   const result = await sendEmailUntracked(message);
-  recordDelivery(kind, message.to, result);
+  recordDelivery(kind, ref, message.to, result);
   return result;
 };
 

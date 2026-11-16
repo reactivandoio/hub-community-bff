@@ -11,6 +11,7 @@ const { fetch, buildQuery } = managerNetworkUtils;
 
 // Strapi caps pageSize at 100; `$in` is sent indexed (buildQuery joins arrays with commas).
 const IN_CHUNK = 50;
+const MAX_PAGES = 20;
 
 const chunk = (list, size) => {
   const out = [];
@@ -18,16 +19,26 @@ const chunk = (list, size) => {
   return out;
 };
 
-const findIn = async (route, field, values, headers, fields = []) => {
+// `extra` adds more `$in` filters ({ field: [values] }), the same on every chunk.
+const findIn = async (route, field, values, headers, fields = [], extra = {}) => {
   const results = [];
   for (const part of chunk([...new Set(values)].filter(Boolean), IN_CHUNK)) {
     const params = new URLSearchParams();
     part.forEach((value, index) => params.append(`filters[${field}][$in][${index}]`, value));
+    Object.entries(extra).forEach(([name, list]) =>
+      list.forEach((value, index) => params.append(`filters[${name}][$in][${index}]`, value)));
     params.append('pagination[pageSize]', '100');
     fields.forEach((f, index) => params.append(`fields[${index}]`, f));
-    // eslint-disable-next-line no-await-in-loop
-    const response = await fetch(`${route}?${params.toString()}`, 'GET', headers);
-    results.push(...(response?.data || []));
+    // Every page of the chunk (an e-mail may have many rows), up to MAX_PAGES.
+    for (let page = 1; page <= MAX_PAGES; page += 1) {
+      params.set('pagination[page]', String(page));
+      // eslint-disable-next-line no-await-in-loop
+      const response = await fetch(`${route}?${params.toString()}`, 'GET', headers);
+      const rows = response?.data || [];
+      results.push(...rows);
+      const pageCount = Number(response?.meta?.pagination?.pageCount) || 1;
+      if (rows.length < 100 || page >= pageCount) break;
+    }
   }
   return results;
 };
@@ -73,6 +84,15 @@ const countEmailDeliveriesSince = async (date, headers) => {
 
 const findEmailDeliveriesByKeys = (keys, headers) =>
   findIn('/email-campaign-deliveries', 'key', keys, headers, ['key', 'email', 'status']);
+
+/**
+ * REA-50: the delivery records of transactional e-mails of the given kinds (`transactional:<kind>`)
+ * to these e-mails — e.g. the signup confirmations of an event's participants.
+ */
+const findTransactionalDeliveries = (emails, kinds, headers) =>
+  findIn('/email-campaign-deliveries', 'email', emails, headers,
+    ['key', 'email', 'status', 'error', 'sent_at', 'campaign_document_id'],
+    { campaign_document_id: kinds.map((kind) => `transactional:${kind}`) });
 
 /** Throws when the key already exists (the unique index is what makes a send happen once). */
 const createEmailDelivery = async (data, headers) => {
@@ -143,6 +163,7 @@ const emailCampaigns = ({ headers }) => ({
   countEmailDeliveriesSince: (date) => countEmailDeliveriesSince(date, headers),
   findEmailDeliveriesByKeys: (keys) => findEmailDeliveriesByKeys(keys, headers),
   createEmailDelivery: (data) => createEmailDelivery(data, headers),
+  findTransactionalDeliveries: (emails, kinds) => findTransactionalDeliveries(emails, kinds, headers),
   updateEmailDelivery: (documentId, data) => updateEmailDelivery(documentId, data, headers),
   findSuppressedEmails: (emails) => findSuppressedEmails(emails, headers),
   findEmailSuppression: (email) => findEmailSuppression(email, headers),
