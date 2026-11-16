@@ -5,6 +5,8 @@ import graphqlUtils from '../../graphqlUtils';
 // Helper to recursively flatten filters into nested bracket notation for Strapi
 const OPERATORS = new Set([
   'eq',
+  // Case-insensitive equality (REA-52: e-mails).
+  'eqi',
   'ne',
   'lt',
   'lte',
