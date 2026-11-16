@@ -94,6 +94,27 @@ const findTransactionalDeliveries = (emails, kinds, headers) =>
     ['key', 'email', 'status', 'error', 'sent_at', 'campaign_document_id'],
     { campaign_document_id: kinds.map((kind) => `transactional:${kind}`) });
 
+// REA-52: the record a Mailgun event names (message_id is stored without the angle brackets).
+const findEmailDeliveryByMessageId = async (messageId, headers) => {
+  const query = buildQuery({ message_id: { eq: messageId } }, [], { pageSize: 1 });
+  const response = await fetch(`/email-campaign-deliveries?${query}`, 'GET', headers);
+  return response?.data?.[0] || null;
+};
+
+// REA-52: every e-mail sent to an address, newest first (the admin's user page).
+const findEmailDeliveriesByEmail = async (email, { page, pageSize }, headers) => {
+  const query = buildQuery(
+    { email: { eqi: email } },
+    [{ createdAt: 'desc' }],
+    { page, pageSize },
+  );
+  const response = await fetch(`/email-campaign-deliveries?${query}`, 'GET', headers);
+  return {
+    items: response?.data || [],
+    total: Number(response?.meta?.pagination?.total) || 0,
+  };
+};
+
 /** Throws when the key already exists (the unique index is what makes a send happen once). */
 const createEmailDelivery = async (data, headers) => {
   const response = await fetch('/email-campaign-deliveries', 'POST', headers, { data });
@@ -163,6 +184,8 @@ const emailCampaigns = ({ headers }) => ({
   countEmailDeliveriesSince: (date) => countEmailDeliveriesSince(date, headers),
   findEmailDeliveriesByKeys: (keys) => findEmailDeliveriesByKeys(keys, headers),
   createEmailDelivery: (data) => createEmailDelivery(data, headers),
+  findEmailDeliveryByMessageId: (messageId) => findEmailDeliveryByMessageId(messageId, headers),
+  findEmailDeliveriesByEmail: (email, page) => findEmailDeliveriesByEmail(email, page, headers),
   findTransactionalDeliveries: (emails, kinds) => findTransactionalDeliveries(emails, kinds, headers),
   updateEmailDelivery: (documentId, data) => updateEmailDelivery(documentId, data, headers),
   findSuppressedEmails: (emails) => findSuppressedEmails(emails, headers),

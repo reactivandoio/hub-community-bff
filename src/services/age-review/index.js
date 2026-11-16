@@ -1,5 +1,5 @@
 import { GraphQLError } from 'graphql';
-import { sendEmailUntracked as sendEmail } from '../email';
+import { messageIdOf, sendEmailUntracked as sendEmail } from '../email';
 import {
   DOB_REQUEST_SUBJECT, MINOR_BLOCKED_SUBJECT, dateOfBirthRequestTemplate, minorBlockedTemplate,
 } from '../email/templates/age-review';
@@ -107,8 +107,14 @@ const deliverOnce = async ({ integration, key, campaign, email, subject, html, e
   const result = await send({ to: address.to, subject: address.subject, html });
   const ok = Boolean(result?.success);
   try {
+    // REA-52: kind, subject and Mailgun's message id complete the record.
     await integration.updateEmailDelivery(delivery.documentId, {
-      status: ok ? 'sent' : 'failed', error: ok ? null : String(result?.error || 'erro'), sent_at: now.toISOString(),
+      status: ok ? 'sent' : 'failed',
+      error: ok ? null : String(result?.error || 'erro'),
+      sent_at: now.toISOString(),
+      kind: 'age-review',
+      subject: String(subject || '').slice(0, 255) || null,
+      message_id: ok ? messageIdOf(result) : null,
     });
   } catch (err) {
     console.error(`[age-review] could not record delivery ${delivery.documentId}: ${err.message}`);

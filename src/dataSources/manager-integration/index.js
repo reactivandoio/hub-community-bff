@@ -20,6 +20,7 @@ import loginCode from './login-code';
 import shareArt from './share-art';
 import management from './management';
 import termhub from './termhub';
+import speakerAccounts from './speaker-accounts';
 
 const managerIntegration = ({ headers }) => ({
   ...analyticsEvents({ headers }),
@@ -44,6 +45,7 @@ const managerIntegration = ({ headers }) => ({
   ...shareArt({ headers }),
   ...management({ headers }),
   ...termhub({ headers }),
+  ...speakerAccounts({ headers }),
 });
 
 export default managerIntegration;
