@@ -123,6 +123,8 @@ const ageReviewParams = ({ kind, cutoff, status }, prefix = 'filters') => {
   const params = new URLSearchParams();
   if (kind === 'MINOR') params.append(key('[date_of_birth][$gt]'), cutoff);
   else params.append(key('[date_of_birth][$null]'), 'true');
+  // REA-96: an account joined into another has no date of birth on purpose; it is not reviewed.
+  params.append(key('[merged_at][$null]'), 'true');
   if (status === 'NONE') params.append(key('[age_review_status][$null]'), 'true');
   else if (status) params.append(key('[age_review_status][$eq]'), status);
   return params;
@@ -224,7 +226,39 @@ const findUserIdsByCpf = async (digits, headers) => {
 // REA-63: audit trail of the corrections (backend api::user-change; no values, only field names).
 const createUserChange = (data, headers) => fetch('/user-changes', 'POST', headers, { data });
 
+// REA-96: joining two accounts of the same person (backend api::user-merge). Raw JSON on purpose:
+// the shared fetch reshapes nested objects, and these answers are read as the backend wrote them.
+const userMergeCall = async (method, route, headers, body) => {
+  try {
+    const response = await axios({
+      method,
+      url: `${process.env.MANAGER_URL}/api${route}`,
+      headers: { 'Content-Type': 'application/json', ...headers },
+      data: body,
+    });
+    return response.data;
+  } catch (error) {
+    const failure = new Error(error.response?.data?.error?.message || error.message);
+    if (error.response?.status) failure.status = error.response.status;
+    throw failure;
+  }
+};
+
+const findDuplicateCpfGroups = (headers) => userMergeCall('GET', '/user-merges/duplicates', headers);
+
+const previewUserMerge = ({ keepId, dropId, actorId }, headers) => {
+  const params = new URLSearchParams({ keep: String(keepId), drop: String(dropId) });
+  if (actorId != null) params.append('actor', String(actorId));
+  return userMergeCall('GET', `/user-merges/preview?${params.toString()}`, headers);
+};
+
+const mergeUsers = ({ keepId, dropId, actorId }, headers) =>
+  userMergeCall('POST', '/user-merges', headers, { keep: keepId, drop: dropId, actor: actorId });
+
 const adminUsers = ({ headers }) => ({
+  adminFindDuplicateCpfGroups: () => findDuplicateCpfGroups(headers),
+  adminPreviewUserMerge: (args) => previewUserMerge(args, headers),
+  adminMergeUsers: (args) => mergeUsers(args, headers),
   adminFindAgeReviewUsers: (args) => findAgeReviewUsers(args, headers),
   adminCountAgeReviewUsers: (args) => countAgeReviewUsers(args, headers),
   adminFindAgeReviewUser: (id) => findAgeReviewUser(id, headers),

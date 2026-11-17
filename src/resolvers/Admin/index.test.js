@@ -276,6 +276,48 @@ describe('REA-63: correcting the account data', () => {
   });
 });
 
+describe('REA-96: joining accounts', () => {
+  const mergeDs = () => ({
+    managerIntegration: {
+      adminFindDuplicateCpfGroups: vi.fn().mockResolvedValue({ total: 0, groups: [] }),
+      adminPreviewUserMerge: vi.fn().mockResolvedValue({ keep: { id: 621, email: 'a@x.io' }, drop: { id: 620, email: 'b@x.io' }, blockers: [], links: [] }),
+      adminMergeUsers: vi.fn().mockResolvedValue({ keepDocumentId: 'u-621', dropDocumentId: 'u-620', keepEmail: 'a@x.io', links: [] }),
+      adminCreateUserChange: vi.fn().mockResolvedValue({}),
+    },
+    eventandoIntegration: {
+      findSignupsByEmail: vi.fn().mockResolvedValue([]),
+      updateSignup: vi.fn().mockResolvedValue({}),
+    },
+  });
+
+  it('is admin only', async () => {
+    for (const user of [MANAGER, MEMBER, undefined]) {
+      const dataSources = mergeDs();
+      const ctx = { user, dataSources };
+      expect(await codeOf(() => Query.adminDuplicateCpfGroups(null, {}, ctx))).toMatch(/FORBIDDEN|UNAUTHENTICATED/);
+      expect(await codeOf(() => Query.adminMergePreview(null, { keepUserId: '621', dropUserId: '620' }, ctx))).toMatch(/FORBIDDEN|UNAUTHENTICATED/);
+      expect(await codeOf(() => Mutation.adminMergeUsers(null, { keepUserId: '621', dropUserId: '620' }, ctx))).toMatch(/FORBIDDEN|UNAUTHENTICATED/);
+      expect(dataSources.managerIntegration.adminFindDuplicateCpfGroups).not.toHaveBeenCalled();
+      expect(dataSources.managerIntegration.adminMergeUsers).not.toHaveBeenCalled();
+    }
+  });
+
+  it('validates the ids', async () => {
+    const ctx = { user: ADMIN, dataSources: mergeDs() };
+    expect(await codeOf(() => Mutation.adminMergeUsers(null, { keepUserId: 'u-621', dropUserId: '620' }, ctx))).toBe('BAD_USER_INPUT');
+    expect(await codeOf(() => Query.adminMergePreview(null, { keepUserId: '621', dropUserId: '' }, ctx))).toBe('BAD_USER_INPUT');
+  });
+
+  it('joins for an admin', async () => {
+    const dataSources = mergeDs();
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const out = await Mutation.adminMergeUsers(null, { keepUserId: '621', dropUserId: '620' }, { user: ADMIN, dataSources });
+    info.mockRestore();
+    expect(dataSources.managerIntegration.adminMergeUsers).toHaveBeenCalledWith({ keepId: 621, dropId: 620, actorId: 1 });
+    expect(out).toMatchObject({ keepUserId: '621', recorded: true });
+  });
+});
+
 describe('REA-59: adminEmailQueue', () => {
   const queueDs = () => ({
     managerIntegration: {

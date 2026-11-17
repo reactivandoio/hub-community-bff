@@ -1,0 +1,99 @@
+"REA-96: one account of a group sharing a CPF (the CPF itself is never sent)."
+type AdminMergeUser {
+  id: ID!
+  name: String
+  email: String
+  created_at: String
+  "Latest login by a code sent to the e-mail; null when never."
+  last_login_at: String
+  blocked: Boolean!
+  role: String
+  isAdmin: Boolean!
+  "community-manager or event-manager."
+  isManager: Boolean!
+  "Eventando signups of the e-mail."
+  signups: Int!
+  "Certificates of the account or of the e-mail (the larger count)."
+  certificates: Int!
+  "Signups plus every Hub link but browsing analytics: what the suggestion compares."
+  links: Int!
+  linkDetails: [AdminMergeLink!]!
+}
+
+type AdminMergeLink {
+  label: String!
+  count: Int!
+}
+
+"REA-96: accounts sharing a CPF."
+type AdminDuplicateCpfGroup {
+  "The ids of its accounts, joined by '-'."
+  id: ID!
+  users: [AdminMergeUser!]!
+  "The account the screen suggests keeping; null on a tie (the admin decides)."
+  suggestedKeepId: ID
+  suggestionReason: String!
+}
+
+type AdminDuplicateCpfGroups {
+  total: Int!
+  groups: [AdminDuplicateCpfGroup!]!
+}
+
+type AdminMergeAccount {
+  id: ID!
+  name: String
+  email: String
+  role: String
+  blocked: Boolean!
+}
+
+"REA-96: what joining drop into keep would do."
+type AdminMergePreview {
+  keep: AdminMergeAccount
+  drop: AdminMergeAccount
+  "Why they cannot be joined; empty when they can."
+  blockers: [String!]!
+  canMerge: Boolean!
+  "Hub links of the dropped account that move."
+  links: [AdminMergeLink!]!
+  "Certificates sent to the dropped e-mail, re-addressed to the kept one."
+  certificatesByEmail: Int!
+  "Certificate requests of the dropped e-mail, re-addressed too."
+  requestsByEmail: Int!
+  "Empty fields of the kept account filled from the dropped one (name, cpf, phone, date_of_birth)."
+  filledFields: [String!]!
+  signupsToMove: Int!
+  "Signups that stay on the old e-mail: the kept e-mail already has one in the same event."
+  signupConflicts: Int!
+}
+
+type AdminMergeResult {
+  keepUserId: ID!
+  linksMoved: [AdminMergeLink!]!
+  certificatesByEmail: Int!
+  requestsByEmail: Int!
+  filledFields: [String!]!
+  signupsMoved: Int!
+  signupsKept: Int!
+  signupsFailed: Int!
+  recorded: Boolean!
+  message: String!
+}
+
+extend type Query {
+  "REA-96, admin only: groups of accounts sharing a CPF (punctuation and spaces ignored)."
+  adminDuplicateCpfGroups: AdminDuplicateCpfGroups!
+  "REA-96, admin only: what joining dropUserId into keepUserId would do."
+  adminMergePreview(keepUserId: ID!, dropUserId: ID!): AdminMergePreview!
+}
+
+extend type Mutation {
+  """
+  REA-96, admin only: joins dropUserId into keepUserId. Every link moves to the kept account, the
+  Eventando signups of the dropped e-mail move to the kept e-mail (except where it already has one in
+  the same event), the dropped account is blocked and anonymized (never deleted; its sessions end)
+  and the merge is recorded (counts and field names, never values).
+  """
+  adminMergeUsers(keepUserId: ID!, dropUserId: ID!): AdminMergeResult!
+}
