@@ -15,6 +15,7 @@ import {
 import { loadUserProfile, toUserEmail } from '../../services/admin-user-profile';
 import { checkUserEmail, updateUserData } from '../../services/admin-user-edit';
 import { loadEmailQueue } from '../../services/email-queue';
+import { loadDuplicateGroups, mergeAccounts, previewMerge } from '../../services/admin-user-merge';
 
 // Users and roles of the Hub admin (REA-10). Everything but adminAccess is admin only and
 // runs with the integration token after requireAdmin.
@@ -209,6 +210,27 @@ const Admin = {
       });
     },
 
+    // REA-96: accounts sharing a CPF, with a suggestion of which stays.
+    adminDuplicateCpfGroups: (_, __, ctx) => {
+      requireAdmin(ctx);
+      return loadDuplicateGroups({
+        integration: ctx.dataSources.managerIntegration,
+        eventando: ctx.dataSources.eventandoIntegration,
+      });
+    },
+
+    // REA-96: what joining two accounts would do.
+    adminMergePreview: (_, args, ctx) => {
+      requireAdmin(ctx);
+      return previewMerge({
+        integration: ctx.dataSources.managerIntegration,
+        eventando: ctx.dataSources.eventandoIntegration,
+        actor: ctx.user,
+        keepId: userIdArg(args.keepUserId),
+        dropId: userIdArg(args.dropUserId),
+      });
+    },
+
     // REA-52: every e-mail sent to the user, newest first, with Mailgun's events.
     adminUserEmails: async (_, args, ctx) => {
       requireAdmin(ctx);
@@ -289,6 +311,21 @@ const Admin = {
       const user = await integration.adminFindUserProfile(userId);
       const profile = user ? await loadUserProfile({ user, dataSources: ctx.dataSources, toUser }) : null;
       return { ...result, profile };
+    },
+
+    // REA-96: joins two accounts of the same person (services/admin-user-merge). Serialized with the
+    // role changes: a merge may take an admin out, and two at once must not race.
+    adminMergeUsers: (_, args, ctx) => {
+      requireAdmin(ctx);
+      const keepId = userIdArg(args.keepUserId);
+      const dropId = userIdArg(args.dropUserId);
+      return serialized(() => mergeAccounts({
+        integration: ctx.dataSources.managerIntegration,
+        eventando: ctx.dataSources.eventandoIntegration,
+        actor: ctx.user,
+        keepId,
+        dropId,
+      }));
     },
 
     setUserRole: async (_, args, ctx) => {

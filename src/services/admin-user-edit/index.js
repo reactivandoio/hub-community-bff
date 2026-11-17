@@ -97,10 +97,10 @@ const eventKeyOf = (signup) => {
   return key == null ? null : String(key);
 };
 
-const signupIdOf = (signup) => String(signup.documentId || signup.id);
+export const signupIdOf = (signup) => String(signup.documentId || signup.id);
 
 /** The old address's signups split into those that can move and those that stay. */
-const planSignupMove = async (eventando, fromEmail, toEmail) => {
+export const planSignupMove = async (eventando, fromEmail, toEmail) => {
   const [from, to] = await Promise.all([
     eventando.findSignupsByEmail(fromEmail),
     eventando.findSignupsByEmail(toEmail),
